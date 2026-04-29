@@ -31,10 +31,18 @@ object AppUpdater {
         val sizeBytes: Long
     )
 
+    /** 마지막 fetchLatest 실패 사유. UI 진단용 — 성공 시 null. */
+    @Volatile var lastFetchError: String? = null
+        private set
+
     suspend fun fetchLatest(): Release? = withContext(Dispatchers.IO) {
-        runCatching {
+        try {
             val releaseJson = JSONObject(httpGetText(API_URL, githubAccept = true))
-            val assets = releaseJson.optJSONArray("assets") ?: return@runCatching null
+            val assets = releaseJson.optJSONArray("assets")
+            if (assets == null) {
+                lastFetchError = "API 응답에 assets 없음 (release 미발행?): ${releaseJson.optString("message")}"
+                return@withContext null
+            }
 
             var apkUrl = ""
             var apkName = ""
@@ -51,9 +59,13 @@ object AppUpdater {
                     name == "version.json" -> versionJsonUrl = url
                 }
             }
-            if (apkUrl.isEmpty() || versionJsonUrl.isEmpty()) return@runCatching null
+            if (apkUrl.isEmpty() || versionJsonUrl.isEmpty()) {
+                lastFetchError = "asset 누락 (apk=${apkUrl.isNotEmpty()}, json=${versionJsonUrl.isNotEmpty()})"
+                return@withContext null
+            }
 
             val v = JSONObject(httpGetText(versionJsonUrl, githubAccept = false))
+            lastFetchError = null
             Release(
                 versionCode = v.optLong("versionCode"),
                 versionName = v.optString("versionName"),
@@ -61,7 +73,11 @@ object AppUpdater {
                 apkName = apkName,
                 sizeBytes = apkSize
             )
-        }.onFailure { Log.w(TAG, "fetchLatest failed", it) }.getOrNull()
+        } catch (e: Exception) {
+            lastFetchError = "${e.javaClass.simpleName}: ${e.message ?: "(no message)"}"
+            Log.w(TAG, "fetchLatest failed", e)
+            null
+        }
     }
 
     private fun httpGetText(url: String, githubAccept: Boolean): String {
@@ -71,7 +87,15 @@ object AppUpdater {
             instanceFollowRedirects = true
             if (githubAccept) setRequestProperty("Accept", "application/vnd.github+json")
         }
-        return conn.inputStream.bufferedReader().use { it.readText() }
+        // GitHub API는 rate limit/오류 시 403/422 등으로 응답 + JSON body 포함.
+        // inputStream은 4xx/5xx에서 throw하므로 errorStream을 같이 읽어 사유 노출.
+        val code = conn.responseCode
+        return if (code in 200..299) {
+            conn.inputStream.bufferedReader().use { it.readText() }
+        } else {
+            val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+            throw java.io.IOException("HTTP $code from $url — body: ${errBody.take(300)}")
+        }
     }
 
     fun currentVersionCode(context: Context): Long {
