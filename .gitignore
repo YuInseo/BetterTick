@@ -23,6 +23,8 @@ keystore.properties
 # Keystore files (never commit real keystores)
 *.jks
 *.keystore
+# debug keystore는 보안상 의미 없음 — 모든 빌드에서 동일 SHA-1 보장 위해 commit
+!app/debug.keystore
 
 # IntelliJ / Android Studio
 *.iml
