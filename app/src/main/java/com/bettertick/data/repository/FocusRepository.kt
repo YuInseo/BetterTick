@@ -7,7 +7,9 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.ListenSource
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SnapshotListenOptions
+import com.google.firebase.firestore.Source
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import java.time.LocalDate
@@ -106,12 +108,16 @@ class FocusRepository @Inject constructor(
     }
 
     suspend fun endSession(sessionId: String, durationSeconds: Long) {
-        firestoreProvider.focusSessionsCollection().document(sessionId).update(
-            mapOf(
-                "endedAt" to Timestamp.now(),
-                "durationSeconds" to durationSeconds,
-                // Firebase Kotlin 매퍼가 isCompleted → completed로 직렬화함
-                "completed" to true
+        // read-modify-write로 처리 — update(map) 하드코딩은 Kotlin is* Boolean
+        // 직렬화 필드명 불확실성에 부딪힘. set(modifiedSession)은 read 매핑과 항상 일치.
+        val doc = firestoreProvider.focusSessionsCollection().document(sessionId)
+        val session = doc.get(Source.CACHE).await().toObject(FocusSession::class.java) ?: return
+        doc.set(
+            session.copy(
+                id = sessionId,
+                endedAt = Timestamp.now(),
+                durationSeconds = durationSeconds,
+                isCompleted = true
             )
         )
     }
