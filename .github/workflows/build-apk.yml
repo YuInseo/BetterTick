@@ -47,7 +47,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
         with:
           cache-read-only: false
-          gradle-home-cache-cleanup: true
+          # gradle-home-cache-cleanup 비활성: post-action에서 Gradle 9.5.0
+          # dummy cleanup build를 돌리는데, 해당 버전에서 cache 설정 API가
+          # write-only로 바뀌어 실패함. 산출물엔 영향 없지만 빨간 X 노이즈.
           gradle-home-cache-includes: |
             caches
             notifications
