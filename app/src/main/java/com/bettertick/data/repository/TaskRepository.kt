@@ -140,34 +140,42 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun toggleComplete(taskId: String, isCompleted: Boolean) {
-        // Firebase Kotlin 매퍼는 is* Boolean 프로퍼티의 직렬화 필드명을 SDK
-        // 버전에 따라 다르게 결정함(`isCompleted` 또는 `completed`). update(map)
-        // 으로 하드코딩하면 한쪽이 빗나가 데이터가 안 바뀜. set(modifiedTask)는
-        // 같은 reflection 경로를 쓰므로 read 매핑과 항상 일치.
-        val doc = firestoreProvider.tasksCollection().document(taskId)
-        val task = doc.get(Source.CACHE).await().toObject(Task::class.java) ?: return
-        doc.set(
-            task.copy(
-                id = taskId,
-                isCompleted = isCompleted,
-                completedAt = if (isCompleted) Timestamp.now() else null,
-                updatedAt = Timestamp.now()
-            )
+        // 양 필드명(`isCompleted`/`completed`)에 동시 write. Kotlin Firestore 매퍼의
+        // `is*` Boolean 직렬화 필드명이 SDK 버전/환경에 따라 갈리는 문제를 우회.
+        // 어느 쪽이 read에 사용되든 같은 값이 들어가므로 round-trip 보장.
+        // set(merge=true)는 필드 미존재 시도 안전하게 생성.
+        val updates = mapOf(
+            "isCompleted" to isCompleted,
+            "completed" to isCompleted,
+            "completedAt" to if (isCompleted) Timestamp.now() else null,
+            "updatedAt" to Timestamp.now()
         )
+        try {
+            firestoreProvider.tasksCollection().document(taskId)
+                .set(updates, com.google.firebase.firestore.SetOptions.merge())
+            android.util.Log.d("TaskRepository", "toggleComplete OK $taskId → $isCompleted")
+        } catch (e: Exception) {
+            android.util.Log.e("TaskRepository", "toggleComplete FAILED $taskId", e)
+            throw e
+        }
         refreshWidget()
     }
 
     suspend fun setAbandoned(taskId: String, isAbandoned: Boolean) {
-        val doc = firestoreProvider.tasksCollection().document(taskId)
-        val task = doc.get(Source.CACHE).await().toObject(Task::class.java) ?: return
-        doc.set(
-            task.copy(
-                id = taskId,
-                isAbandoned = isAbandoned,
-                abandonedAt = if (isAbandoned) Timestamp.now() else null,
-                updatedAt = Timestamp.now()
-            )
+        val updates = mapOf(
+            "isAbandoned" to isAbandoned,
+            "abandoned" to isAbandoned,
+            "abandonedAt" to if (isAbandoned) Timestamp.now() else null,
+            "updatedAt" to Timestamp.now()
         )
+        try {
+            firestoreProvider.tasksCollection().document(taskId)
+                .set(updates, com.google.firebase.firestore.SetOptions.merge())
+            android.util.Log.d("TaskRepository", "setAbandoned OK $taskId → $isAbandoned")
+        } catch (e: Exception) {
+            android.util.Log.e("TaskRepository", "setAbandoned FAILED $taskId", e)
+            throw e
+        }
         refreshWidget()
     }
 
