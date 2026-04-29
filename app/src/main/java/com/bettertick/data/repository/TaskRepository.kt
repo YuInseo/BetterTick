@@ -140,10 +140,6 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun toggleComplete(taskId: String, isCompleted: Boolean) {
-        // 양 필드명(`isCompleted`/`completed`)에 동시 write. Kotlin Firestore 매퍼의
-        // `is*` Boolean 직렬화 필드명이 SDK 버전/환경에 따라 갈리는 문제를 우회.
-        // 어느 쪽이 read에 사용되든 같은 값이 들어가므로 round-trip 보장.
-        // set(merge=true)는 필드 미존재 시도 안전하게 생성.
         val updates = mapOf(
             "isCompleted" to isCompleted,
             "completed" to isCompleted,
@@ -151,12 +147,28 @@ class TaskRepository @Inject constructor(
             "updatedAt" to Timestamp.now()
         )
         try {
+            // .await()를 빼면 lazy로 갈 수 있어서 명시적으로 기다림 →
+            // 진단 시 실제 백엔드 결과를 확인 가능.
             firestoreProvider.tasksCollection().document(taskId)
                 .set(updates, com.google.firebase.firestore.SetOptions.merge())
+                .await()
             android.util.Log.d("TaskRepository", "toggleComplete OK $taskId → $isCompleted")
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(
+                    appContext,
+                    "write OK: $isCompleted",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
         } catch (e: Exception) {
             android.util.Log.e("TaskRepository", "toggleComplete FAILED $taskId", e)
-            throw e
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                android.widget.Toast.makeText(
+                    appContext,
+                    "write FAIL: ${e.javaClass.simpleName}: ${e.message?.take(120)}",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
         }
         refreshWidget()
     }
