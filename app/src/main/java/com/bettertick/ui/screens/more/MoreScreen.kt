@@ -23,6 +23,7 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +33,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -58,6 +63,8 @@ fun MoreScreen(
     onNavigateToWidgets: () -> Unit,
     onNavigateToAccount: () -> Unit
 ) {
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -175,6 +182,15 @@ fun MoreScreen(
                 )
             }
 
+            // Update
+            SettingsCard {
+                SettingsItem(
+                    icon = Icons.Outlined.SystemUpdate,
+                    title = "업데이트 확인",
+                    onClick = { showUpdateDialog = true }
+                )
+            }
+
             // Logout
             SettingsCard {
                 Row(
@@ -195,6 +211,10 @@ fun MoreScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showUpdateDialog) {
+        UpdateCheckDialog(onDismiss = { showUpdateDialog = false })
     }
 }
 
