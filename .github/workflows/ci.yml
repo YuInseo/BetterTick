@@ -45,7 +45,9 @@ jobs:
         # 빌드를 막지 않고 Lint 결과만 본다. 실제 finding 은 아래 dump
         # 단계와 업로드된 아티팩트로 확인.
         continue-on-error: true
-        run: ./gradlew lintDebug --stacktrace
+        run: |
+          set -o pipefail
+          ./gradlew lintDebug --stacktrace 2>&1 | tee -a build.log
 
       - name: Dump Lint Results
         if: always()
@@ -66,7 +68,20 @@ jobs:
           retention-days: 7
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee -a build.log
+
+      # 빌드 출력 전체를 항상 보존 — notify-failure 가 이 파일을 읽어
+      # 컴파일 에러 마지막 부분을 자동 이슈 본문에 박아넣는다.
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -90,10 +105,23 @@ jobs:
     permissions:
       issues: write
     steps:
+      # build 잡이 남긴 로그를 가져와 컴파일/lint 에러 꼬리를 이슈 본문에
+      # 직접 박는다. 그러면 Actions UI 인증 없이 issues API 만으로도 무엇이
+      # 깨졌는지 즉시 확인할 수 있다.
+      - name: Download Build Log
+        uses: actions/download-artifact@v4
+        with:
+          name: build-log
+          path: ./_log
+        continue-on-error: true
+
       - name: Open issue with run link
         uses: actions/github-script@v7
+        env:
+          BUILD_LOG_PATH: ./_log/build.log
         with:
           script: |
+            const fs = require('fs');
             const isPR = context.eventName === 'pull_request';
             const fullSha = isPR
               ? context.payload.pull_request.head.sha
@@ -144,6 +172,43 @@ jobs:
               rows.unshift(`| PR | #${prNumber} ${context.payload.pull_request.html_url} |`);
             }
 
+            // 빌드 로그에서 진짜 에러 부분만 발췌. 우선 'e:'(kotlinc),
+            // 'error:', 'FAILURE:', 'What went wrong' 주변을 모으고, 실패하면
+            // 끝쪽 80줄로 폴백.
+            let logSection = '';
+            try {
+              const logPath = process.env.BUILD_LOG_PATH;
+              if (logPath && fs.existsSync(logPath)) {
+                const raw = fs.readFileSync(logPath, 'utf8');
+                const lines = raw.split('\n');
+                const markers = /(^e: |error: |FAILURE: |What went wrong|Caused by:|Compilation error|Unresolved reference|cannot find symbol)/i;
+                const hits = [];
+                lines.forEach((ln, i) => {
+                  if (markers.test(ln)) {
+                    const start = Math.max(0, i - 2);
+                    const end = Math.min(lines.length, i + 6);
+                    hits.push([start, end]);
+                  }
+                });
+                // hit 윈도우 병합
+                const merged = [];
+                hits.sort((a,b)=>a[0]-b[0]).forEach(([s,e]) => {
+                  if (merged.length && s <= merged[merged.length-1][1]) {
+                    merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], e);
+                  } else merged.push([s,e]);
+                });
+                let excerpt = merged.length
+                  ? merged.map(([s,e]) => lines.slice(s,e).join('\n')).join('\n…\n')
+                  : lines.slice(-80).join('\n');
+                if (excerpt.length > 6000) excerpt = excerpt.slice(-6000);
+                logSection = ['### 빌드 로그 발췌', '```', excerpt, '```'].join('\n');
+              } else {
+                logSection = '_(build.log 아티팩트를 찾지 못했습니다)_';
+              }
+            } catch (e) {
+              logSection = `_(로그 파싱 실패: ${e.message})_`;
+            }
+
             const body = [
               `워크플로 **${context.workflow}** 가 \`${branch}\` 에서 실패했습니다.`,
               ``,
@@ -154,7 +219,9 @@ jobs:
               `### 실패한 잡`,
               jobsMd,
               ``,
-              `Lint 리포트와 빌드 산출물은 위 실행 페이지의 Artifacts 섹션에서 받을 수 있습니다.`,
+              logSection,
+              ``,
+              `전체 로그/Lint 리포트/빌드 산출물은 위 실행 페이지의 Artifacts 섹션에서 받을 수 있습니다.`,
               ``,
               `<sub>이 이슈는 \`.github/workflows/ci.yml\` 의 \`notify-failure\` 잡이 자동으로 생성했습니다. 수정 후 새 커밋이 통과하면 수동으로 닫아주세요.</sub>`,
             ].join('\n');
