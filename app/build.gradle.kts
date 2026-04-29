@@ -24,8 +24,11 @@ android {
         applicationId = "com.bettertick"
         minSdk = 28
         targetSdk = 34
-        versionCode = 3
-        versionName = "0.1.2"
+        // CI는 CI_VERSION_CODE/CI_VERSION_NAME을 주입해 commit count 기반으로
+        // versionCode를 단조 증가시킴 → AppUpdater가 새 버전을 정확히 감지.
+        // 로컬 빌드는 fallback 값 사용.
+        versionCode = System.getenv("CI_VERSION_CODE")?.toIntOrNull() ?: 3
+        versionName = System.getenv("CI_VERSION_NAME") ?: "0.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

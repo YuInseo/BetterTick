@@ -94,6 +94,11 @@ jobs:
       - name: Build debug APK
         id: build
         continue-on-error: true
+        env:
+          # 빌드 시점에 versionCode/versionName 주입 → 산출 APK manifest와
+          # version.json이 항상 일치 → AppUpdater의 versionCode 비교 정확.
+          CI_VERSION_CODE: ${{ steps.meta.outputs.code }}
+          CI_VERSION_NAME: ${{ steps.meta.outputs.name }}
         run: |
           set -o pipefail
           chmod +x ./gradlew
