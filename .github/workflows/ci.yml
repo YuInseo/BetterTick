@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # 모든 브랜치 푸시에서 자동 빌드. PR은 포크에서 올라온 것만 추가로 도는 게
+  # 의미 있고, 같은 리포 브랜치는 push 이벤트로 이미 빌드되니 중복 회피.
   push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
