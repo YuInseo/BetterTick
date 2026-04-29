@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -30,7 +31,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextTertiary
 
 /**
@@ -90,7 +90,7 @@ fun NotionUrlDialog(
                         color = Color.White,
                         fontSize = 14.sp
                     ),
-                    cursorBrush = SolidColor(Orange),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier.fillMaxWidth()
                 )
             }

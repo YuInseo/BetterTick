@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.ui.screens.focus.TimerState
 import com.bettertick.ui.theme.DarkCard
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 
 @Composable
@@ -68,7 +67,7 @@ fun RunningTimerBar(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(Orange)
+                    .background(MaterialTheme.colorScheme.primary)
             ) {
                 Icon(
                     imageVector = if (timerState.isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,

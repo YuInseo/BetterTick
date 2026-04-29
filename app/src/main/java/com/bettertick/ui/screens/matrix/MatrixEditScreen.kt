@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Reorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,7 +40,6 @@ import com.bettertick.data.model.defaultMatrix
 import com.bettertick.data.model.priorityLabel
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 
 /**
@@ -124,7 +124,7 @@ private fun QuadrantSummaryRow(
 ) {
     val accent = runCatching {
         Color(android.graphics.Color.parseColor(quadrant.colorHex))
-    }.getOrDefault(Orange)
+    }.getOrDefault(MaterialTheme.colorScheme.primary)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier

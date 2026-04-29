@@ -358,7 +358,7 @@ private fun ThemeColorCard(
                 .aspectRatio(1f)
                 .clip(RoundedCornerShape(12.dp))
                 .then(
-                    if (isSelected) Modifier.border(2.dp, Orange, RoundedCornerShape(12.dp))
+                    if (isSelected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
                     else Modifier
                 )
                 .background(brush = brush)
@@ -393,7 +393,7 @@ private fun ThemeColorCard(
                         .offset(x = (-4).dp, y = 4.dp)
                         .size(20.dp)
                         .clip(CircleShape)
-                        .background(Orange),
+                        .background(MaterialTheme.colorScheme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

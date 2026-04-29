@@ -43,7 +43,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.bettertick.ui.components.MarkdownInlineTransformation
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import java.time.LocalDate
@@ -81,7 +80,7 @@ fun TaskInputSheet(
                 unfocusedIndicatorColor = Color.Transparent,
                 focusedTextColor = MaterialTheme.colorScheme.onBackground,
                 unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                cursorColor = Orange
+                cursorColor = MaterialTheme.colorScheme.primary
             ),
             visualTransformation = markdownTransformation,
             // Single-line title — Enter (both hardware and the 완료 IME key)
@@ -113,7 +112,7 @@ fun TaskInputSheet(
                 unfocusedIndicatorColor = Color.Transparent,
                 focusedTextColor = MaterialTheme.colorScheme.onBackground,
                 unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                cursorColor = Orange
+                cursorColor = MaterialTheme.colorScheme.primary
             ),
             visualTransformation = markdownTransformation,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -149,18 +148,18 @@ fun TaskInputSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .clip(RoundedCornerShape(4.dp))
-                    .background(Orange.copy(alpha = 0.15f))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                     .clickable { showDatePicker = true }
                     .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Icon(
                     Icons.Default.CalendarToday,
                     contentDescription = null,
-                    tint = Orange,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(chipLabel, color = Orange, style = MaterialTheme.typography.labelMedium)
+                Text(chipLabel, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
             }
 
             Spacer(modifier = Modifier.width(4.dp))
@@ -193,7 +192,7 @@ fun TaskInputSheet(
                 Icon(
                     if (canSubmit) Icons.AutoMirrored.Filled.Send else Icons.Outlined.Mic,
                     contentDescription = if (canSubmit) "추가" else "Voice",
-                    tint = if (canSubmit) Orange else TextSecondary,
+                    tint = if (canSubmit) MaterialTheme.colorScheme.primary else TextSecondary,
                     modifier = Modifier.size(28.dp)
                 )
             }

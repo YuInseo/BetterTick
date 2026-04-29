@@ -35,7 +35,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Task
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -278,10 +277,10 @@ private fun DayCell(
                     when {
                         isSelected -> Modifier
                             .clip(CircleShape)
-                            .background(Orange)
+                            .background(MaterialTheme.colorScheme.primary)
                         isToday -> Modifier
                             .clip(CircleShape)
-                            .border(1.5.dp, Orange, CircleShape)
+                            .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
                         else -> Modifier
                     }
                 ),

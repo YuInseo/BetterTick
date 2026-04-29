@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -173,6 +174,8 @@ private fun MiniMonth(
 ) {
     val layout = remember(month) { MiniMonthLayout.of(month) }
     val textMeasurer = rememberTextMeasurer()
+    val accentColor = MaterialTheme.colorScheme.primary
+    val taskCellBg = accentColor.copy(alpha = 0.22f)
 
     Column(
         modifier = Modifier
@@ -227,7 +230,7 @@ private fun MiniMonth(
                 val hasTasks = lookup.hasTasksOn(date)
 
                 if (isToday || hasTasks) {
-                    val bgColor: Color = if (isToday) Orange else TaskCellBg
+                    val bgColor: Color = if (isToday) accentColor else taskCellBg
                     drawRoundRect(
                         color = bgColor,
                         topLeft = Offset(

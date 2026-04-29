@@ -71,7 +71,6 @@ import com.bettertick.ui.screens.tasks.components.TaskDatePickerSheet
 import com.bettertick.ui.screens.tasks.components.TaskDetailSheet
 import com.bettertick.ui.screens.tasks.components.TaskItem
 import com.bettertick.ui.theme.DarkBackground
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.DarkCard
@@ -299,9 +298,10 @@ fun TasksScreen(
             TaskSection.Future -> futureTasks
             TaskSection.NoDate -> noDueDateTasks
         }
+        val accentColor = MaterialTheme.colorScheme.primary
         fun colorFor(s: TaskSection): Color = when (s) {
             TaskSection.Overdue -> OverdueRed
-            TaskSection.Today -> Orange
+            TaskSection.Today -> accentColor
             TaskSection.Future, TaskSection.NoDate -> TextSecondary
         }
 
@@ -688,7 +688,7 @@ private fun SectionSettingsDialog(
                                         val tagHidden = tag.id in sectionHiddenTags
                                         val chipColor = runCatching {
                                             Color(android.graphics.Color.parseColor(tag.color))
-                                        }.getOrDefault(Orange)
+                                        }.getOrDefault(MaterialTheme.colorScheme.primary)
                                         Row(
                                             verticalAlignment = Alignment.CenterVertically,
                                             modifier = Modifier

@@ -36,7 +36,6 @@ import com.bettertick.data.model.Task
 import com.bettertick.ui.components.MarkdownText
 import com.bettertick.ui.theme.AbandonedBlue
 import com.bettertick.ui.theme.DarkSurface
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
@@ -155,7 +154,7 @@ fun TaskItem(
                     resolvedTags.forEach { tag ->
                         val chipColor = runCatching {
                             Color(android.graphics.Color.parseColor(tag.color))
-                        }.getOrDefault(Orange)
+                        }.getOrDefault(MaterialTheme.colorScheme.primary)
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))

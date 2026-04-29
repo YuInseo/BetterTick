@@ -19,7 +19,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import java.time.LocalDate
 import java.time.format.TextStyle
@@ -54,7 +53,7 @@ fun WeekDateRow(
                 Text(
                     text = dayName,
                     fontSize = 12.sp,
-                    color = if (isToday) Orange else TextSecondary
+                    color = if (isToday) MaterialTheme.colorScheme.primary else TextSecondary
                 )
                 Box(
                     modifier = Modifier
@@ -62,9 +61,9 @@ fun WeekDateRow(
                         .clip(CircleShape)
                         .then(
                             if (isToday) {
-                                Modifier.background(Orange)
+                                Modifier.background(MaterialTheme.colorScheme.primary)
                             } else if (isSelected) {
-                                Modifier.background(Orange.copy(alpha = 0.2f))
+                                Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                             } else {
                                 Modifier
                             }

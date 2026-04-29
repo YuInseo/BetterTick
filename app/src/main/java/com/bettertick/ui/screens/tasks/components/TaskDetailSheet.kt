@@ -47,6 +47,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -79,7 +80,6 @@ import com.bettertick.ui.components.MarkdownInlineTransformation
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
@@ -295,7 +295,7 @@ fun TaskDetailSheet(
                         .clip(checkboxShape)
                         .then(
                             if (task.isCompleted) {
-                                Modifier.background(Orange)
+                                Modifier.background(MaterialTheme.colorScheme.primary)
                             } else {
                                 Modifier.border(2.dp, TextSecondary, checkboxShape)
                             }
@@ -350,7 +350,7 @@ fun TaskDetailSheet(
                     fontWeight = FontWeight.Bold,
                     textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null
                 ),
-                cursorBrush = SolidColor(Orange),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -626,7 +626,7 @@ private fun MarkdownNotesEditor(
                     fontSize = 14.sp,
                     lineHeight = 20.sp
                 ),
-                cursorBrush = SolidColor(Orange),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 visualTransformation = transformation,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -1122,7 +1122,7 @@ private fun ChecklistRow(
                     fontSize = 15.sp,
                     textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None
                 ),
-                cursorBrush = SolidColor(Orange),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(
@@ -1285,7 +1285,7 @@ private fun TagPickerDialog(
                             onValueChange = { query = it },
                             singleLine = true,
                             textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-                            cursorBrush = SolidColor(Orange),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             modifier = Modifier.fillMaxWidth()
                         )

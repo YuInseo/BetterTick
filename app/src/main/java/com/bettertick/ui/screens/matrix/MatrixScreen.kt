@@ -64,7 +64,6 @@ import com.bettertick.ui.screens.tasks.components.TaskDetailSheet
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.DarkSurface
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import com.google.firebase.Timestamp
@@ -350,7 +349,7 @@ fun MatrixScreen(
                         )
                     }
                     .background(DarkCard.copy(alpha = 0.95f), RoundedCornerShape(8.dp))
-                    .border(1.dp, Orange, RoundedCornerShape(8.dp))
+                    .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                     .padding(horizontal = 10.dp, vertical = 6.dp)
             ) {
                 Text(
@@ -400,7 +399,7 @@ private fun QuadrantCard(
 ) {
     val accent = runCatching {
         Color(android.graphics.Color.parseColor(quadrant.colorHex))
-    }.getOrDefault(Orange)
+    }.getOrDefault(MaterialTheme.colorScheme.primary)
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(18.dp))

@@ -29,7 +29,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 
 @Composable
@@ -67,7 +66,7 @@ fun TaskInputBar(
                 unfocusedIndicatorColor = Color.Transparent,
                 focusedTextColor = MaterialTheme.colorScheme.onBackground,
                 unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
-                cursorColor = Orange
+                cursorColor = MaterialTheme.colorScheme.primary
             ),
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.weight(1f)
@@ -80,7 +79,7 @@ fun TaskInputBar(
                     text = ""
                 }
             },
-            containerColor = Orange,
+            containerColor = MaterialTheme.colorScheme.primary,
             contentColor = Color.White,
             shape = CircleShape,
             modifier = Modifier

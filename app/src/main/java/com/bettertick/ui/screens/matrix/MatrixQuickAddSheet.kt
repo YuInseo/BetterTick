@@ -23,6 +23,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,7 +50,6 @@ import com.bettertick.data.model.QuadrantConfig
 import com.bettertick.ui.components.MarkdownInlineTransformation
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 
@@ -104,7 +104,7 @@ fun MatrixQuickAddSheet(
                 value = title,
                 onValueChange = { title = it },
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
-                cursorBrush = SolidColor(Orange),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 visualTransformation = remember { MarkdownInlineTransformation() },
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
@@ -132,7 +132,7 @@ fun MatrixQuickAddSheet(
                 value = description,
                 onValueChange = { description = it },
                 textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-                cursorBrush = SolidColor(Orange),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
                     imeAction = ImeAction.Default
@@ -189,7 +189,7 @@ fun MatrixQuickAddSheet(
                 quadrants.forEach { q ->
                     val accent = runCatching {
                         Color(android.graphics.Color.parseColor(q.colorHex))
-                    }.getOrDefault(Orange)
+                    }.getOrDefault(MaterialTheme.colorScheme.primary)
                     DropdownMenuItem(
                         text = {
                             Text(
@@ -233,7 +233,7 @@ private fun QuadrantChip(
 ) {
     val accent = runCatching {
         Color(android.graphics.Color.parseColor(quadrant.colorHex))
-    }.getOrDefault(Orange)
+    }.getOrDefault(MaterialTheme.colorScheme.primary)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Start,

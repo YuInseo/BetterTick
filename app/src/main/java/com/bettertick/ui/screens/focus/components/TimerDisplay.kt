@@ -17,14 +17,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 
 @Composable
 fun TimerDisplay(
     timeText: String,
     progressFraction: Float,
     modifier: Modifier = Modifier,
-    color: Color = Orange
+    color: Color = MaterialTheme.colorScheme.primary
 ) {
     Box(
         modifier = modifier.size(200.dp),
