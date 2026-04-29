@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
@@ -51,7 +52,6 @@ import com.bettertick.data.model.priorityLabel
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 
@@ -79,7 +79,7 @@ fun QuadrantEditScreen(
 
     val accent = runCatching {
         Color(android.graphics.Color.parseColor(draft.colorHex))
-    }.getOrDefault(Orange)
+    }.getOrDefault(MaterialTheme.colorScheme.primary)
 
     Column(
         modifier = Modifier

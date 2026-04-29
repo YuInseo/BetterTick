@@ -69,7 +69,6 @@ import com.bettertick.ui.screens.calendar.components.YearView
 import com.bettertick.ui.screens.calendar.components.weekContaining
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkCard
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -181,7 +180,7 @@ fun CalendarScreen(
                                         Icon(
                                             Icons.Default.Check,
                                             contentDescription = null,
-                                            tint = Orange,
+                                            tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(20.dp)
                                         )
                                     }
@@ -482,7 +481,7 @@ fun CalendarScreen(
                                 DarkCard.copy(alpha = 0.95f),
                                 RoundedCornerShape(8.dp)
                             )
-                            .border(1.dp, Orange, RoundedCornerShape(8.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Text(
@@ -584,7 +583,7 @@ private fun DragAwareWeekStrip(
                                 .padding(top = 4.dp)
                                 .size(32.dp)
                                 .clip(androidx.compose.foundation.shape.CircleShape)
-                                .background(Orange.copy(alpha = 0.45f))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
                         )
                     }
                 }
@@ -603,7 +602,7 @@ private fun DragAwareWeekStrip(
                     .width(20.dp)
                     .height(84.dp)
                     .clip(RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp))
-                    .background(Orange.copy(alpha = 0.18f))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
             )
             Box(
                 modifier = Modifier
@@ -611,7 +610,7 @@ private fun DragAwareWeekStrip(
                     .width(20.dp)
                     .height(84.dp)
                     .clip(RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp))
-                    .background(Orange.copy(alpha = 0.18f))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
             )
         }
     }

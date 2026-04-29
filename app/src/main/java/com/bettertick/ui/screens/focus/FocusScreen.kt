@@ -40,7 +40,6 @@ import com.bettertick.ui.screens.focus.components.ActivityCategoryCard
 import com.bettertick.ui.screens.focus.components.RunningTimerBar
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -171,9 +170,9 @@ fun FocusScreen(
                     placeholder = { Text("활동 이름") },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Orange,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
                         unfocusedBorderColor = DarkSurfaceVariant,
-                        cursorColor = Orange,
+                        cursorColor = MaterialTheme.colorScheme.primary,
                         focusedTextColor = MaterialTheme.colorScheme.onBackground,
                         unfocusedTextColor = MaterialTheme.colorScheme.onBackground
                     )
@@ -188,7 +187,7 @@ fun FocusScreen(
                         }
                     }
                 ) {
-                    Text("추가", color = Orange)
+                    Text("추가", color = MaterialTheme.colorScheme.primary)
                 }
             },
             dismissButton = {

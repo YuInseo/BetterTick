@@ -85,7 +85,6 @@ import com.bettertick.ui.screens.tasks.TasksViewModel
 import com.bettertick.ui.screens.tasks.components.TaskInputSheet
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextTertiary
 import kotlinx.coroutines.launch
 

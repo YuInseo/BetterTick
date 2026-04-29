@@ -23,7 +23,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.bettertick.data.model.FocusCategory
 import com.bettertick.ui.theme.DarkCard
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 
 @Composable
@@ -64,7 +63,7 @@ fun ActivityCategoryCard(
             Icon(
                 Icons.Default.PlayArrow,
                 contentDescription = "Start ${category.name}",
-                tint = if (isTimerRunning) TextSecondary else Orange,
+                tint = if (isTimerRunning) TextSecondary else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(32.dp)
             )
         }

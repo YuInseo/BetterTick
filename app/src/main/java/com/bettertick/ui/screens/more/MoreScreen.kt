@@ -52,7 +52,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkCard
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.update.AppUpdater
@@ -336,7 +335,7 @@ private fun UpdateCheckItem(
             CircularProgressIndicator(
                 modifier = Modifier.size(20.dp),
                 strokeWidth = 2.dp,
-                color = Orange
+                color = MaterialTheme.colorScheme.primary
             )
         } else {
             Icon(

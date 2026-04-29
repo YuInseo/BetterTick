@@ -28,7 +28,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Habit
 import com.bettertick.ui.theme.DarkCard
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import java.time.LocalDate
@@ -84,7 +83,7 @@ fun HabitRow(
                             .clip(CircleShape)
                             .then(
                                 if (isCompleted) {
-                                    Modifier.background(Orange)
+                                    Modifier.background(MaterialTheme.colorScheme.primary)
                                 } else {
                                     Modifier.border(1.5.dp, TextTertiary, CircleShape)
                                 }

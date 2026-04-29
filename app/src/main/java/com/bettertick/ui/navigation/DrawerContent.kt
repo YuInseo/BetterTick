@@ -62,7 +62,6 @@ import com.bettertick.data.model.TaskList
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -125,14 +124,14 @@ fun DrawerContent(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(Orange)
+                            .background(MaterialTheme.colorScheme.primary)
                     )
                 } else {
                     Spacer(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(Orange)
+                            .background(MaterialTheme.colorScheme.primary)
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
@@ -176,14 +175,14 @@ fun DrawerContent(
 
         // Smart filters
         DrawerItem(
-            icon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = Orange, modifier = Modifier.size(24.dp)) },
+            icon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) },
             label = "오늘",
             count = todayCount,
             isSelected = selectedFilter == "today",
             onClick = onTodayClick
         )
         DrawerItem(
-            icon = { Icon(Icons.Default.Inbox, contentDescription = null, tint = Orange, modifier = Modifier.size(24.dp)) },
+            icon = { Icon(Icons.Default.Inbox, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) },
             label = "기본함",
             count = inboxCount,
             isSelected = selectedFilter == "inbox",
@@ -211,7 +210,7 @@ fun DrawerContent(
                 Icon(
                     Icons.Default.Label,
                     contentDescription = null,
-                    tint = Orange,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
@@ -262,7 +261,7 @@ fun DrawerContent(
                         contentDescription = null,
                         tint = runCatching {
                             Color(android.graphics.Color.parseColor(tag.color))
-                        }.getOrDefault(Orange),
+                        }.getOrDefault(MaterialTheme.colorScheme.primary),
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(12.dp))
@@ -313,7 +312,7 @@ fun DrawerContent(
                         Icon(
                             Icons.Default.Folder,
                             contentDescription = null,
-                            tint = Orange,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(16.dp))
@@ -471,7 +470,7 @@ private fun PinnedListTile(
             Icon(
                 imageVector = Icons.Default.Folder,
                 contentDescription = null,
-                tint = Orange,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(28.dp)
             )
         }

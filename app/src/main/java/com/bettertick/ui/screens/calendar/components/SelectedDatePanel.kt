@@ -58,7 +58,6 @@ import com.bettertick.ui.screens.tasks.components.TaskDetailSheet
 import com.bettertick.ui.screens.tasks.components.TaskItem
 import com.bettertick.ui.theme.AbandonedBlue
 import com.bettertick.ui.theme.DarkCard
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
@@ -379,7 +378,7 @@ private fun TaskActionSheet(
                 .padding(horizontal = 8.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            ActionTile(Icons.Outlined.PushPin, "상단 고정", Orange) { onDismiss() }
+            ActionTile(Icons.Outlined.PushPin, "상단 고정", MaterialTheme.colorScheme.primary) { onDismiss() }
             ActionTile(Icons.Outlined.Share, "공유", Color(0xFF22C9A0)) { onDismiss() }
             ActionTile(Icons.Outlined.Close, "계획 취소", AbandonedBlue) { onAbandon() }
             ActionTile(Icons.Outlined.Delete, "삭제", OverdueRed) { onDelete() }

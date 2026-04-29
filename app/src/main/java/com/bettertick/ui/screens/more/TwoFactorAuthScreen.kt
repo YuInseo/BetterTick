@@ -36,7 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkCard
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,7 +87,7 @@ fun TwoFactorAuthScreen(
                     Icon(
                         Icons.Outlined.Shield,
                         contentDescription = null,
-                        tint = Orange,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(28.dp)
                     )
                     Spacer(Modifier.size(12.dp))
@@ -109,7 +108,7 @@ fun TwoFactorAuthScreen(
                         checked = enabled,
                         onCheckedChange = { enabled = it },
                         colors = SwitchDefaults.colors(
-                            checkedTrackColor = Orange,
+                            checkedTrackColor = MaterialTheme.colorScheme.primary,
                             checkedThumbColor = androidx.compose.ui.graphics.Color.White
                         )
                     )

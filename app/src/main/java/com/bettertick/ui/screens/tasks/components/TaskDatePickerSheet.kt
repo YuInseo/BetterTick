@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -43,7 +44,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import java.time.LocalDate
@@ -361,14 +361,14 @@ private fun TabRow(
                     text = tab.label,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (isSelected) DatePickerAccent else TextSecondary
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else TextSecondary
                 )
                 Spacer(Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
                         .height(2.dp)
                         .width(if (isSelected) 28.dp else 0.dp)
-                        .background(DatePickerAccent)
+                        .background(MaterialTheme.colorScheme.primary)
                 )
             }
         }
@@ -475,7 +475,7 @@ private fun DateCell(
             .size(40.dp)
             .clip(CircleShape)
             .then(
-                if (selected) Modifier.background(DatePickerAccent) else Modifier
+                if (selected) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier
             )
             .clickable { onClick() },
         contentAlignment = Alignment.Center
@@ -637,7 +637,7 @@ private fun Footer(
             text = "삭제",
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
-            color = DatePickerAccent,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .clickable { onDelete() }
                 .padding(vertical = 8.dp)
@@ -647,7 +647,7 @@ private fun Footer(
             text = "취소",
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
-            color = DatePickerAccent,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .clickable { onCancel() }
                 .padding(vertical = 8.dp, horizontal = 12.dp)
@@ -657,7 +657,7 @@ private fun Footer(
             text = "확인",
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
-            color = DatePickerAccent,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .clickable { onConfirm() }
                 .padding(vertical = 8.dp, horizontal = 12.dp)
@@ -670,4 +670,3 @@ private enum class DateTab(val label: String) {
     Duration("지속 시간")
 }
 
-private val DatePickerAccent = Orange

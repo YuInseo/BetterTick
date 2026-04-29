@@ -36,7 +36,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurfaceVariant
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 
@@ -56,11 +55,11 @@ fun RegisterScreen(
     var localError by remember { mutableStateOf<String?>(null) }
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = Orange,
+        focusedBorderColor = MaterialTheme.colorScheme.primary,
         unfocusedBorderColor = DarkSurfaceVariant,
-        focusedLabelColor = Orange,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
         unfocusedLabelColor = TextSecondary,
-        cursorColor = Orange,
+        cursorColor = MaterialTheme.colorScheme.primary,
         focusedTextColor = MaterialTheme.colorScheme.onBackground,
         unfocusedTextColor = MaterialTheme.colorScheme.onBackground
     )
@@ -79,7 +78,7 @@ fun RegisterScreen(
             Text(
                 text = "회원가입",
                 style = MaterialTheme.typography.headlineLarge,
-                color = Orange
+                color = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -176,8 +175,8 @@ fun RegisterScreen(
                     .height(52.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = Orange,
-                    disabledContainerColor = Orange.copy(alpha = 0.4f)
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
                 )
             ) {
                 if (isLoading) {
@@ -195,7 +194,7 @@ fun RegisterScreen(
 
             Text(
                 text = "이미 계정이 있으신가요? 로그인",
-                color = Orange,
+                color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.clickable { onNavigateToLogin() }

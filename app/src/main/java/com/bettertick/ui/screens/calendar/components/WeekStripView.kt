@@ -27,7 +27,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Task
-import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -93,10 +92,10 @@ private fun WeekDayCell(
                     when {
                         isSelected -> Modifier
                             .clip(CircleShape)
-                            .background(Orange)
+                            .background(MaterialTheme.colorScheme.primary)
                         isToday -> Modifier
                             .clip(CircleShape)
-                            .border(1.5.dp, Orange, CircleShape)
+                            .border(1.5.dp, MaterialTheme.colorScheme.primary, CircleShape)
                         else -> Modifier
                     }
                 ),
@@ -108,7 +107,7 @@ private fun WeekDayCell(
                 fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
                 color = when {
                     isSelected -> Color.White
-                    isToday -> Orange
+                    isToday -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.onBackground
                 },
                 textAlign = TextAlign.Center
