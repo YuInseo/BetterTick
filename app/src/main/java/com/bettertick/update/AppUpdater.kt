@@ -3,7 +3,6 @@ package com.bettertick.update
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
@@ -112,19 +111,14 @@ object AppUpdater {
         context.startActivity(intent)
     }
 
-    /** API 26+ requires the user to opt the app into installing unknown
-     *  sources. Without this the install intent silently no-ops. */
+    /** Without REQUEST_INSTALL_PACKAGES granted, the install intent silently
+     *  no-ops. minSdk 28 ≥ O so we always run the check. */
     fun canRequestInstall(context: Context): Boolean =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.packageManager.canRequestPackageInstalls()
-        } else {
-            true
-        }
+        context.packageManager.canRequestPackageInstalls()
 
     /** Bounce the user to the per-app "install unknown apps" toggle so they
      *  can grant permission, then come back to the app for the next launch. */
     fun openInstallPermissionSettings(context: Context) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
         val intent = Intent(
             Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
             Uri.parse("package:${context.packageName}")
