@@ -215,7 +215,8 @@ fun MoreScreen(
                                 Toast.makeText(context, "v${release.versionName} 다운로드 중…", Toast.LENGTH_SHORT).show()
                                 val apk = AppUpdater.downloadApk(context, release)
                                 if (apk == null) {
-                                    Toast.makeText(context, "다운로드 실패 — 네트워크 확인", Toast.LENGTH_SHORT).show()
+                                    val reason = AppUpdater.lastDownloadError ?: "(원인 불명)"
+                                    Toast.makeText(context, "다운로드 실패: $reason", Toast.LENGTH_LONG).show()
                                     return@launch
                                 }
                                 AppUpdater.launchInstall(context, apk)
