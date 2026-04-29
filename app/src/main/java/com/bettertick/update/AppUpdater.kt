@@ -1,123 +1,155 @@
 package com.bettertick.update
 
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInstaller
 import android.net.Uri
+import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.bettertick.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 
+@Serializable
+data class VersionManifest(
+    val versionCode: Int,
+    val versionName: String,
+    val sha: String = "",
+    val apkUrl: String,
+    val notes: String = "",
+)
+
 /**
- * Lightweight GitHub Releases updater. Polls the bettertick repo's latest
- * release, compares its tag (semver-ish) against the installed versionName,
- * and if newer downloads the APK asset and launches the system installer
- * prompt. Network + disk I/O happen on IO dispatcher; callers handle the UI.
+ * Low-level update operations: fetches a [VersionManifest] from the URL
+ * baked into BuildConfig, downloads the APK, and hands off to the system
+ * PackageInstaller. The caller (UpdateManager) drives the state machine.
  */
 object AppUpdater {
     private const val TAG = "AppUpdater"
-    private const val API_URL =
-        "https://api.github.com/repos/yuinseo/bettertick/releases/latest"
     private const val PREFS = "app_updater"
     private const val KEY_LAST_CHECK = "last_check_ms"
     private const val CHECK_INTERVAL_MS = 12L * 60L * 60L * 1000L // 12h
 
-    data class Release(
-        val tag: String,
-        val apkUrl: String,
-        val apkName: String,
-        val sizeBytes: Long
-    )
+    private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun fetchLatest(): Release? = withContext(Dispatchers.IO) {
+    suspend fun fetchManifest(): VersionManifest? = withContext(Dispatchers.IO) {
         runCatching {
-            val conn = (URL(API_URL).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 8000
-                readTimeout = 8000
-                setRequestProperty("Accept", "application/vnd.github+json")
+            val cacheBuster = "?_=" + System.currentTimeMillis()
+            val conn = (URL(BuildConfig.VERSION_MANIFEST_URL + cacheBuster)
+                .openConnection() as HttpURLConnection).apply {
+                connectTimeout = 7000
+                readTimeout = 10000
+                instanceFollowRedirects = true
+                useCaches = false
+                setRequestProperty("User-Agent", "BetterTick/${BuildConfig.VERSION_NAME}")
+                setRequestProperty("Cache-Control", "no-cache, no-store, must-revalidate")
+                setRequestProperty("Pragma", "no-cache")
             }
-            val body = conn.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(body)
-            val tag = json.optString("tag_name").trimStart('v')
-            val assets = json.optJSONArray("assets") ?: return@runCatching null
-            for (i in 0 until assets.length()) {
-                val a = assets.getJSONObject(i)
-                val name = a.optString("name")
-                if (name.endsWith(".apk", ignoreCase = true)) {
-                    return@runCatching Release(
-                        tag = tag,
-                        apkUrl = a.optString("browser_download_url"),
-                        apkName = name,
-                        sizeBytes = a.optLong("size")
-                    )
-                }
-            }
-            null
-        }.onFailure { Log.w(TAG, "fetchLatest failed", it) }.getOrNull()
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            json.decodeFromString(VersionManifest.serializer(), text)
+        }.onFailure { Log.w(TAG, "fetchManifest failed", it) }.getOrNull()
     }
 
-    fun currentVersion(context: Context): String =
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
+    fun isNewer(manifest: VersionManifest): Boolean =
+        manifest.versionCode > BuildConfig.VERSION_CODE
 
-    /** Strict numeric compare on dot-separated segments. "0.1.1" > "0.1.0". */
-    fun isNewer(latest: String, current: String): Boolean {
-        val l = latest.split(".").mapNotNull { it.toIntOrNull() }
-        val c = current.split(".").mapNotNull { it.toIntOrNull() }
-        val n = maxOf(l.size, c.size)
-        for (i in 0 until n) {
-            val a = l.getOrElse(i) { 0 }
-            val b = c.getOrElse(i) { 0 }
-            if (a != b) return a > b
-        }
-        return false
+    suspend fun downloadApk(
+        context: Context,
+        manifest: VersionManifest,
+        onProgress: (Int) -> Unit,
+    ): File? = withContext(Dispatchers.IO) {
+        runCatching {
+            val dir = File(context.cacheDir, "updates").apply { mkdirs() }
+            // 이전 받기 부스러기 청소 — 디스크 누적 방지.
+            dir.listFiles()?.forEach { it.delete() }
+            val outFile = File(dir, "BetterTick-${manifest.versionCode}.apk")
+            val conn = (URL(manifest.apkUrl).openConnection() as HttpURLConnection).apply {
+                connectTimeout = 10000
+                readTimeout = 30000
+                instanceFollowRedirects = true
+            }
+            val total = conn.contentLengthLong.coerceAtLeast(1L)
+            conn.inputStream.use { input ->
+                outFile.outputStream().use { output ->
+                    val buf = ByteArray(64 * 1024)
+                    var done = 0L
+                    var read: Int
+                    while (input.read(buf).also { read = it } != -1) {
+                        output.write(buf, 0, read)
+                        done += read
+                        onProgress(((done * 100) / total).toInt().coerceIn(0, 100))
+                    }
+                }
+            }
+            outFile
+        }.onFailure { Log.w(TAG, "downloadApk failed", it) }.getOrNull()
     }
 
-    suspend fun downloadApk(context: Context, release: Release): File? =
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val dir = File(context.cacheDir, "updates").apply { mkdirs() }
-                dir.listFiles()?.forEach { it.delete() }
-                val file = File(dir, release.apkName)
-                val conn = (URL(release.apkUrl).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10000
-                    readTimeout = 60000
-                    instanceFollowRedirects = true
-                }
-                conn.inputStream.use { input ->
-                    file.outputStream().use { output -> input.copyTo(output) }
-                }
-                file
-            }.onFailure { Log.w(TAG, "downloadApk failed", it) }.getOrNull()
+    /**
+     * Stream the APK into a PackageInstaller session and commit. The system
+     * shows the install confirmation; result lands in InstallResultReceiver
+     * which can relaunch the app on success.
+     */
+    fun installApk(context: Context, apk: File) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            installViaPackageInstaller(context, apk)
+        } else {
+            // 28 minSdk 이라 사실상 안 닿음 — 안전 폴백만.
+            val authority = "${context.packageName}.fileprovider"
+            val uri = FileProvider.getUriForFile(context, authority, apk)
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        Intent.FLAG_ACTIVITY_NEW_TASK
+                )
+            }
+            context.startActivity(intent)
         }
+    }
 
-    fun launchInstall(context: Context, apk: File) {
-        val uri = FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            apk
+    private fun installViaPackageInstaller(context: Context, apk: File) {
+        val installer = context.packageManager.packageInstaller
+        val params = PackageInstaller.SessionParams(
+            PackageInstaller.SessionParams.MODE_FULL_INSTALL
         )
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(
-                Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                    Intent.FLAG_ACTIVITY_NEW_TASK
+        val sessionId = installer.createSession(params)
+        installer.openSession(sessionId).use { session ->
+            apk.inputStream().use { input ->
+                session.openWrite("apk", 0, -1).use { output ->
+                    input.copyTo(output)
+                    session.fsync(output)
+                }
+            }
+            val intent = Intent(context, InstallResultReceiver::class.java).apply {
+                action = InstallResultReceiver.ACTION
+                setPackage(context.packageName)
+            }
+            val pi = PendingIntent.getBroadcast(
+                context,
+                sessionId,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                        PendingIntent.FLAG_MUTABLE else 0
             )
+            session.commit(pi.intentSender)
         }
-        context.startActivity(intent)
     }
 
-    /** Without REQUEST_INSTALL_PACKAGES granted, the install intent silently
-     *  no-ops. minSdk 28 ≥ O so we always run the check. */
+    /** API 26+ requires the user to opt the app into installing unknown
+     *  sources. minSdk 28 ≥ O so we always run the check. */
     fun canRequestInstall(context: Context): Boolean =
         context.packageManager.canRequestPackageInstalls()
 
-    /** Bounce the user to the per-app "install unknown apps" toggle so they
-     *  can grant permission, then come back to the app for the next launch. */
     fun openInstallPermissionSettings(context: Context) {
         val intent = Intent(
             Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
@@ -127,8 +159,6 @@ object AppUpdater {
             .onFailure { Log.w(TAG, "openInstallPermissionSettings failed", it) }
     }
 
-    /** True if it has been longer than [CHECK_INTERVAL_MS] since the last
-     *  successful poll. Avoids hammering the GitHub API on every cold start. */
     fun shouldCheck(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val last = prefs.getLong(KEY_LAST_CHECK, 0L)
