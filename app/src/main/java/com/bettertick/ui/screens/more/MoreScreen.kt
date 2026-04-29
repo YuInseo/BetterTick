@@ -55,6 +55,7 @@ import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.update.AppUpdater
+import com.bettertick.update.UpdateWorker
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -211,14 +212,15 @@ fun MoreScreen(
                                     Toast.makeText(context, "이미 최신 버전입니다 (v$currentVersion)", Toast.LENGTH_SHORT).show()
                                     return@launch
                                 }
-                                Toast.makeText(context, "v${release.versionName} 다운로드 중…", Toast.LENGTH_SHORT).show()
-                                val apk = AppUpdater.downloadApk(context, release)
-                                if (apk == null) {
-                                    val reason = AppUpdater.lastDownloadError ?: "(원인 불명)"
-                                    Toast.makeText(context, "다운로드 실패: $reason", Toast.LENGTH_LONG).show()
-                                    return@launch
-                                }
-                                AppUpdater.launchInstall(context, apk)
+                                // 무거운 다운로드/설치는 WorkManager로 위임 →
+                                // 사용자가 이 화면을 떠나도 끊기지 않고 계속됨.
+                                // 끝나면 UpdateWorker가 알림을 띄워준다.
+                                UpdateWorker.enqueue(context)
+                                Toast.makeText(
+                                    context,
+                                    "v${release.versionName} 다운로드 시작 — 알림에서 진행 상태를 확인하세요",
+                                    Toast.LENGTH_LONG
+                                ).show()
                             } finally {
                                 checkingUpdate = false
                             }

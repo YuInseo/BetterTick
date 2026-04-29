@@ -149,7 +149,13 @@ object AppUpdater {
                 conn.inputStream.use { input ->
                     file.outputStream().use { output -> input.copyTo(output) }
                 }
-                if (file.length() == 0L) throw java.io.IOException("downloaded file is empty")
+                // 잘린 다운로드는 설치 시 "패키지 파싱 오류"로 끝나므로
+                // GitHub API가 알려준 정확한 byte 수와 일치하는지 검증한다.
+                val got = file.length()
+                if (got == 0L) throw java.io.IOException("downloaded file is empty")
+                if (release.sizeBytes > 0 && got != release.sizeBytes) {
+                    throw java.io.IOException("size mismatch: got $got, expected ${release.sizeBytes}")
+                }
                 lastDownloadError = null
                 file
             } catch (e: Exception) {

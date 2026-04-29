@@ -2,17 +2,14 @@ package com.bettertick
 
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.lifecycleScope
 import com.bettertick.ui.navigation.BetterTickNavHost
 import com.bettertick.ui.theme.BetterTickTheme
-import com.bettertick.update.AppUpdater
+import com.bettertick.update.UpdateWorker
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -28,20 +25,9 @@ class MainActivity : ComponentActivity() {
                 BetterTickNavHost(openQuickAdd = openQuickAdd)
             }
         }
-        checkForUpdate()
-    }
-
-    /** Fire-and-forget update check: fetch latest release, download if newer,
-     *  hand off to the system installer. Silent on failure — next launch retries. */
-    private fun checkForUpdate() {
-        lifecycleScope.launch {
-            val release = AppUpdater.fetchLatest() ?: return@launch
-            val current = AppUpdater.currentVersionCode(this@MainActivity)
-            if (!AppUpdater.isNewer(release.versionCode, current)) return@launch
-            Log.i("MainActivity", "Update ${release.versionName} (code ${release.versionCode}) available (current $current)")
-            val apk = AppUpdater.downloadApk(this@MainActivity, release) ?: return@launch
-            AppUpdater.launchInstall(this@MainActivity, apk)
-        }
+        // WorkManager에 위임 — Activity가 destroy돼도 다운로드는 계속되고,
+        // 끝나면 알림으로 설치 프롬프트를 띄운다.
+        UpdateWorker.enqueue(applicationContext)
     }
 
     override fun onNewIntent(intent: Intent) {
