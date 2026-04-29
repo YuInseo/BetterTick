@@ -1,12 +1,15 @@
 package com.bettertick.ui.screens.more
 
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,9 +29,9 @@ import kotlinx.coroutines.launch
 
 /**
  * Shown when the user taps "업데이트 확인" in settings. Drives a small state
- * machine: Checking → UpToDate / Available / Failed; the Available state
- * transitions to Downloading after the user confirms. Dismiss closes and
- * resets to Idle so the next tap starts fresh.
+ * machine: Checking → UpToDate / Available / Failed; Available transitions
+ * to Downloading after the user confirms, and Downloading shows live
+ * progress until the system installer takes over.
  */
 @Composable
 fun UpdateCheckDialog(onDismiss: () -> Unit) {
@@ -65,19 +68,26 @@ fun UpdateCheckDialog(onDismiss: () -> Unit) {
 
         is UpdateManager.State.Available -> AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("새 버전 ${s.release.tag}") },
+            title = { Text("새 버전 ${s.manifest.versionName}") },
             text = {
-                Text(
-                    "현재 ${s.currentVersion} → ${s.release.tag} 으로 업데이트할 수 있습니다." +
-                        if (s.release.sizeBytes > 0)
-                            " (${"%.1f".format(s.release.sizeBytes / 1_048_576.0)} MB)"
-                        else ""
-                )
+                Column {
+                    Text(
+                        "현재 ${s.currentVersionName} → ${s.manifest.versionName} " +
+                            "(code ${s.manifest.versionCode}) 으로 업데이트할 수 있습니다."
+                    )
+                    if (s.manifest.notes.isNotBlank()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            s.manifest.notes,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
-                        manager.downloadAndInstall(s.release) { state = it }
+                        manager.downloadAndInstall(s.manifest) { state = it }
                     }
                 }) { Text("지금 설치") }
             },
@@ -85,16 +95,16 @@ fun UpdateCheckDialog(onDismiss: () -> Unit) {
         )
 
         is UpdateManager.State.Downloading -> AlertDialog(
-            onDismissRequest = {}, // 다운로드 중엔 닫기 막아 두 번 받지 않게
+            onDismissRequest = {}, // 다운로드 중엔 닫기 막음
             title = { Text("다운로드 중") },
             text = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Start,
-                ) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.width(12.dp))
-                    Text("${s.release.apkName} 받는 중…")
+                Column {
+                    Text("새 버전을 받는 중… ${s.percent}%")
+                    Spacer(Modifier.height(8.dp))
+                    LinearProgressIndicator(
+                        progress = { s.percent / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
             },
             confirmButton = {},
@@ -123,7 +133,7 @@ fun UpdateCheckDialog(onDismiss: () -> Unit) {
             title = { Text("업데이트 확인 실패") },
             text = {
                 Text(
-                    "네트워크 오류이거나 릴리스를 가져오지 못했습니다. " +
+                    "네트워크 오류이거나 매니페스트를 가져오지 못했습니다. " +
                         "잠시 후 다시 시도해 주세요.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
