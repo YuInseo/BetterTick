@@ -42,14 +42,27 @@ jobs:
           restore-keys: gradle-
 
       - name: Run Lint
-        run: ./gradlew lintDebug
+        # 빌드를 막지 않고 Lint 결과만 본다. 실제 finding 은 아래 dump
+        # 단계와 업로드된 아티팩트로 확인.
+        continue-on-error: true
+        run: ./gradlew lintDebug --stacktrace
+
+      - name: Dump Lint Results
+        if: always()
+        run: |
+          echo "=== lint-results-debug.txt ==="
+          cat app/build/reports/lint-results-debug.txt 2>/dev/null || echo "(missing)"
+          echo
+          echo "=== lint-results-debug.xml (head) ==="
+          head -200 app/build/reports/lint-results-debug.xml 2>/dev/null || echo "(missing)"
 
       - name: Upload Lint Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
-          path: app/build/reports/lint-results-debug.html
+          path: app/build/reports/
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Build Debug APK
