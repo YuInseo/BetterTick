@@ -90,23 +90,11 @@ fun TaskItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val checkboxShape = RoundedCornerShape(6.dp)
-        // 44dp 터치 타겟 + clickable(ripple). 부모 SwipeableTaskItem의
-        // detectHorizontalDragGestures는 touch slop 넘기 전엔 tap을 가로채지
-        // 않아야 정상이지만, race가 있을 수 있어 Box를 크게 잡아 마진 확보.
-        // 진단용 Toast: tap이 실제로 발화되는지 확인 (이슈 검증 후 제거).
-        val ctx = androidx.compose.ui.platform.LocalContext.current
+        // 44dp 터치 타겟으로 부모 drag detector와의 race 회피 + clickable로 ripple.
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .clickable {
-                    android.widget.Toast.makeText(
-                        ctx,
-                        "tap: ${if (task.isCompleted) "uncheck" else "check"}",
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                    android.util.Log.d("TaskItem", "checkbox click → toggle ${task.id} → ${!task.isCompleted}")
-                    onToggleComplete()
-                },
+                .clickable { onToggleComplete() },
             contentAlignment = Alignment.Center
         ) {
             Box(

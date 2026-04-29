@@ -17,7 +17,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
@@ -51,13 +54,36 @@ class TaskRepository @Inject constructor(
 
     private val widgetScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    // Optimistic UI overrides — toggleComplete/setAbandoned가 Firestore round-trip
+    // 결과에 의존하지 않고 즉시 시각 반영되도록 한다. snapshot listener의 cache
+    // 처리가 늦거나 Kotlin 매퍼가 필드명을 헷갈려도 UI는 무조건 업데이트됨.
+    // app 재시작하면 Firestore 캐시(offline-first)에서 다시 채워지므로 영구.
+    private val _optimisticCompleted = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    private val _optimisticAbandoned = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+
+    private fun List<Task>.applyOverrides(
+        completed: Map<String, Boolean>,
+        abandoned: Map<String, Boolean>
+    ): List<Task> = map { t ->
+        var v = t
+        completed[t.id]?.let { v = v.copy(isCompleted = it) }
+        abandoned[t.id]?.let { v = v.copy(isAbandoned = it) }
+        v
+    }
+
     private fun refreshWidget() {
         widgetScope.launch {
             runCatching { ReminderWidget().updateAll(appContext) }
         }
     }
 
-    fun observeAllTasks(): Flow<List<Task>> = callbackFlow {
+    fun observeAllTasks(): Flow<List<Task>> = combine(
+        rawObserveAllTasks(),
+        _optimisticCompleted,
+        _optimisticAbandoned
+    ) { tasks, completed, abandoned -> tasks.applyOverrides(completed, abandoned) }
+
+    private fun rawObserveAllTasks(): Flow<List<Task>> = callbackFlow {
         val registration = firestoreProvider.tasksCollection()
             .orderBy("sortOrder", Query.Direction.ASCENDING)
             .addSnapshotListener(cacheOptions) { snapshot, error ->
@@ -69,7 +95,13 @@ class TaskRepository @Inject constructor(
         awaitClose { registration.remove() }
     }
 
-    fun observeTasksByList(listId: String): Flow<List<Task>> = callbackFlow {
+    fun observeTasksByList(listId: String): Flow<List<Task>> = combine(
+        rawObserveTasksByList(listId),
+        _optimisticCompleted,
+        _optimisticAbandoned
+    ) { tasks, completed, abandoned -> tasks.applyOverrides(completed, abandoned) }
+
+    private fun rawObserveTasksByList(listId: String): Flow<List<Task>> = callbackFlow {
         val registration = firestoreProvider.tasksCollection()
             .whereEqualTo("listId", listId)
             .orderBy("sortOrder", Query.Direction.ASCENDING)
@@ -140,58 +172,37 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun toggleComplete(taskId: String, isCompleted: Boolean) {
+        // 1) 즉시 optimistic 반영 → UI 곧바로 토글
+        _optimisticCompleted.update { it + (taskId to isCompleted) }
+        // 2) 양 필드명에 동시 write (Kotlin is* Boolean 매퍼 필드명 SDK별 차이 우회)
         val updates = mapOf(
             "isCompleted" to isCompleted,
             "completed" to isCompleted,
             "completedAt" to if (isCompleted) Timestamp.now() else null,
             "updatedAt" to Timestamp.now()
         )
-        val msg = StringBuilder()
-        try {
-            // .await() 제거 — set은 fire-and-forget으로 호출만 하고 즉시 반환.
-            // Firestore의 local cache 쓰기는 동기적으로 일어나야 하므로 listener도
-            // 곧바로 fire되어야 정상.
+        runCatching {
             firestoreProvider.tasksCollection().document(taskId)
                 .set(updates, com.google.firebase.firestore.SetOptions.merge())
-            msg.append("set issued OK\n")
-
-            // 200ms 후 cache 상태 읽어서 진짜로 반영됐는지 확인
-            kotlinx.coroutines.delay(250)
-            val snap = firestoreProvider.tasksCollection().document(taskId)
-                .get(Source.CACHE).await()
-            val cachedIsCompleted = snap.getBoolean("isCompleted")
-            val cachedCompleted = snap.getBoolean("completed")
-            msg.append("cache: isCompleted=$cachedIsCompleted, completed=$cachedCompleted\n")
-            msg.append("hasPendingWrites=${snap.metadata.hasPendingWrites()}")
-            android.util.Log.d("TaskRepository", "toggleComplete diag $taskId → $msg")
-        } catch (e: Exception) {
-            msg.append("EXCEPTION: ${e.javaClass.simpleName}: ${e.message?.take(120)}")
-            android.util.Log.e("TaskRepository", "toggleComplete FAILED $taskId", e)
-        }
-        kotlinx.coroutines.withContext(Dispatchers.Main) {
-            android.widget.Toast.makeText(
-                appContext,
-                msg.toString(),
-                android.widget.Toast.LENGTH_LONG
-            ).show()
+        }.onFailure { e ->
+            android.util.Log.e("TaskRepository", "toggleComplete write failed $taskId", e)
         }
         refreshWidget()
     }
 
     suspend fun setAbandoned(taskId: String, isAbandoned: Boolean) {
+        _optimisticAbandoned.update { it + (taskId to isAbandoned) }
         val updates = mapOf(
             "isAbandoned" to isAbandoned,
             "abandoned" to isAbandoned,
             "abandonedAt" to if (isAbandoned) Timestamp.now() else null,
             "updatedAt" to Timestamp.now()
         )
-        try {
+        runCatching {
             firestoreProvider.tasksCollection().document(taskId)
                 .set(updates, com.google.firebase.firestore.SetOptions.merge())
-            android.util.Log.d("TaskRepository", "setAbandoned OK $taskId → $isAbandoned")
-        } catch (e: Exception) {
-            android.util.Log.e("TaskRepository", "setAbandoned FAILED $taskId", e)
-            throw e
+        }.onFailure { e ->
+            android.util.Log.e("TaskRepository", "setAbandoned write failed $taskId", e)
         }
         refreshWidget()
     }
