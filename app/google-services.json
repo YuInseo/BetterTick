@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "739238902578",
+    "project_id": "bettertick",
+    "storage_bucket": "bettertick.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:739238902578:android:26d62d81aa2cb0d9ebf52b",
+        "android_client_info": {
+          "package_name": "com.bettertick"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCdE2EaCKsnFgw4PxHSK3O0iMjVU9oECR0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
