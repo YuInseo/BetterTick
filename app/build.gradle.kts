@@ -1,4 +1,6 @@
-﻿plugins {
+import java.util.Properties
+
+plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
@@ -10,7 +12,7 @@
 // 로컬: keystore.properties 파일 사용
 // CI:    GitHub Secrets (STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD, KEYSTORE_BASE64)
 private val keystorePropertiesFile = rootProject.file("keystore.properties")
-private val keystoreProperties = java.util.Properties().apply {
+private val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) load(keystorePropertiesFile.inputStream())
 }
 
@@ -32,10 +34,10 @@ android {
         create("release") {
             if (keystorePropertiesFile.exists()) {
                 // 로컬 개발: keystore.properties 읽기
-                storeFile    = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
-                keyAlias     = keystoreProperties["keyAlias"] as String
-                keyPassword  = keystoreProperties["keyPassword"] as String
+                storeFile    = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias     = keystoreProperties.getProperty("keyAlias")
+                keyPassword  = keystoreProperties.getProperty("keyPassword")
             } else {
                 // CI: 환경변수에서 읽기 (release.yml에서 주입)
                 storeFile    = file("bettertick.keystore")
