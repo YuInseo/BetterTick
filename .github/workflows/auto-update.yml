@@ -73,8 +73,16 @@ jobs:
         if: always()
         run: |
           echo "::group::build.log tail"
-          tail -n 200 build.log || echo "no build.log"
+          tail -n 300 build.log || echo "no build.log"
           echo "::endgroup::"
+          # GITHUB_STEP_SUMMARY 에 기록하면 check-runs API output.summary 로
+          # 노출되어 비인증 API 로도 실패 원인을 바로 받을 수 있다.
+          {
+            echo "## build.log tail (300 lines)"
+            echo '```'
+            tail -n 300 build.log 2>/dev/null || echo '(no build.log)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload build log on failure
         if: steps.build.outcome == 'failure'
