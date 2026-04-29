@@ -1,0 +1,176 @@
+name: Auto Update Channel
+
+# 모든 브랜치 푸시에서 debug APK 를 빌드하고, 메인/주요 브랜치일 때만
+# 고정 태그 latest-debug 에 APK + version.json 을 덮어쓴다. 앱은 그
+# version.json 을 폴링해서 자동 업데이트.
+on:
+  push:
+    branches:
+      - main
+      - 'claude/**'
+    paths-ignore:
+      - 'history/**'
+      - '*.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: auto-update-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+
+      # 이전엔 gradle/actions/setup-gradle@v3 를 썼는데 post 단계 캐시 저장이
+      # GitHub 인프라 장애 때 잡 전체를 죽이는 이슈가 있었다. ci.yml 과 같은
+      # 가벼운 setup-java 캐싱 + actions/cache 조합이 더 안정적.
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
+          restore-keys: gradle-
+
+      # gradlew 가 실행 비트로 커밋돼 있어서 보통 필요 없지만, 누가 비트를
+      # 떨어뜨려도 빌드가 깨지지 않게 안전망으로 한 번 더.
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
+      - name: Compute version metadata
+        id: meta
+        run: |
+          CODE=$(git rev-list --count HEAD)
+          NAME="1.0.${CODE}"
+          SHA=$(git rev-parse --short HEAD)
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA"   >> "$GITHUB_OUTPUT"
+          echo "Will build versionCode=$CODE versionName=$NAME sha=$SHA"
+
+      - name: Build debug APK
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug -x lint -x test \
+            -PappVersionCode=${{ steps.meta.outputs.code }} \
+            -PappVersionName=${{ steps.meta.outputs.name }} \
+            -PappGitSha=${{ steps.meta.outputs.sha }} \
+            --build-cache --parallel --daemon 2>&1 | tee build.log
+
+      - name: Show build log tail
+        if: always()
+        run: |
+          echo "::group::build.log tail"
+          tail -n 300 build.log || echo "no build.log"
+          echo "::endgroup::"
+          # GITHUB_STEP_SUMMARY 에 기록하면 check-runs API output.summary 로
+          # 노출되어 비인증 API 로도 실패 원인을 바로 받을 수 있다.
+          {
+            echo "## build.log tail (300 lines)"
+            echo '```'
+            tail -n 300 build.log 2>/dev/null || echo '(no build.log)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload build log on failure
+        if: steps.build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ github.sha }}
+          path: build.log
+          if-no-files-found: warn
+
+      - name: Open issue with build log on failure
+        if: steps.build.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let tail = '(로그 읽기 실패)';
+            try {
+              const raw = fs.readFileSync('build.log', 'utf8');
+              tail = raw.length > 50000 ? raw.slice(-50000) : raw;
+            } catch (_) {}
+            const sha7 = context.sha.slice(0, 7);
+            const dup = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open in:title "${sha7}" label:ci-failure`,
+            });
+            if (dup.data.total_count > 0) {
+              core.info(`이미 열린 이슈: ${dup.data.items[0].html_url}`);
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Auto-update 빌드 실패: ${sha7}`,
+              body: [
+                `워크플로 ${context.workflow} 가 \`${context.ref}\` 에서 실패했습니다.`,
+                `실행 로그: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                ``,
+                '### build.log tail (최대 50KB)',
+                '```',
+                tail,
+                '```',
+              ].join('\n'),
+              labels: ['ci-failure'],
+            });
+
+      - name: Stage release assets
+        if: steps.build.outcome == 'success' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        run: |
+          mkdir -p staging
+          cp app/build/outputs/apk/debug/app-debug.apk staging/BetterTick.apk
+          cat > staging/version.json <<EOF
+          {
+            "versionCode": ${{ steps.meta.outputs.code }},
+            "versionName": "${{ steps.meta.outputs.name }}",
+            "sha": "${{ steps.meta.outputs.sha }}",
+            "apkUrl": "https://github.com/${{ github.repository }}/releases/download/latest-debug/BetterTick.apk",
+            "notes": "Auto build ${{ steps.meta.outputs.sha }}"
+          }
+          EOF
+          cat staging/version.json
+
+      - name: Publish to GitHub Release (latest-debug)
+        if: steps.build.outcome == 'success' && (github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-debug
+          name: Latest Debug Build
+          body: |
+            BetterTick auto-update channel — 최신 main 푸시에서 자동 빌드.
+            Version: ${{ steps.meta.outputs.name }} (code ${{ steps.meta.outputs.code }})
+            Commit: ${{ steps.meta.outputs.sha }}
+
+            APK 직접 다운로드 (로그인 불필요):
+            https://github.com/${{ github.repository }}/releases/download/latest-debug/BetterTick.apk
+          files: |
+            staging/BetterTick.apk
+            staging/version.json
+          prerelease: true
+          make_latest: "false"
+
+      - name: Fail job if build failed
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "::error::빌드 실패 — build-log 아티팩트와 자동 이슈 확인"
+          exit 1

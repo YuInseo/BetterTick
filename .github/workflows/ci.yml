@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # 모든 브랜치 푸시에서 자동 빌드. PR은 포크에서 올라온 것만 추가로 도는 게
+  # 의미 있고, 같은 리포 브랜치는 push 이벤트로 이미 빌드되니 중복 회피.
   push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
 
@@ -41,18 +42,46 @@ jobs:
           restore-keys: gradle-
 
       - name: Run Lint
-        run: ./gradlew lintDebug
+        # 빌드를 막지 않고 Lint 결과만 본다. 실제 finding 은 아래 dump
+        # 단계와 업로드된 아티팩트로 확인.
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          ./gradlew lintDebug --stacktrace 2>&1 | tee -a build.log
+
+      - name: Dump Lint Results
+        if: always()
+        run: |
+          echo "=== lint-results-debug.txt ==="
+          cat app/build/reports/lint-results-debug.txt 2>/dev/null || echo "(missing)"
+          echo
+          echo "=== lint-results-debug.xml (head) ==="
+          head -200 app/build/reports/lint-results-debug.xml 2>/dev/null || echo "(missing)"
 
       - name: Upload Lint Report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lint-report
-          path: app/build/reports/lint-results-debug.html
+          path: app/build/reports/
+          if-no-files-found: warn
           retention-days: 7
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee -a build.log
+
+      # 빌드 출력 전체를 항상 보존 — notify-failure 가 이 파일을 읽어
+      # 컴파일 에러 마지막 부분을 자동 이슈 본문에 박아넣는다.
+      - name: Upload Build Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
@@ -60,3 +89,148 @@ jobs:
           name: debug-apk-${{ github.run_number }}
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
+
+  notify-failure:
+    name: File CI Failure Issue
+    needs: build
+    # 푸시 실패 + 같은 리포에서 올라온 PR 실패 모두 이슈를 만든다. 포크
+    # PR은 GITHUB_TOKEN 이 read-only 라 어차피 생성에 실패하므로 스킵.
+    if: |
+      failure() && (
+        github.event_name == 'push' ||
+        (github.event_name == 'pull_request' &&
+         github.event.pull_request.head.repo.full_name == github.repository)
+      )
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      # build 잡이 남긴 로그를 가져와 컴파일/lint 에러 꼬리를 이슈 본문에
+      # 직접 박는다. 그러면 Actions UI 인증 없이 issues API 만으로도 무엇이
+      # 깨졌는지 즉시 확인할 수 있다.
+      - name: Download Build Log
+        uses: actions/download-artifact@v4
+        with:
+          name: build-log
+          path: ./_log
+        continue-on-error: true
+
+      - name: Open issue with run link
+        uses: actions/github-script@v7
+        env:
+          BUILD_LOG_PATH: ./_log/build.log
+        with:
+          script: |
+            const fs = require('fs');
+            const isPR = context.eventName === 'pull_request';
+            const fullSha = isPR
+              ? context.payload.pull_request.head.sha
+              : context.sha;
+            const sha = fullSha.slice(0, 7);
+            const branch = isPR
+              ? context.payload.pull_request.head.ref
+              : context.ref.replace('refs/heads/', '');
+            const prNumber = isPR ? context.payload.pull_request.number : null;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = isPR
+              ? `CI 실패: PR #${prNumber} @ ${sha}`
+              : `CI 실패: ${sha} (${branch})`;
+
+            // 같은 커밋에 대해 이미 열린 이슈가 있으면 추가 생성하지 않는다.
+            const { data: existing } = await github.rest.search.issuesAndPullRequests({
+              q: `repo:${context.repo.owner}/${context.repo.repo} is:issue is:open label:ci-failure in:title ${sha}`,
+            });
+            if (existing.total_count > 0) {
+              core.info(`Issue for ${sha} already open: ${existing.items[0].html_url}`);
+              return;
+            }
+
+            // 실패한 잡과 스텝 목록을 본문에 포함해서 어디서 깨졌는지 한눈에 보이게.
+            const { data: jobsResp } = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: context.runId,
+            });
+            const failedJobs = jobsResp.jobs.filter(j => j.conclusion === 'failure');
+            const jobsMd = failedJobs.length === 0
+              ? '_(실패한 잡 정보를 가져오지 못했습니다)_'
+              : failedJobs.map(j => {
+                  const failedSteps = (j.steps || [])
+                    .filter(s => s.conclusion === 'failure')
+                    .map(s => `\`${s.name}\``)
+                    .join(', ') || '_(스텝 미상)_';
+                  return `- **${j.name}** → ${failedSteps}\n  ${j.html_url}`;
+                }).join('\n');
+
+            const rows = [
+              `| 커밋 | \`${fullSha}\` |`,
+              `| 브랜치 | \`${branch}\` |`,
+              `| 트리거 | \`${context.eventName}\` by @${context.actor} |`,
+              `| 실행 로그 | ${runUrl} |`,
+            ];
+            if (isPR) {
+              rows.unshift(`| PR | #${prNumber} ${context.payload.pull_request.html_url} |`);
+            }
+
+            // 빌드 로그에서 진짜 에러 부분만 발췌. 우선 'e:'(kotlinc),
+            // 'error:', 'FAILURE:', 'What went wrong' 주변을 모으고, 실패하면
+            // 끝쪽 80줄로 폴백.
+            let logSection = '';
+            try {
+              const logPath = process.env.BUILD_LOG_PATH;
+              if (logPath && fs.existsSync(logPath)) {
+                const raw = fs.readFileSync(logPath, 'utf8');
+                const lines = raw.split('\n');
+                const markers = /(^e: |error: |FAILURE: |What went wrong|Caused by:|Compilation error|Unresolved reference|cannot find symbol)/i;
+                const hits = [];
+                lines.forEach((ln, i) => {
+                  if (markers.test(ln)) {
+                    const start = Math.max(0, i - 2);
+                    const end = Math.min(lines.length, i + 6);
+                    hits.push([start, end]);
+                  }
+                });
+                // hit 윈도우 병합
+                const merged = [];
+                hits.sort((a,b)=>a[0]-b[0]).forEach(([s,e]) => {
+                  if (merged.length && s <= merged[merged.length-1][1]) {
+                    merged[merged.length-1][1] = Math.max(merged[merged.length-1][1], e);
+                  } else merged.push([s,e]);
+                });
+                let excerpt = merged.length
+                  ? merged.map(([s,e]) => lines.slice(s,e).join('\n')).join('\n…\n')
+                  : lines.slice(-80).join('\n');
+                if (excerpt.length > 6000) excerpt = excerpt.slice(-6000);
+                logSection = ['### 빌드 로그 발췌', '```', excerpt, '```'].join('\n');
+              } else {
+                logSection = '_(build.log 아티팩트를 찾지 못했습니다)_';
+              }
+            } catch (e) {
+              logSection = `_(로그 파싱 실패: ${e.message})_`;
+            }
+
+            const body = [
+              `워크플로 **${context.workflow}** 가 \`${branch}\` 에서 실패했습니다.`,
+              ``,
+              `| 항목 | 값 |`,
+              `| --- | --- |`,
+              ...rows,
+              ``,
+              `### 실패한 잡`,
+              jobsMd,
+              ``,
+              logSection,
+              ``,
+              `전체 로그/Lint 리포트/빌드 산출물은 위 실행 페이지의 Artifacts 섹션에서 받을 수 있습니다.`,
+              ``,
+              `<sub>이 이슈는 \`.github/workflows/ci.yml\` 의 \`notify-failure\` 잡이 자동으로 생성했습니다. 수정 후 새 커밋이 통과하면 수동으로 닫아주세요.</sub>`,
+            ].join('\n');
+
+            const { data: issue } = await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['ci-failure'],
+            });
+            core.info(`Opened ${issue.html_url}`);

@@ -56,6 +56,11 @@
             android:launchMode="singleTop"
             android:theme="@style/Theme.BetterTick" />
 
+        <!-- 자동 업데이트: PackageInstaller 세션 결과 콜백 -->
+        <receiver
+            android:name=".update.InstallResultReceiver"
+            android:exported="false" />
+
         <receiver android:name=".widget.calendar.ReminderWidgetReceiver"
             android:exported="true"
             android:label="@string/widget_reminder_label">
