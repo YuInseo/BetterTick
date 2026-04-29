@@ -70,12 +70,15 @@ android {
         compose = true
     }
 
-    // Lint은 보고용으로만 사용 — 산출물(lint-results-debug.html)은 CI 아티팩트로
-    // 그대로 업로드되지만 발견된 이슈가 빌드를 막지는 않는다. 작은 프로젝트에서
-    // 빨간 빌드를 유발하기보다 리포트를 보고 점진 정리하는 쪽을 택했다.
+    // Lint은 보고용으로만 사용 — 산출물은 CI 아티팩트로 업로드되지만 발견된
+    // 이슈가 빌드를 막지는 않는다. 작은 프로젝트에서 빨간 빌드를 유발하기
+    // 보다 리포트를 보고 점진 정리하는 쪽을 택했다. textReport 를 켜면 CI
+    // 로그에서 곧바로 실패 원인을 보고 작업 우선순위를 정할 수 있다.
     lint {
         abortOnError = false
         checkReleaseBuilds = false
+        warningsAsErrors = false
+        textReport = true
     }
 }
 
