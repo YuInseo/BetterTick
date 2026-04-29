@@ -84,7 +84,8 @@ class TaskRepository @Inject constructor(
 
     fun observeIncompleteTasks(): Flow<List<Task>> = callbackFlow {
         val registration = firestoreProvider.tasksCollection()
-            .whereEqualTo("isCompleted", false)
+            // Kotlin 매퍼가 isCompleted를 `completed`로 직렬화하므로 쿼리도 동일 필드명
+            .whereEqualTo("completed", false)
             .orderBy("sortOrder", Query.Direction.ASCENDING)
             .addSnapshotListener(cacheOptions) { snapshot, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
@@ -141,8 +142,11 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun toggleComplete(taskId: String, isCompleted: Boolean) {
+        // Firebase Kotlin 매퍼는 `is*` Boolean 프로퍼티의 `is` prefix를 떼고
+        // 직렬화하므로 Firestore에는 `completed`/`abandoned`로 저장됨.
+        // update 시에도 같은 필드명을 써야 기존 값을 덮어쓴다.
         val updates = mutableMapOf<String, Any?>(
-            "isCompleted" to isCompleted,
+            "completed" to isCompleted,
             "updatedAt" to Timestamp.now()
         )
         if (isCompleted) updates["completedAt"] = Timestamp.now()
@@ -153,7 +157,7 @@ class TaskRepository @Inject constructor(
 
     suspend fun setAbandoned(taskId: String, isAbandoned: Boolean) {
         val updates = mutableMapOf<String, Any?>(
-            "isAbandoned" to isAbandoned,
+            "abandoned" to isAbandoned,
             "updatedAt" to Timestamp.now()
         )
         if (isAbandoned) updates["abandonedAt"] = Timestamp.now()

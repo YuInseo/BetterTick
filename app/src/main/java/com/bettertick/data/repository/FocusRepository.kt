@@ -110,7 +110,8 @@ class FocusRepository @Inject constructor(
             mapOf(
                 "endedAt" to Timestamp.now(),
                 "durationSeconds" to durationSeconds,
-                "isCompleted" to true
+                // Firebase Kotlin 매퍼가 isCompleted → completed로 직렬화함
+                "completed" to true
             )
         )
     }

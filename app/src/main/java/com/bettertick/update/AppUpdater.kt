@@ -80,6 +80,9 @@ object AppUpdater {
         else @Suppress("DEPRECATION") info.versionCode.toLong()
     }
 
+    fun currentVersionName(context: Context): String =
+        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
+
     fun isNewer(latestCode: Long, currentCode: Long): Boolean = latestCode > currentCode
 
     suspend fun downloadApk(context: Context, release: Release): File? =
