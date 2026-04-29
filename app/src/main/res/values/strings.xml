@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BetterTick</string>
+
+    <string name="widget_reminder_label">리마인더</string>
+    <string name="widget_reminder_description">이번 주 일정과 오늘의 할일을 한눈에 확인하세요.</string>
+
+    <string name="widget_weekly_calendar_label">주간 달력 보기</string>
+    <string name="widget_weekly_calendar_description">이번 주 일정을 달력 형태로 한눈에 확인하세요.</string>
+
+    <string name="widget_focus_distribution_label">시간 분포에 집중하세요</string>
+    <string name="widget_focus_distribution_description">이번 주 집중 시간 분포를 빠르게 확인하세요.</string>
+</resources>
