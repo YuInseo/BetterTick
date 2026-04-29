@@ -148,10 +148,12 @@ fun TasksScreen(
             return hidden.isNotEmpty() && task.tagIds.any { it in hidden }
         }
         for (t in tasks) {
-            if (t.isCompleted || t.isAbandoned) {
-                completed += t
-                continue
-            }
+            // 완료/포기 항목도 원래 속한 날짜 섹션에 그대로 둔다. 별도 버킷으로 빼면
+            // 체크 직후 행이 사라진 듯 보여 UX가 어색함. TaskItem이 isCompleted/
+            // isAbandoned 상태에 따라 체크 아이콘 + 취소선을 그리므로 시각적으론 충분.
+            // 완료된 항목도 completedTasks에 함께 누적해 두면 다른 곳에서 필요 시
+            // 참조 가능.
+            if (t.isCompleted || t.isAbandoned) completed += t
             val d = t.dueDate?.toLocalDate()
             when {
                 d == null -> if (!isHidden(TaskSection.NoDate, t)) noDate += t
