@@ -32,13 +32,20 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Fire-and-forget update check: fetch latest release, download if newer,
-     *  hand off to the system installer. Silent on failure — next launch retries. */
+     *  hand off to the system installer. Silent on failure — next launch retries.
+     *  Throttled to once per 12h so we don't hammer the GitHub API. */
     private fun checkForUpdate() {
+        if (!AppUpdater.shouldCheck(this)) return
         lifecycleScope.launch {
             val release = AppUpdater.fetchLatest() ?: return@launch
+            AppUpdater.markChecked(this@MainActivity)
             val current = AppUpdater.currentVersion(this@MainActivity)
             if (!AppUpdater.isNewer(release.tag, current)) return@launch
             Log.i("MainActivity", "Update ${release.tag} available (current $current)")
+            if (!AppUpdater.canRequestInstall(this@MainActivity)) {
+                AppUpdater.openInstallPermissionSettings(this@MainActivity)
+                return@launch
+            }
             val apk = AppUpdater.downloadApk(this@MainActivity, release) ?: return@launch
             AppUpdater.launchInstall(this@MainActivity, apk)
         }

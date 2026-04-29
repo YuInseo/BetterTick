@@ -2,6 +2,9 @@ package com.bettertick.update
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.util.Log
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
@@ -12,15 +15,18 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Lightweight GitHub Releases updater. Polls the Empty repo's latest release,
- * compares its tag (semver-ish) against the installed versionName, and if
- * newer downloads the APK asset and launches the system installer prompt.
- * Network + disk I/O happen on IO dispatcher; callers handle the UI.
+ * Lightweight GitHub Releases updater. Polls the bettertick repo's latest
+ * release, compares its tag (semver-ish) against the installed versionName,
+ * and if newer downloads the APK asset and launches the system installer
+ * prompt. Network + disk I/O happen on IO dispatcher; callers handle the UI.
  */
 object AppUpdater {
     private const val TAG = "AppUpdater"
     private const val API_URL =
-        "https://api.github.com/repos/YuInseo/Empty/releases/latest"
+        "https://api.github.com/repos/yuinseo/bettertick/releases/latest"
+    private const val PREFS = "app_updater"
+    private const val KEY_LAST_CHECK = "last_check_ms"
+    private const val CHECK_INTERVAL_MS = 12L * 60L * 60L * 1000L // 12h
 
     data class Release(
         val tag: String,
@@ -104,5 +110,41 @@ object AppUpdater {
             )
         }
         context.startActivity(intent)
+    }
+
+    /** API 26+ requires the user to opt the app into installing unknown
+     *  sources. Without this the install intent silently no-ops. */
+    fun canRequestInstall(context: Context): Boolean =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            context.packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+
+    /** Bounce the user to the per-app "install unknown apps" toggle so they
+     *  can grant permission, then come back to the app for the next launch. */
+    fun openInstallPermissionSettings(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val intent = Intent(
+            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+            Uri.parse("package:${context.packageName}")
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { context.startActivity(intent) }
+            .onFailure { Log.w(TAG, "openInstallPermissionSettings failed", it) }
+    }
+
+    /** True if it has been longer than [CHECK_INTERVAL_MS] since the last
+     *  successful poll. Avoids hammering the GitHub API on every cold start. */
+    fun shouldCheck(context: Context): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val last = prefs.getLong(KEY_LAST_CHECK, 0L)
+        return System.currentTimeMillis() - last >= CHECK_INTERVAL_MS
+    }
+
+    fun markChecked(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(KEY_LAST_CHECK, System.currentTimeMillis())
+            .apply()
     }
 }
