@@ -2,6 +2,7 @@ package com.bettertick.update
 
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
@@ -12,18 +13,19 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Lightweight GitHub Releases updater. Polls the Empty repo's latest release,
- * compares its tag (semver-ish) against the installed versionName, and if
- * newer downloads the APK asset and launches the system installer prompt.
- * Network + disk I/O happen on IO dispatcher; callers handle the UI.
+ * Polls the BetterTick repo's `latest-debug` Release, compares its
+ * versionCode (from the version.json asset) against the installed APK's
+ * versionCode, and if newer downloads BetterTick.apk and launches the
+ * system installer prompt. Network + disk I/O on IO dispatcher.
  */
 object AppUpdater {
     private const val TAG = "AppUpdater"
     private const val API_URL =
-        "https://api.github.com/repos/YuInseo/Empty/releases/latest"
+        "https://api.github.com/repos/YuInseo/BetterTick/releases/tags/latest-debug"
 
     data class Release(
-        val tag: String,
+        val versionCode: Long,
+        val versionName: String,
         val apkUrl: String,
         val apkName: String,
         val sizeBytes: Long
@@ -31,46 +33,54 @@ object AppUpdater {
 
     suspend fun fetchLatest(): Release? = withContext(Dispatchers.IO) {
         runCatching {
-            val conn = (URL(API_URL).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 8000
-                readTimeout = 8000
-                setRequestProperty("Accept", "application/vnd.github+json")
-            }
-            val body = conn.inputStream.bufferedReader().use { it.readText() }
-            val json = JSONObject(body)
-            val tag = json.optString("tag_name").trimStart('v')
-            val assets = json.optJSONArray("assets") ?: return@runCatching null
+            val releaseJson = JSONObject(httpGetText(API_URL, githubAccept = true))
+            val assets = releaseJson.optJSONArray("assets") ?: return@runCatching null
+
+            var apkUrl = ""
+            var apkName = ""
+            var apkSize = 0L
+            var versionJsonUrl = ""
             for (i in 0 until assets.length()) {
                 val a = assets.getJSONObject(i)
                 val name = a.optString("name")
-                if (name.endsWith(".apk", ignoreCase = true)) {
-                    return@runCatching Release(
-                        tag = tag,
-                        apkUrl = a.optString("browser_download_url"),
-                        apkName = name,
-                        sizeBytes = a.optLong("size")
-                    )
+                val url = a.optString("browser_download_url")
+                when {
+                    name.endsWith(".apk", ignoreCase = true) -> {
+                        apkUrl = url; apkName = name; apkSize = a.optLong("size")
+                    }
+                    name == "version.json" -> versionJsonUrl = url
                 }
             }
-            null
+            if (apkUrl.isEmpty() || versionJsonUrl.isEmpty()) return@runCatching null
+
+            val v = JSONObject(httpGetText(versionJsonUrl, githubAccept = false))
+            Release(
+                versionCode = v.optLong("versionCode"),
+                versionName = v.optString("versionName"),
+                apkUrl = apkUrl,
+                apkName = apkName,
+                sizeBytes = apkSize
+            )
         }.onFailure { Log.w(TAG, "fetchLatest failed", it) }.getOrNull()
     }
 
-    fun currentVersion(context: Context): String =
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0.0.0"
-
-    /** Strict numeric compare on dot-separated segments. "0.1.1" > "0.1.0". */
-    fun isNewer(latest: String, current: String): Boolean {
-        val l = latest.split(".").mapNotNull { it.toIntOrNull() }
-        val c = current.split(".").mapNotNull { it.toIntOrNull() }
-        val n = maxOf(l.size, c.size)
-        for (i in 0 until n) {
-            val a = l.getOrElse(i) { 0 }
-            val b = c.getOrElse(i) { 0 }
-            if (a != b) return a > b
+    private fun httpGetText(url: String, githubAccept: Boolean): String {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 8000
+            readTimeout = 8000
+            instanceFollowRedirects = true
+            if (githubAccept) setRequestProperty("Accept", "application/vnd.github+json")
         }
-        return false
+        return conn.inputStream.bufferedReader().use { it.readText() }
     }
+
+    fun currentVersionCode(context: Context): Long {
+        val info = context.packageManager.getPackageInfo(context.packageName, 0)
+        return if (Build.VERSION.SDK_INT >= 28) info.longVersionCode
+        else @Suppress("DEPRECATION") info.versionCode.toLong()
+    }
+
+    fun isNewer(latestCode: Long, currentCode: Long): Boolean = latestCode > currentCode
 
     suspend fun downloadApk(context: Context, release: Release): File? =
         withContext(Dispatchers.IO) {

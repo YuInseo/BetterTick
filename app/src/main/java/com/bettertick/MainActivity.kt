@@ -36,9 +36,9 @@ class MainActivity : ComponentActivity() {
     private fun checkForUpdate() {
         lifecycleScope.launch {
             val release = AppUpdater.fetchLatest() ?: return@launch
-            val current = AppUpdater.currentVersion(this@MainActivity)
-            if (!AppUpdater.isNewer(release.tag, current)) return@launch
-            Log.i("MainActivity", "Update ${release.tag} available (current $current)")
+            val current = AppUpdater.currentVersionCode(this@MainActivity)
+            if (!AppUpdater.isNewer(release.versionCode, current)) return@launch
+            Log.i("MainActivity", "Update ${release.versionName} (code ${release.versionCode}) available (current $current)")
             val apk = AppUpdater.downloadApk(this@MainActivity, release) ?: return@launch
             AppUpdater.launchInstall(this@MainActivity, apk)
         }
