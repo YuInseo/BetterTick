@@ -31,6 +31,14 @@ android {
     }
 
     signingConfigs {
+        // debug: repo에 박힌 고정 keystore — 로컬/CI 모두 같은 SHA-1로 서명
+        // 그래야 Firebase Google 로그인 SHA-1 등록이 한 번에 영구 적용됨.
+        getByName("debug") {
+            storeFile    = file("debug.keystore")
+            storePassword = "android"
+            keyAlias     = "androiddebugkey"
+            keyPassword  = "android"
+        }
         create("release") {
             if (keystorePropertiesFile.exists()) {
                 // 로컬 개발: keystore.properties 읽기
