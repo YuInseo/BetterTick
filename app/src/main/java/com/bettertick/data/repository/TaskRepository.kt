@@ -84,8 +84,6 @@ class TaskRepository @Inject constructor(
 
     fun observeIncompleteTasks(): Flow<List<Task>> = callbackFlow {
         val registration = firestoreProvider.tasksCollection()
-            // Kotlin 매퍼가 isCompleted를 `completed`로 직렬화하므로 쿼리도 동일 필드명
-            .whereEqualTo("completed", false)
             .orderBy("sortOrder", Query.Direction.ASCENDING)
             .addSnapshotListener(cacheOptions) { snapshot, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
@@ -142,27 +140,34 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun toggleComplete(taskId: String, isCompleted: Boolean) {
-        // Firebase Kotlin 매퍼는 `is*` Boolean 프로퍼티의 `is` prefix를 떼고
-        // 직렬화하므로 Firestore에는 `completed`/`abandoned`로 저장됨.
-        // update 시에도 같은 필드명을 써야 기존 값을 덮어쓴다.
-        val updates = mutableMapOf<String, Any?>(
-            "completed" to isCompleted,
-            "updatedAt" to Timestamp.now()
+        // Firebase Kotlin 매퍼는 is* Boolean 프로퍼티의 직렬화 필드명을 SDK
+        // 버전에 따라 다르게 결정함(`isCompleted` 또는 `completed`). update(map)
+        // 으로 하드코딩하면 한쪽이 빗나가 데이터가 안 바뀜. set(modifiedTask)는
+        // 같은 reflection 경로를 쓰므로 read 매핑과 항상 일치.
+        val doc = firestoreProvider.tasksCollection().document(taskId)
+        val task = doc.get(Source.CACHE).await().toObject(Task::class.java) ?: return
+        doc.set(
+            task.copy(
+                id = taskId,
+                isCompleted = isCompleted,
+                completedAt = if (isCompleted) Timestamp.now() else null,
+                updatedAt = Timestamp.now()
+            )
         )
-        if (isCompleted) updates["completedAt"] = Timestamp.now()
-        else updates["completedAt"] = null
-        firestoreProvider.tasksCollection().document(taskId).update(updates)
         refreshWidget()
     }
 
     suspend fun setAbandoned(taskId: String, isAbandoned: Boolean) {
-        val updates = mutableMapOf<String, Any?>(
-            "abandoned" to isAbandoned,
-            "updatedAt" to Timestamp.now()
+        val doc = firestoreProvider.tasksCollection().document(taskId)
+        val task = doc.get(Source.CACHE).await().toObject(Task::class.java) ?: return
+        doc.set(
+            task.copy(
+                id = taskId,
+                isAbandoned = isAbandoned,
+                abandonedAt = if (isAbandoned) Timestamp.now() else null,
+                updatedAt = Timestamp.now()
+            )
         )
-        if (isAbandoned) updates["abandonedAt"] = Timestamp.now()
-        else updates["abandonedAt"] = null
-        firestoreProvider.tasksCollection().document(taskId).update(updates)
         refreshWidget()
     }
 

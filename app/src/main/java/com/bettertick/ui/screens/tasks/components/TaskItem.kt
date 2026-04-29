@@ -3,6 +3,7 @@ package com.bettertick.ui.screens.tasks.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -90,38 +92,51 @@ fun TaskItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val checkboxShape = RoundedCornerShape(6.dp)
+        // 외곽 44dp clickable Box로 터치 타겟을 확대. 24dp 시각 체크박스는
+        // 가운데에 배치. SwipeableTaskItem이 부모에서 detectHorizontalDragGestures
+        // 를 걸어 두기 때문에 작은 24dp 영역만 clickable이면 미세 움직임에
+        // drag detector가 이벤트를 가져가버려 탭이 안 먹힘. pointerInput +
+        // detectTapGestures로 tap을 명시적으로 consume해 race 차단.
         Box(
             modifier = Modifier
-                .size(24.dp)
-                .clip(checkboxShape)
-                .then(
-                    when {
-                        task.isCompleted -> Modifier.background(TextTertiary)
-                        task.isAbandoned -> Modifier.border(2.dp, AbandonedBlue, checkboxShape)
-                        else -> Modifier.border(2.dp, TextSecondary, checkboxShape)
-                    }
-                )
-                .clickable { onToggleComplete() },
+                .size(44.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { onToggleComplete() })
+                },
             contentAlignment = Alignment.Center
         ) {
-            when {
-                task.isCompleted -> Icon(
-                    Icons.Default.Check,
-                    contentDescription = "Completed",
-                    tint = Color.White,
-                    modifier = Modifier.size(16.dp)
-                )
-                task.isAbandoned -> Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Abandoned",
-                    tint = AbandonedBlue,
-                    modifier = Modifier.size(16.dp)
-                )
-                else -> {}
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(checkboxShape)
+                    .then(
+                        when {
+                            task.isCompleted -> Modifier.background(TextTertiary)
+                            task.isAbandoned -> Modifier.border(2.dp, AbandonedBlue, checkboxShape)
+                            else -> Modifier.border(2.dp, TextSecondary, checkboxShape)
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                when {
+                    task.isCompleted -> Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Completed",
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    task.isAbandoned -> Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Abandoned",
+                        tint = AbandonedBlue,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    else -> {}
+                }
             }
         }
 
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(8.dp))
 
         Column(modifier = Modifier.weight(1f)) {
             MarkdownText(
