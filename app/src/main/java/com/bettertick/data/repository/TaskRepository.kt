@@ -146,29 +146,34 @@ class TaskRepository @Inject constructor(
             "completedAt" to if (isCompleted) Timestamp.now() else null,
             "updatedAt" to Timestamp.now()
         )
+        val msg = StringBuilder()
         try {
-            // .await()를 빼면 lazy로 갈 수 있어서 명시적으로 기다림 →
-            // 진단 시 실제 백엔드 결과를 확인 가능.
+            // .await() 제거 — set은 fire-and-forget으로 호출만 하고 즉시 반환.
+            // Firestore의 local cache 쓰기는 동기적으로 일어나야 하므로 listener도
+            // 곧바로 fire되어야 정상.
             firestoreProvider.tasksCollection().document(taskId)
                 .set(updates, com.google.firebase.firestore.SetOptions.merge())
-                .await()
-            android.util.Log.d("TaskRepository", "toggleComplete OK $taskId → $isCompleted")
-            kotlinx.coroutines.withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(
-                    appContext,
-                    "write OK: $isCompleted",
-                    android.widget.Toast.LENGTH_SHORT
-                ).show()
-            }
+            msg.append("set issued OK\n")
+
+            // 200ms 후 cache 상태 읽어서 진짜로 반영됐는지 확인
+            kotlinx.coroutines.delay(250)
+            val snap = firestoreProvider.tasksCollection().document(taskId)
+                .get(Source.CACHE).await()
+            val cachedIsCompleted = snap.getBoolean("isCompleted")
+            val cachedCompleted = snap.getBoolean("completed")
+            msg.append("cache: isCompleted=$cachedIsCompleted, completed=$cachedCompleted\n")
+            msg.append("hasPendingWrites=${snap.metadata.hasPendingWrites()}")
+            android.util.Log.d("TaskRepository", "toggleComplete diag $taskId → $msg")
         } catch (e: Exception) {
+            msg.append("EXCEPTION: ${e.javaClass.simpleName}: ${e.message?.take(120)}")
             android.util.Log.e("TaskRepository", "toggleComplete FAILED $taskId", e)
-            kotlinx.coroutines.withContext(Dispatchers.Main) {
-                android.widget.Toast.makeText(
-                    appContext,
-                    "write FAIL: ${e.javaClass.simpleName}: ${e.message?.take(120)}",
-                    android.widget.Toast.LENGTH_LONG
-                ).show()
-            }
+        }
+        kotlinx.coroutines.withContext(Dispatchers.Main) {
+            android.widget.Toast.makeText(
+                appContext,
+                msg.toString(),
+                android.widget.Toast.LENGTH_LONG
+            ).show()
         }
         refreshWidget()
     }
