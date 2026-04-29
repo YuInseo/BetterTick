@@ -35,6 +35,10 @@ object AppUpdater {
     @Volatile var lastFetchError: String? = null
         private set
 
+    /** 마지막 downloadApk 실패 사유. UI 진단용 — 성공 시 null. */
+    @Volatile var lastDownloadError: String? = null
+        private set
+
     suspend fun fetchLatest(): Release? = withContext(Dispatchers.IO) {
         try {
             val releaseJson = JSONObject(httpGetText(API_URL, githubAccept = true))
@@ -111,20 +115,48 @@ object AppUpdater {
 
     suspend fun downloadApk(context: Context, release: Release): File? =
         withContext(Dispatchers.IO) {
-            runCatching {
+            try {
                 val dir = File(context.cacheDir, "updates").apply { mkdirs() }
                 dir.listFiles()?.forEach { it.delete() }
                 val file = File(dir, release.apkName)
-                val conn = (URL(release.apkUrl).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 10000
-                    readTimeout = 60000
-                    instanceFollowRedirects = true
+                // GitHub asset URL은 objects.githubusercontent.com 같은 CDN으로
+                // cross-host redirect됨. Android의 HttpURLConnection은 일부 버전에서
+                // 자동 follow가 깨지므로 수동으로 최대 5회까지 따라간다.
+                var url = release.apkUrl
+                var conn: HttpURLConnection? = null
+                var hop = 0
+                while (hop < 5) {
+                    conn?.disconnect()
+                    conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                        connectTimeout = 10000
+                        readTimeout = 60000
+                        instanceFollowRedirects = false
+                        setRequestProperty("User-Agent", "BetterTick-AppUpdater")
+                    }
+                    val code = conn.responseCode
+                    if (code in 200..299) break
+                    if (code in 300..399) {
+                        val loc = conn.getHeaderField("Location")
+                            ?: throw java.io.IOException("HTTP $code without Location header")
+                        url = if (loc.startsWith("http")) loc else URL(URL(url), loc).toString()
+                        hop++
+                        continue
+                    }
+                    val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    throw java.io.IOException("HTTP $code from $url — body: ${errBody.take(300)}")
                 }
+                if (conn == null || hop >= 5) throw java.io.IOException("redirect loop > 5 hops")
                 conn.inputStream.use { input ->
                     file.outputStream().use { output -> input.copyTo(output) }
                 }
+                if (file.length() == 0L) throw java.io.IOException("downloaded file is empty")
+                lastDownloadError = null
                 file
-            }.onFailure { Log.w(TAG, "downloadApk failed", it) }.getOrNull()
+            } catch (e: Exception) {
+                lastDownloadError = "${e.javaClass.simpleName}: ${e.message ?: "(no message)"}"
+                Log.w(TAG, "downloadApk failed", e)
+                null
+            }
         }
 
     fun launchInstall(context: Context, apk: File) {
