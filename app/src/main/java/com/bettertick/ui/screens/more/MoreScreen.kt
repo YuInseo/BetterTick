@@ -203,7 +203,8 @@ fun MoreScreen(
                             try {
                                 val release = AppUpdater.fetchLatest()
                                 if (release == null) {
-                                    Toast.makeText(context, "업데이트 정보를 가져오지 못했어요", Toast.LENGTH_SHORT).show()
+                                    val reason = AppUpdater.lastFetchError ?: "(원인 불명)"
+                                    Toast.makeText(context, "업데이트 확인 실패: $reason", Toast.LENGTH_LONG).show()
                                     return@launch
                                 }
                                 val current = AppUpdater.currentVersionCode(context)
