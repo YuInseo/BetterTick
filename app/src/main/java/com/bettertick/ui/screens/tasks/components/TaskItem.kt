@@ -3,7 +3,6 @@ package com.bettertick.ui.screens.tasks.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,7 +25,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -92,16 +90,22 @@ fun TaskItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val checkboxShape = RoundedCornerShape(6.dp)
-        // 외곽 44dp clickable Box로 터치 타겟을 확대. 24dp 시각 체크박스는
-        // 가운데에 배치. SwipeableTaskItem이 부모에서 detectHorizontalDragGestures
-        // 를 걸어 두기 때문에 작은 24dp 영역만 clickable이면 미세 움직임에
-        // drag detector가 이벤트를 가져가버려 탭이 안 먹힘. pointerInput +
-        // detectTapGestures로 tap을 명시적으로 consume해 race 차단.
+        // 44dp 터치 타겟 + clickable(ripple). 부모 SwipeableTaskItem의
+        // detectHorizontalDragGestures는 touch slop 넘기 전엔 tap을 가로채지
+        // 않아야 정상이지만, race가 있을 수 있어 Box를 크게 잡아 마진 확보.
+        // 진단용 Toast: tap이 실제로 발화되는지 확인 (이슈 검증 후 제거).
+        val ctx = androidx.compose.ui.platform.LocalContext.current
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = { onToggleComplete() })
+                .clickable {
+                    android.widget.Toast.makeText(
+                        ctx,
+                        "tap: ${if (task.isCompleted) "uncheck" else "check"}",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    android.util.Log.d("TaskItem", "checkbox click → toggle ${task.id} → ${!task.isCompleted}")
+                    onToggleComplete()
                 },
             contentAlignment = Alignment.Center
         ) {
