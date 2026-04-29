@@ -1,6 +1,7 @@
 package com.bettertick.ui.screens.focus.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,11 +34,14 @@ fun ActivityCategoryCard(
     onStartClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // 행 전체를 누르면 포모(풀스크린 타이머)가 뜨도록. 우측 ▶ 버튼만 누를
+    // 수 있게 하면 발견성도 떨어지고 터치 타겟도 작아 누르기 어려움.
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(DarkCard)
+            .clickable(enabled = !isTimerRunning) { onStartClick() }
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
