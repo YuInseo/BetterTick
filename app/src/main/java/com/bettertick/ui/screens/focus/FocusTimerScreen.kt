@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -21,11 +22,19 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +71,73 @@ fun FocusTimerScreen(
     onStop: () -> Unit,
     onOpenSounds: () -> Unit = {}
 ) {
+    // 백색소음 picker / 집중 노트 다이얼로그 상태. picker는 풀스크린 오버레이로
+    // 갈음, 노트는 AlertDialog로 띄워 입력만 받는다(현재 세션과 결합 X — 추후 작업).
+    var showSoundPicker by remember { mutableStateOf(false) }
+    var selectedSoundId by remember { mutableStateOf("none") }
+    var showNoteDialog by remember { mutableStateOf(false) }
+    var noteText by remember { mutableStateOf("") }
+
+    if (showSoundPicker) {
+        WhiteNoisePickerScreen(
+            selectedId = selectedSoundId,
+            onPick = {
+                selectedSoundId = it.id
+                showSoundPicker = false
+            },
+            onClose = { showSoundPicker = false }
+        )
+        return
+    }
+
+    if (showNoteDialog) {
+        var draft by remember { mutableStateOf(noteText) }
+        AlertDialog(
+            onDismissRequest = { showNoteDialog = false },
+            containerColor = Color(0xFF2A2C36),
+            title = {
+                Text(
+                    text = "집중 노트",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
+            text = {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    placeholder = {
+                        Text(
+                            text = "당신의 생각을 기록해보세요... 무슨 생각이 있나요?",
+                            color = TextSecondary
+                        )
+                    },
+                    minLines = 4,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = Color(0xFF44464F),
+                        cursorColor = MaterialTheme.colorScheme.primary,
+                        focusedTextColor = MaterialTheme.colorScheme.onBackground,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onBackground
+                    )
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showNoteDialog = false }) {
+                    Text("취소", color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    noteText = draft
+                    showNoteDialog = false
+                }) {
+                    Text("저장", color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -155,7 +231,7 @@ fun FocusTimerScreen(
             CircleControl(
                 size = 52.dp,
                 background = ControlBg,
-                onClick = onOpenSounds
+                onClick = { showSoundPicker = true }
             ) {
                 Icon(
                     Icons.Outlined.MusicNote,
@@ -192,14 +268,17 @@ fun FocusTimerScreen(
             }
         }
 
-        // Footer — note placeholder
+        // Footer — 클릭하면 집중 노트 다이얼로그. 입력 후 저장하면 noteText에
+        // 보관되고, 노트가 있으면 그 텍스트가 그대로 보이고 없으면 placeholder.
         Text(
-            text = "집중 노트 추가하기",
+            text = if (noteText.isBlank()) "집중 노트 추가하기" else noteText,
             style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary,
+            color = if (noteText.isBlank()) TextSecondary else MaterialTheme.colorScheme.onBackground,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
-                .padding(bottom = 24.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { showNoteDialog = true }
+                .padding(horizontal = 24.dp, vertical = 24.dp)
         )
     }
 }
