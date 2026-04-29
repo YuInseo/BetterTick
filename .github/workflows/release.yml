@@ -1,16 +1,19 @@
 name: Release
 
-# v1.0.0 형식의 태그 push 시 자동 실행
-# 사용법: git tag v1.0.0 && git push origin v1.0.0
-# 또는 GitHub Actions UI에서 'Run workflow' 버튼으로 임의 태그를 입력해 즉시 실행.
+# 자동 릴리스 트리거:
+#   1. main 푸시 → app/build.gradle.kts 의 versionName 으로 v$ver 태그를
+#      자동 생성. 같은 버전 릴리스가 이미 있으면 스킵.
+#   2. v*.*.* 태그를 직접 푸시 — 명시적 릴리스 절차.
+#   3. Actions UI 'Run workflow' 버튼 — 임의 태그 입력으로 즉시 실행.
 on:
   push:
+    branches: [ main ]
     tags:
       - 'v*.*.*'
   workflow_dispatch:
     inputs:
       tag:
-        description: '릴리스 태그 (예: v0.1.3) — 미존재 태그면 워크플로가 push 후 사용'
+        description: '릴리스 태그 (예: v0.1.3)'
         required: true
         default: 'v0.1.3'
 
@@ -25,7 +28,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 어떤 트리거든 여기서 태그/버전을 결정하고, 같은 릴리스가 이미
+      # 있으면 should_release=false 로 떨어뜨려 이후 비싼 빌드 단계를 모두
+      # 스킵한다. main 푸시 자동 흐름이 매번 같은 버전을 다시 빌드하지
+      # 않게 하기 위함.
+      - name: Resolve tag and decide release
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ github.event.inputs.tag }}"
+          elif [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="${GITHUB_REF#refs/tags/}"
+          else
+            # main 푸시 — versionName 으로 자동 태그
+            ver=$(grep -oE 'versionName *= *"[^"]+"' app/build.gradle.kts \
+                    | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+            tag="v$ver"
+          fi
+          name="${tag#v}"
+          echo "tag=$tag"   >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+          # 이미 동일 태그/릴리스가 존재하면 자동 흐름은 no-op.
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "릴리스 $tag 가 이미 존재 — 스킵."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_release=true"  >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Set up JDK 17
+        if: steps.version.outputs.should_release == 'true'
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -33,9 +68,11 @@ jobs:
           cache: gradle
 
       - name: Grant gradlew permission
+        if: steps.version.outputs.should_release == 'true'
         run: chmod +x gradlew
 
       - name: Cache Gradle packages
+        if: steps.version.outputs.should_release == 'true'
         uses: actions/cache@v4
         with:
           path: |
@@ -46,34 +83,28 @@ jobs:
 
       # GitHub Secret에서 키스토어 복원
       - name: Decode Keystore
+        if: steps.version.outputs.should_release == 'true'
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/bettertick.keystore
 
       - name: Build Release APK
+        if: steps.version.outputs.should_release == 'true'
         env:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
-      # 태그/버전 결정. push:tag 일 땐 ref_name(v1.0.0), workflow_dispatch
-      # 일 땐 입력값. v 접두사 떼서 파일명용 버전도 함께 노출.
-      - name: Resolve tag and version
-        id: version
-        run: |
-          tag="${{ github.event.inputs.tag || github.ref_name }}"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "name=${tag#v}" >> "$GITHUB_OUTPUT"
-
       - name: Rename APK
+        if: steps.version.outputs.should_release == 'true'
         run: |
           mv app/build/outputs/apk/release/app-release.apk \
              app/build/outputs/apk/release/BetterTick-${{ steps.version.outputs.name }}.apk
 
-      # GitHub Releases 페이지에 APK 자동 첨부. 태그가 아직 원격에 없는
-      # 경우(workflow_dispatch) action-gh-release@v2 가 현재 커밋으로
-      # 태그를 만들어 붙인다.
+      # 태그가 원격에 없으면 action-gh-release@v2 가 현재 커밋으로 만들어
+      # 붙인다. 이미 있는 태그면 그 태그에 그대로 릴리스를 생성.
       - name: Create GitHub Release
+        if: steps.version.outputs.should_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
