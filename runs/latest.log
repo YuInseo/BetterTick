@@ -24,9 +24,9 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
 > Task :app:parseDebugLocalResources
+> Task :app:mergeDebugResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
-> Task :app:mergeDebugResources
 > Task :app:javaPreCompileDebug
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
@@ -98,5 +98,5 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 2m 54s
+BUILD SUCCESSFUL in 3m 19s
 40 actionable tasks: 40 executed
