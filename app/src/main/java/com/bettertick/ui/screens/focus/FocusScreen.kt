@@ -1,7 +1,9 @@
 package com.bettertick.ui.screens.focus
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -51,6 +53,24 @@ fun FocusScreen(
     val timerState by viewModel.timerState.collectAsState()
     val todaySessions by viewModel.todaySessions.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    // 카테고리 클릭 → 풀스크린 타이머 노출. 사용자가 down chevron으로 축소하면
+    // false로 떨어뜨려 categories + RunningTimerBar로 복귀.
+    var timerExpanded by remember { mutableStateOf(false) }
+
+    if (timerState.isRunning && timerExpanded) {
+        FocusTimerScreen(
+            timerState = timerState,
+            timeText = viewModel.formatTime(timerState.elapsedSeconds),
+            onCollapse = { timerExpanded = false },
+            onPause = { viewModel.pauseSession() },
+            onResume = { viewModel.resumeSession() },
+            onStop = {
+                viewModel.stopSession()
+                timerExpanded = false
+            }
+        )
+        return
+    }
 
     Column(
         modifier = Modifier
@@ -89,7 +109,10 @@ fun FocusScreen(
                     category = category,
                     todayMinutes = todayMinutes,
                     isTimerRunning = timerState.isRunning,
-                    onStartClick = { viewModel.startSession(category) }
+                    onStartClick = {
+                        viewModel.startSession(category)
+                        timerExpanded = true
+                    }
                 )
             }
 
@@ -117,15 +140,21 @@ fun FocusScreen(
             }
         }
 
-        // Running timer bar
+        // Running timer bar — 축소 상태에서만 노출. 클릭하면 풀스크린 복귀.
         if (timerState.isRunning) {
-            RunningTimerBar(
-                timerState = timerState,
-                timeText = viewModel.formatTime(timerState.elapsedSeconds),
-                onPause = { viewModel.pauseSession() },
-                onResume = { viewModel.resumeSession() },
-                onStop = { viewModel.stopSession() }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { timerExpanded = true }
+            ) {
+                RunningTimerBar(
+                    timerState = timerState,
+                    timeText = viewModel.formatTime(timerState.elapsedSeconds),
+                    onPause = { viewModel.pauseSession() },
+                    onResume = { viewModel.resumeSession() },
+                    onStop = { viewModel.stopSession() }
+                )
+            }
         }
     }
 
