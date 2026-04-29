@@ -42,6 +42,11 @@ jobs:
           cache-read-only: false
           gradle-home-cache-cleanup: true
 
+      # gradlew 가 실행 비트로 커밋돼 있어서 보통 필요 없지만, 누가 비트를
+      # 떨어뜨려도 빌드가 깨지지 않게 안전망으로 한 번 더.
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+
       - name: Compute version metadata
         id: meta
         run: |
