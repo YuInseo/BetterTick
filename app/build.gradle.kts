@@ -7,6 +7,13 @@
     alias(libs.plugins.ksp)
 }
 
+// 로컬: keystore.properties 파일 사용
+// CI:    GitHub Secrets (STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD, KEYSTORE_BASE64)
+private val keystorePropertiesFile = rootProject.file("keystore.properties")
+private val keystoreProperties = java.util.Properties().apply {
+    if (keystorePropertiesFile.exists()) load(keystorePropertiesFile.inputStream())
+}
+
 android {
     namespace = "com.bettertick"
     compileSdk = 34
@@ -21,9 +28,28 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystorePropertiesFile.exists()) {
+                // 로컬 개발: keystore.properties 읽기
+                storeFile    = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias     = keystoreProperties["keyAlias"] as String
+                keyPassword  = keystoreProperties["keyPassword"] as String
+            } else {
+                // CI: 환경변수에서 읽기 (release.yml에서 주입)
+                storeFile    = file("bettertick.keystore")
+                storePassword = System.getenv("STORE_PASSWORD") ?: ""
+                keyAlias     = System.getenv("KEY_ALIAS") ?: ""
+                keyPassword  = System.getenv("KEY_PASSWORD") ?: ""
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
