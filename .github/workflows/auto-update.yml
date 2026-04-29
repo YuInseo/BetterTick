@@ -35,12 +35,19 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
+      # 이전엔 gradle/actions/setup-gradle@v3 를 썼는데 post 단계 캐시 저장이
+      # GitHub 인프라 장애 때 잡 전체를 죽이는 이슈가 있었다. ci.yml 과 같은
+      # 가벼운 setup-java 캐싱 + actions/cache 조합이 더 안정적.
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
         with:
-          cache-read-only: false
-          gradle-home-cache-cleanup: true
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
+          restore-keys: gradle-
 
       # gradlew 가 실행 비트로 커밋돼 있어서 보통 필요 없지만, 누가 비트를
       # 떨어뜨려도 빌드가 깨지지 않게 안전망으로 한 번 더.
