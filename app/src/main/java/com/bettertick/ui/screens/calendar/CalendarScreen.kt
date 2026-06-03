@@ -3,10 +3,14 @@ package com.bettertick.ui.screens.calendar
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,13 +18,10 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.border
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.Alignment
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.CalendarViewMonth
 import androidx.compose.material.icons.outlined.FilterList
@@ -32,7 +33,6 @@ import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.ViewDay
-import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.ViewWeek
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -50,16 +50,24 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.ui.screens.calendar.components.ActiveDrag
+import com.bettertick.ui.screens.calendar.components.ListCalendarView
 import com.bettertick.ui.screens.calendar.components.ScrollableMonthCalendar
 import com.bettertick.ui.screens.calendar.components.SelectedDatePanel
 import com.bettertick.ui.screens.calendar.components.TaskDateLookup
@@ -82,6 +90,30 @@ enum class CalendarViewMode(val label: String, val icon: ImageVector) {
     DAY("일", Icons.Outlined.ViewAgenda)
 }
 
+// Pinch-out (zoom in) → more detailed view
+private fun CalendarViewMode.zoomIn(): CalendarViewMode = when (this) {
+    CalendarViewMode.YEAR -> CalendarViewMode.MONTH
+    CalendarViewMode.MONTH -> CalendarViewMode.WEEK
+    CalendarViewMode.WEEK -> CalendarViewMode.THREE_DAY
+    CalendarViewMode.THREE_DAY -> CalendarViewMode.DAY
+    else -> this
+}
+
+// Pinch-in (zoom out) → less detailed view
+private fun CalendarViewMode.zoomOut(): CalendarViewMode = when (this) {
+    CalendarViewMode.DAY -> CalendarViewMode.THREE_DAY
+    CalendarViewMode.THREE_DAY -> CalendarViewMode.WEEK
+    CalendarViewMode.WEEK -> CalendarViewMode.MONTH
+    CalendarViewMode.MONTH -> CalendarViewMode.YEAR
+    else -> this
+}
+
+private val timelineViewModes = setOf(
+    CalendarViewMode.WEEK,
+    CalendarViewMode.THREE_DAY,
+    CalendarViewMode.DAY
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
@@ -94,15 +126,17 @@ fun CalendarScreen(
         onSelectedDateChanged(selectedDate)
     }
     val tasksByDate by viewModel.tasksByDate.collectAsState()
-    // Wrap the raw Map in an @Immutable type so Compose can mark children
-    // skippable. The new wrapper equals by reference identity of the
-    // underlying map, which is exactly the contract a fresh Firestore
-    // snapshot honors (new map on change, same map otherwise).
     val lookup = remember(tasksByDate) { TaskDateLookup(tasksByDate) }
 
     var viewMode by remember { mutableStateOf(CalendarViewMode.MONTH) }
     var showViewModeMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+
+    // Timeline zoom level — shared across WEEK/THREE_DAY/DAY so it persists
+    // when the user pinches between timeline modes.
+    var hourHeight by remember { mutableStateOf(52.dp) }
+    val minHourHeight = 32.dp
+    val maxHourHeight = 140.dp
 
     val monthFormatter = DateTimeFormatter.ofPattern("M월", Locale.KOREAN)
     val initialMonth = remember { selectedMonth }
@@ -111,6 +145,35 @@ fun CalendarScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
+            // Single pinch gesture handler for the whole screen:
+            // - In timeline views (week/3-day/day): gentle pinch zooms the time
+            //   grid; large pinch switches to the adjacent view.
+            // - In other views: any pinch past the threshold switches view mode.
+            .pointerInput(viewMode) {
+                var acc = 1f
+                detectTransformGestures { _, _, zoom, _ ->
+                    if (zoom == 1f) return@detectTransformGestures
+                    // Zoom the time grid immediately for timeline modes.
+                    if (viewMode in timelineViewModes) {
+                        hourHeight = (hourHeight.value * zoom)
+                            .coerceIn(minHourHeight.value, maxHourHeight.value).dp
+                    }
+                    // Accumulate scale toward the view-switch threshold.
+                    acc *= zoom
+                    val next = when {
+                        acc > 1.45f -> viewMode.zoomIn()
+                        acc < 0.6f -> viewMode.zoomOut()
+                        else -> null
+                    }
+                    if (next != null && next != viewMode) {
+                        viewMode = next
+                        acc = 1f
+                        // Snap hourHeight back to default when leaving the
+                        // timeline modes entirely (e.g. day → month).
+                        if (next !in timelineViewModes) hourHeight = 52.dp
+                    }
+                }
+            }
     ) {
         // Header
         TopAppBar(
@@ -132,9 +195,6 @@ fun CalendarScreen(
                 }
             },
             actions = {
-                // Jump-to-today shortcut. Selecting today snaps the header
-                // to the current month and reveals the per-day panel — the
-                // fastest path back to "now" from any view.
                 IconButton(onClick = {
                     val today = java.time.LocalDate.now()
                     viewModel.onVisibleMonthChanged(java.time.YearMonth.from(today))
@@ -148,7 +208,6 @@ fun CalendarScreen(
                     )
                 }
 
-                // View mode toggle
                 Box {
                     IconButton(onClick = { showViewModeMenu = true }) {
                         Icon(
@@ -190,7 +249,6 @@ fun CalendarScreen(
                     }
                 }
 
-                // More options
                 Box {
                     IconButton(onClick = { showMoreMenu = true }) {
                         Icon(
@@ -239,8 +297,9 @@ fun CalendarScreen(
             )
         )
 
-        // Sticky day-of-week header (hidden in YEAR/WEEK modes — WEEK renders its own)
-        if (viewMode != CalendarViewMode.YEAR && viewMode != CalendarViewMode.WEEK) {
+        // Sticky day-of-week header — only meaningful for the MONTH grid.
+        // Timeline and year views render their own column headers inline.
+        if (viewMode == CalendarViewMode.MONTH) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -252,247 +311,340 @@ fun CalendarScreen(
                         style = MaterialTheme.typography.labelMedium,
                         color = TextSecondary,
                         modifier = Modifier.weight(1f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        textAlign = TextAlign.Center
                     )
                 }
             }
         }
 
-        // When no date is selected: full scrollable month.
-        // When a date IS selected: compact Column layout:
-        //   [selected week strip]
-        //   [task card — fills the middle, rounded on all four sides]
-        //   [peek row — just the numbers of the next week]
-        // No overlay, no offset hacks — each section has its own space and
-        // the card naturally stretches to fill whatever's between the two
-        // week strips.
         val date = selectedDate
         val weekTasks by viewModel.allTasks.collectAsState()
-        // Crossfade between the three calendar modes so swapping views
-        // animates instead of snapping — mirrors the smooth month↔week
-        // transition in Samsung/Google Calendar.
-        if (viewMode == CalendarViewMode.WEEK) {
-            val anchor = date ?: java.time.LocalDate.now()
-            val week = remember(anchor) { weekContaining(anchor) }
-            WeekTimelineView(
-                weekDates = week,
-                allTasks = weekTasks,
-                today = java.time.LocalDate.now(),
-                selectedDate = anchor,
-                onDateSelected = { viewModel.selectDate(it) },
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
-        } else if (viewMode == CalendarViewMode.YEAR) {
-            YearView(
-                years = viewModel.yearsList,
-                initialYear = initialMonth.year,
-                lookup = lookup,
-                onMonthSelected = { ym ->
-                    viewModel.onVisibleMonthChanged(ym)
-                    viewMode = CalendarViewMode.MONTH
-                },
-                onVisibleYearChanged = { viewModel.onVisibleYearChanged(it) },
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
-        } else Crossfade(
-            targetState = date,
-            animationSpec = tween(durationMillis = 280),
-            label = "calendar_mode",
-            modifier = Modifier.weight(1f).fillMaxWidth()
-        ) { currentDate ->
-          if (currentDate == null) {
-            ScrollableMonthCalendar(
-                months = viewModel.monthsList,
-                selectedDate = null,
-                lookup = lookup,
-                initialMonth = initialMonth,
-                onDateSelected = { viewModel.selectDate(it) },
-                onVisibleMonthChanged = { viewModel.onVisibleMonthChanged(it) },
-                modifier = Modifier.fillMaxSize()
-            )
-          } else {
-            val today = remember { java.time.LocalDate.now() }
 
-            // Drag state — floating preview + drop-target bounds registry.
-            var activeDrag by remember { mutableStateOf<ActiveDrag?>(null) }
-            val dateBounds = remember { mutableStateMapOf<java.time.LocalDate, Rect>() }
-            // Pending recurring-task drop — shown when user drags a repeating
-            // task, deferred until they pick "지금 반복" vs "모든 미완료 주기".
-            var pendingRecurringMove by remember {
-                mutableStateOf<Triple<com.bettertick.data.model.Task, java.time.LocalDate, java.time.LocalDate>?>(null)
+        when (viewMode) {
+            CalendarViewMode.WEEK -> {
+                val anchor = date ?: java.time.LocalDate.now()
+                val week = remember(anchor) { weekContaining(anchor) }
+                WeekTimelineView(
+                    weekDates = week,
+                    allTasks = weekTasks,
+                    today = java.time.LocalDate.now(),
+                    selectedDate = anchor,
+                    onDateSelected = { viewModel.selectDate(it) },
+                    hourHeight = hourHeight,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
             }
-            // The week strip previews other weeks during a drag without
-            // changing selectedDate — that would remount the LazyColumn and
-            // kill the in-flight pointerInput. displayedAnchor drives only
-            // the strip; currentDate keeps owning the task list + focus.
-            var displayedAnchor by remember { mutableStateOf(currentDate) }
-            androidx.compose.runtime.LaunchedEffect(currentDate) {
-                displayedAnchor = currentDate
-            }
-            androidx.compose.runtime.LaunchedEffect(activeDrag) {
-                if (activeDrag == null) displayedAnchor = currentDate
-            }
-            val selectedWeek = remember(displayedAnchor) { weekContaining(displayedAnchor) }
-            // Hovered date cell under the drag pointer — drives the
-            // translucent highlight on the week strip.
-            val hoveredDate: java.time.LocalDate? = activeDrag?.let { drag ->
-                dateBounds.entries.firstOrNull { (_, r) -> r.contains(drag.currentOffset) }?.key
-            }
-            // Edge-scroll zones: while the drag pointer sits in the left or
-            // right gutter of the screen, advance the PREVIEW week every
-            // ~500ms. Only displayedAnchor changes — the task list stays
-            // put so the drag gesture survives the week flip.
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-            val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
-            val edgeZonePx = with(density) { 20.dp.toPx() }
-            val inLeftEdge = activeDrag?.let { it.currentOffset.x < edgeZonePx } == true
-            val inRightEdge = activeDrag?.let { it.currentOffset.x > screenWidthPx - edgeZonePx } == true
-            androidx.compose.runtime.LaunchedEffect(inLeftEdge, inRightEdge, displayedAnchor) {
-                if (!inLeftEdge && !inRightEdge) return@LaunchedEffect
-                // Brief initial delay so a drag that merely passes through
-                // the edge doesn't trigger an unwanted jump.
-                kotlinx.coroutines.delay(400)
-                while (inLeftEdge || inRightEdge) {
-                    val shift = if (inLeftEdge) -7L else 7L
-                    displayedAnchor = displayedAnchor.plusDays(shift)
-                    kotlinx.coroutines.delay(500)
+
+            CalendarViewMode.THREE_DAY -> {
+                val anchor = date ?: java.time.LocalDate.now()
+                val threeDays = remember(anchor) {
+                    listOf(anchor.minusDays(1), anchor, anchor.plusDays(1))
                 }
+                WeekTimelineView(
+                    weekDates = threeDays,
+                    allTasks = weekTasks,
+                    today = java.time.LocalDate.now(),
+                    selectedDate = anchor,
+                    onDateSelected = { viewModel.selectDate(it) },
+                    hourHeight = hourHeight,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
             }
-            // Row positions report via positionInRoot() (window-ish coords),
-            // but Modifier.offset on the preview is applied relative to this
-            // outer Box. Track the Box's own root position so we can
-            // subtract it and keep the preview glued to the finger.
-            var outerBoxRootPos by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-            var previewSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
 
-            // Outer Box stacks the floating drag preview on top of the column.
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .onGloballyPositioned { outerBoxRootPos = it.positionInRoot() }
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    // Selected week strip — draggable via tap-drop.
-                    DragAwareWeekStrip(
-                        week = selectedWeek,
-                        today = today,
-                        selectedDate = currentDate,
-                        lookup = lookup,
-                        activeDrag = activeDrag,
-                        hoveredDate = hoveredDate,
-                        onDateSelected = { viewModel.selectDate(it) },
-                        onDateBounds = { d, r -> dateBounds[d] = r },
-                        onExpandMonth = { viewModel.clearSelection() }
+            CalendarViewMode.DAY -> {
+                val anchor = date ?: java.time.LocalDate.now()
+                val week = remember(anchor) { weekContaining(anchor) }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                ) {
+                    // Full week navigation strip — mirrors Samsung/Google Calendar
+                    // day view header so the user can tap to jump to a nearby day.
+                    DayViewNavStrip(
+                        week = week,
+                        today = java.time.LocalDate.now(),
+                        selectedDate = anchor,
+                        onDateSelected = { viewModel.selectDate(it) }
                     )
-
-                    // Task card
-                    SelectedDatePanel(
-                        tasks = lookup.tasksOn(currentDate),
-                        selectedDate = currentDate,
-                        onToggleComplete = { task ->
-                            viewModel.toggleTaskComplete(task.id, !task.isCompleted)
-                        },
-                        onTaskClick = {},
-                        detailListName = { task -> viewModel.listNameFor(task.listId) },
-                        onUpdateTask = { updated -> viewModel.updateTask(updated) },
-                        onAbandon = { task ->
-                            viewModel.setAbandoned(task.id, true)
-                        },
-                        onUnabandon = { task ->
-                            viewModel.setAbandoned(task.id, false)
-                        },
-                        onDelete = { task -> viewModel.deleteTask(task.id) },
-                        onSkipOccurrence = { task, date ->
-                            viewModel.skipTaskOccurrence(task.id, date)
-                        },
-                        tags = viewModel.tags.collectAsState().value,
-                        onCreateTag = { viewModel.createTag(it) },
-                        onDragTaskUpdate = { drag -> activeDrag = drag },
-                        onDragTaskRelease = { task ->
-                            val drop = activeDrag?.currentOffset
-                            if (drop != null) {
-                                val targetDate = dateBounds.entries
-                                    .firstOrNull { (_, r) -> r.contains(drop) }
-                                    ?.key
-                                if (targetDate != null) {
-                                    if (task.repeatRule.isNullOrBlank()) {
-                                        viewModel.moveTaskToDate(task.id, targetDate)
-                                    } else {
-                                        // Recurring — pause for the scope dialog
-                                        // so the user chooses between moving a
-                                        // single occurrence vs the whole series.
-                                        pendingRecurringMove = Triple(task, currentDate, targetDate)
-                                    }
-                                    // Follow the task to the drop date so the
-                                    // user sees where it landed, especially
-                                    // after a multi-week edge-scroll drag.
-                                    if (targetDate != currentDate) {
-                                        viewModel.selectDate(targetDate)
-                                    }
-                                }
-                            }
-                            activeDrag = null
-                        },
+                    // Single-column timeline below the nav strip.
+                    WeekTimelineView(
+                        weekDates = listOf(anchor),
+                        allTasks = weekTasks,
+                        today = java.time.LocalDate.now(),
+                        selectedDate = anchor,
+                        onDateSelected = { viewModel.selectDate(it) },
+                        showDayHeader = false,
+                        hourHeight = hourHeight,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
-                            .padding(vertical = 6.dp)
                     )
                 }
+            }
 
-                // Floating drag preview — center on the finger regardless
-                // of title width (previous fixed -80/-24 hack drifted left
-                // for short titles and right for long ones). currentOffset
-                // is in root coords; subtract the Box's own root position
-                // so the offset is applied in this Box's frame.
-                pendingRecurringMove?.let { (task, source, target) ->
-                    com.bettertick.ui.screens.tasks.components.RecurringScopeDialog(
-                        title = "반복 할일 편집",
-                        body = "반복 작업의 시간을 수정하고 있습니다. 수정 범위를 확인해주세요.",
-                        onDismiss = { pendingRecurringMove = null },
-                        onChoice = { scope ->
-                            when (scope) {
-                                com.bettertick.ui.screens.tasks.components.RecurringScope.ThisOccurrence ->
-                                    viewModel.moveTaskOccurrence(task.id, source, target)
-                                com.bettertick.ui.screens.tasks.components.RecurringScope.AllIncomplete ->
-                                    viewModel.moveTaskToDate(task.id, target)
-                            }
-                            pendingRecurringMove = null
+            CalendarViewMode.LIST -> {
+                ListCalendarView(
+                    allTasks = weekTasks,
+                    today = java.time.LocalDate.now(),
+                    selectedDate = date,
+                    onDateSelected = { viewModel.selectDate(it) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+            }
+
+            CalendarViewMode.YEAR -> {
+                YearView(
+                    years = viewModel.yearsList,
+                    initialYear = initialMonth.year,
+                    lookup = lookup,
+                    onMonthSelected = { ym ->
+                        viewModel.onVisibleMonthChanged(ym)
+                        viewMode = CalendarViewMode.MONTH
+                    },
+                    onVisibleYearChanged = { viewModel.onVisibleYearChanged(it) },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                )
+            }
+
+            CalendarViewMode.MONTH -> Crossfade(
+                targetState = date,
+                animationSpec = tween(durationMillis = 280),
+                label = "calendar_month",
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) { currentDate ->
+                if (currentDate == null) {
+                    ScrollableMonthCalendar(
+                        months = viewModel.monthsList,
+                        selectedDate = null,
+                        lookup = lookup,
+                        initialMonth = initialMonth,
+                        onDateSelected = { viewModel.selectDate(it) },
+                        onVisibleMonthChanged = { viewModel.onVisibleMonthChanged(it) },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    val today = remember { java.time.LocalDate.now() }
+
+                    var activeDrag by remember { mutableStateOf<ActiveDrag?>(null) }
+                    val dateBounds = remember { mutableStateMapOf<java.time.LocalDate, Rect>() }
+                    var pendingRecurringMove by remember {
+                        mutableStateOf<Triple<com.bettertick.data.model.Task, java.time.LocalDate, java.time.LocalDate>?>(null)
+                    }
+                    var displayedAnchor by remember { mutableStateOf(currentDate) }
+                    androidx.compose.runtime.LaunchedEffect(currentDate) {
+                        displayedAnchor = currentDate
+                    }
+                    androidx.compose.runtime.LaunchedEffect(activeDrag) {
+                        if (activeDrag == null) displayedAnchor = currentDate
+                    }
+                    val selectedWeek = remember(displayedAnchor) { weekContaining(displayedAnchor) }
+                    val hoveredDate: java.time.LocalDate? = activeDrag?.let { drag ->
+                        dateBounds.entries.firstOrNull { (_, r) -> r.contains(drag.currentOffset) }?.key
+                    }
+                    val density = androidx.compose.ui.platform.LocalDensity.current
+                    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+                    val edgeZonePx = with(density) { 20.dp.toPx() }
+                    val inLeftEdge = activeDrag?.let { it.currentOffset.x < edgeZonePx } == true
+                    val inRightEdge = activeDrag?.let { it.currentOffset.x > screenWidthPx - edgeZonePx } == true
+                    androidx.compose.runtime.LaunchedEffect(inLeftEdge, inRightEdge, displayedAnchor) {
+                        if (!inLeftEdge && !inRightEdge) return@LaunchedEffect
+                        kotlinx.coroutines.delay(400)
+                        while (inLeftEdge || inRightEdge) {
+                            val shift = if (inLeftEdge) -7L else 7L
+                            displayedAnchor = displayedAnchor.plusDays(shift)
+                            kotlinx.coroutines.delay(500)
                         }
-                    )
-                }
+                    }
+                    var outerBoxRootPos by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+                    var previewSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
 
-                activeDrag?.let { drag ->
                     Box(
                         modifier = Modifier
-                            .onGloballyPositioned { previewSize = it.size }
-                            .offset {
-                                IntOffset(
-                                    (drag.currentOffset.x - outerBoxRootPos.x).roundToInt() - previewSize.width / 2,
-                                    (drag.currentOffset.y - outerBoxRootPos.y).roundToInt() - previewSize.height / 2
+                            .fillMaxSize()
+                            .onGloballyPositioned { outerBoxRootPos = it.positionInRoot() }
+                    ) {
+                        Column(modifier = Modifier.fillMaxSize()) {
+                            DragAwareWeekStrip(
+                                week = selectedWeek,
+                                today = today,
+                                selectedDate = currentDate,
+                                lookup = lookup,
+                                activeDrag = activeDrag,
+                                hoveredDate = hoveredDate,
+                                onDateSelected = { viewModel.selectDate(it) },
+                                onDateBounds = { d, r -> dateBounds[d] = r },
+                                onExpandMonth = { viewModel.clearSelection() }
+                            )
+
+                            SelectedDatePanel(
+                                tasks = lookup.tasksOn(currentDate),
+                                selectedDate = currentDate,
+                                onToggleComplete = { task ->
+                                    viewModel.toggleTaskComplete(task.id, !task.isCompleted)
+                                },
+                                onTaskClick = {},
+                                detailListName = { task -> viewModel.listNameFor(task.listId) },
+                                onUpdateTask = { updated -> viewModel.updateTask(updated) },
+                                onAbandon = { task -> viewModel.setAbandoned(task.id, true) },
+                                onUnabandon = { task -> viewModel.setAbandoned(task.id, false) },
+                                onDelete = { task -> viewModel.deleteTask(task.id) },
+                                onSkipOccurrence = { task, d ->
+                                    viewModel.skipTaskOccurrence(task.id, d)
+                                },
+                                tags = viewModel.tags.collectAsState().value,
+                                onCreateTag = { viewModel.createTag(it) },
+                                onDragTaskUpdate = { drag -> activeDrag = drag },
+                                onDragTaskRelease = { task ->
+                                    val drop = activeDrag?.currentOffset
+                                    if (drop != null) {
+                                        val targetDate = dateBounds.entries
+                                            .firstOrNull { (_, r) -> r.contains(drop) }?.key
+                                        if (targetDate != null) {
+                                            if (task.repeatRule.isNullOrBlank()) {
+                                                viewModel.moveTaskToDate(task.id, targetDate)
+                                            } else {
+                                                pendingRecurringMove = Triple(task, currentDate, targetDate)
+                                            }
+                                            if (targetDate != currentDate) {
+                                                viewModel.selectDate(targetDate)
+                                            }
+                                        }
+                                    }
+                                    activeDrag = null
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp)
+                            )
+                        }
+
+                        pendingRecurringMove?.let { (task, source, target) ->
+                            com.bettertick.ui.screens.tasks.components.RecurringScopeDialog(
+                                title = "반복 할일 편집",
+                                body = "반복 작업의 시간을 수정하고 있습니다. 수정 범위를 확인해주세요.",
+                                onDismiss = { pendingRecurringMove = null },
+                                onChoice = { scope ->
+                                    when (scope) {
+                                        com.bettertick.ui.screens.tasks.components.RecurringScope.ThisOccurrence ->
+                                            viewModel.moveTaskOccurrence(task.id, source, target)
+                                        com.bettertick.ui.screens.tasks.components.RecurringScope.AllIncomplete ->
+                                            viewModel.moveTaskToDate(task.id, target)
+                                    }
+                                    pendingRecurringMove = null
+                                }
+                            )
+                        }
+
+                        activeDrag?.let { drag ->
+                            Box(
+                                modifier = Modifier
+                                    .onGloballyPositioned { previewSize = it.size }
+                                    .offset {
+                                        IntOffset(
+                                            (drag.currentOffset.x - outerBoxRootPos.x).roundToInt() - previewSize.width / 2,
+                                            (drag.currentOffset.y - outerBoxRootPos.y).roundToInt() - previewSize.height / 2
+                                        )
+                                    }
+                                    .background(
+                                        DarkCard.copy(alpha = 0.95f),
+                                        RoundedCornerShape(8.dp)
+                                    )
+                                    .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = drag.task.title,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onBackground
                                 )
                             }
-                            .background(
-                                DarkCard.copy(alpha = 0.95f),
-                                RoundedCornerShape(8.dp)
-                            )
-                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Navigation strip used by the DAY view: shows all 7 days of the week
+ * containing [selectedDate] so the user can tap to jump to a nearby day.
+ * Aligned with the timeline's time gutter so columns line up visually.
+ */
+@Composable
+private fun DayViewNavStrip(
+    week: List<java.time.LocalDate>,
+    today: java.time.LocalDate,
+    selectedDate: java.time.LocalDate,
+    onDateSelected: (java.time.LocalDate) -> Unit
+) {
+    val koreanDow = listOf("일", "월", "화", "수", "목", "금", "토")
+    val timeGutter = 52.dp
+    Column {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Spacer(Modifier.width(timeGutter))
+            week.forEach { d ->
+                val dowIdx = d.dayOfWeek.value % 7
+                Text(
+                    text = koreanDow[dowIdx],
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Spacer(Modifier.width(timeGutter))
+            week.forEach { d ->
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(vertical = 4.dp)
+                        .clickable { onDateSelected(d) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .then(
+                                if (d == selectedDate) {
+                                    Modifier
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF2F7CF6))
+                                } else Modifier
+                            ),
+                        contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = drag.task.title,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onBackground
+                            text = d.dayOfMonth.toString(),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = when {
+                                d == selectedDate -> Color.White
+                                d == today -> Color(0xFF2F7CF6)
+                                else -> MaterialTheme.colorScheme.onBackground
+                            }
                         )
                     }
                 }
             }
-          }
         }
     }
 }
@@ -535,9 +687,6 @@ private fun DragAwareWeekStrip(
                 )
             }
     ) {
-        // Inner wrapper holds the original 8dp side padding so the date
-        // cells keep their visual margin; the outer Box spans edge-to-edge
-        // so the drag edge zones can sit in the gutters.
         Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             WeekRow(
                 week = selectedWeek,
@@ -549,52 +698,41 @@ private fun DragAwareWeekStrip(
                 onDateSelected = onDateSelected
             )
 
-        // Invisible overlay rows with onGloballyPositioned, so the parent
-        // can hit-test the floating drag preview against each date cell.
-        // Also paints a translucent circle over the date currently under
-        // the drag pointer (only one cell at a time, not the whole week).
-        Row(modifier = Modifier.fillMaxWidth()) {
-            selectedWeek.forEach { d ->
-                val isHovered = activeDrag != null && hoveredDate == d
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(84.dp)
-                        .onGloballyPositioned { coords ->
-                            val pos = coords.positionInRoot()
-                            onDateBounds(
-                                d,
-                                Rect(
-                                    pos.x,
-                                    pos.y,
-                                    pos.x + coords.size.width,
-                                    pos.y + coords.size.height
+            Row(modifier = Modifier.fillMaxWidth()) {
+                selectedWeek.forEach { d ->
+                    val isHovered = activeDrag != null && hoveredDate == d
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(84.dp)
+                            .onGloballyPositioned { coords ->
+                                val pos = coords.positionInRoot()
+                                onDateBounds(
+                                    d,
+                                    Rect(
+                                        pos.x,
+                                        pos.y,
+                                        pos.x + coords.size.width,
+                                        pos.y + coords.size.height
+                                    )
                                 )
+                            },
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        if (isHovered) {
+                            androidx.compose.foundation.layout.Spacer(
+                                modifier = Modifier
+                                    .padding(top = 4.dp)
+                                    .size(32.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
                             )
-                        },
-                    contentAlignment = Alignment.TopCenter
-                ) {
-                    if (isHovered) {
-                        // Same 32dp circle as DayCell uses for selection,
-                        // rendered semi-transparent so the date number
-                        // beneath stays readable.
-                        androidx.compose.foundation.layout.Spacer(
-                            modifier = Modifier
-                                .padding(top = 4.dp)
-                                .size(32.dp)
-                                .clip(androidx.compose.foundation.shape.CircleShape)
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.45f))
-                        )
+                        }
                     }
                 }
             }
         }
-        } // close inner padded Box
 
-        // Left/right week-navigation edge zones — visible only while a
-        // drag is in flight. Hold a drag inside either box to advance the
-        // week (see the LaunchedEffect in CalendarScreen). Sized 36dp wide
-        // / 84dp tall to match WeekRow's height and the edgeZonePx check.
         if (activeDrag != null) {
             Box(
                 modifier = Modifier
