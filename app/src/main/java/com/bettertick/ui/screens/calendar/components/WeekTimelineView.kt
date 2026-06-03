@@ -2,7 +2,6 @@ package com.bettertick.ui.screens.calendar.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,17 +22,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -59,8 +54,8 @@ import kotlin.math.roundToInt
  * All-day tasks appear in a stacked strip above the grid, under the day
  * headers.
  *
- * Pinch-to-zoom adjusts [hourHeightDp] so the user can spread hours out
- * (see 30-min detail) or pack them in (see the whole day at once).
+ * [hourHeight] controls the vertical scale of the time grid. Pass it from
+ * the parent so pinch-to-zoom can be handled at the CalendarScreen level.
  */
 @Composable
 fun WeekTimelineView(
@@ -69,12 +64,11 @@ fun WeekTimelineView(
     today: LocalDate,
     selectedDate: LocalDate,
     onDateSelected: (LocalDate) -> Unit,
+    showDayHeader: Boolean = true,
+    hourHeight: Dp = 52.dp,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
-    val minHourHeight = 32.dp
-    val maxHourHeight = 140.dp
-    var hourHeight by remember { mutableStateOf(52.dp) }
 
     val scrollState = rememberScrollState()
     val timeGutter = 52.dp
@@ -106,24 +100,17 @@ fun WeekTimelineView(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(Unit) {
-                detectTransformGestures { _, _, zoom, _ ->
-                    if (zoom != 1f) {
-                        val next = (hourHeight.value * zoom)
-                            .coerceIn(minHourHeight.value, maxHourHeight.value)
-                        hourHeight = next.dp
-                    }
-                }
-            }
     ) {
         // Day-of-week header row + date numbers.
-        DayHeaderRow(
-            weekDates = weekDates,
-            today = today,
-            selectedDate = selectedDate,
-            timeGutter = timeGutter,
-            onDateSelected = onDateSelected
-        )
+        if (showDayHeader) {
+            DayHeaderRow(
+                weekDates = weekDates,
+                today = today,
+                selectedDate = selectedDate,
+                timeGutter = timeGutter,
+                onDateSelected = onDateSelected
+            )
+        }
 
         // All-day strip
         if (maxAllDayRows > 0) {
