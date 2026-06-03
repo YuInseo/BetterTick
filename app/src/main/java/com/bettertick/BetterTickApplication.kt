@@ -7,6 +7,7 @@ import com.bettertick.data.repository.FocusRepository
 import com.bettertick.data.repository.HabitRepository
 import com.bettertick.data.repository.ListRepository
 import com.bettertick.data.repository.TaskRepository
+import com.bettertick.update.AppUpdateWorker
 import com.bettertick.widget.WidgetServiceLocator
 import com.bettertick.widget.WidgetUpdateWorker
 import com.bettertick.widget.calendar.ReminderWidget
@@ -41,6 +42,9 @@ class BetterTickApplication : Application() {
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
         // Schedule periodic widget updates
         WidgetUpdateWorker.enqueue(this)
+        // Schedule background app update checks (every 6 hours)
+        AppUpdateWorker.createNotificationChannel(this)
+        AppUpdateWorker.enqueue(this)
 
         // Server-backed sync for tasks. The widget (and the rest of the app)
         // reads from ListenSource.CACHE, so nothing pulls from the server by
