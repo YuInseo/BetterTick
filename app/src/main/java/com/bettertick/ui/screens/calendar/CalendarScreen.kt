@@ -2,6 +2,7 @@ package com.bettertick.ui.screens.calendar
 
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,19 +15,28 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.CalendarViewMonth
 import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.Label
+import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.TaskAlt
@@ -34,19 +44,20 @@ import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.ViewDay
 import androidx.compose.material.icons.outlined.ViewWeek
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -56,13 +67,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -97,7 +112,6 @@ enum class CalendarViewMode(val label: String, val icon: ImageVector) {
     DAY("일", Icons.Outlined.ViewAgenda)
 }
 
-// Pinch-out (zoom in) → more detailed view
 private fun CalendarViewMode.zoomIn(): CalendarViewMode = when (this) {
     CalendarViewMode.YEAR -> CalendarViewMode.MONTH
     CalendarViewMode.MONTH -> CalendarViewMode.WEEK
@@ -106,7 +120,6 @@ private fun CalendarViewMode.zoomIn(): CalendarViewMode = when (this) {
     else -> this
 }
 
-// Pinch-in (zoom out) → less detailed view
 private fun CalendarViewMode.zoomOut(): CalendarViewMode = when (this) {
     CalendarViewMode.DAY -> CalendarViewMode.THREE_DAY
     CalendarViewMode.THREE_DAY -> CalendarViewMode.WEEK
@@ -145,8 +158,6 @@ fun CalendarScreen(
     var showViewModeMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
 
-    // Timeline zoom level — shared across WEEK/THREE_DAY/DAY so it persists
-    // when the user pinches between timeline modes.
     var hourHeight by remember { mutableStateOf(52.dp) }
     val minHourHeight = 32.dp
     val maxHourHeight = 140.dp
@@ -160,20 +171,14 @@ fun CalendarScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
-            // Single pinch gesture handler for the whole screen:
-            // - In timeline views (week/3-day/day): gentle pinch zooms the time
-            //   grid; large pinch switches to the adjacent view.
-            // - In other views: any pinch past the threshold switches view mode.
             .pointerInput(viewMode) {
                 var acc = 1f
                 detectTransformGestures { _, _, zoom, _ ->
                     if (zoom == 1f) return@detectTransformGestures
-                    // Zoom the time grid immediately for timeline modes.
                     if (viewMode in timelineViewModes) {
                         hourHeight = (hourHeight.value * zoom)
                             .coerceIn(minHourHeight.value, maxHourHeight.value).dp
                     }
-                    // Accumulate scale toward the view-switch threshold.
                     acc *= zoom
                     val next = when {
                         acc > 1.45f -> viewMode.zoomIn()
@@ -183,14 +188,11 @@ fun CalendarScreen(
                     if (next != null && next != viewMode) {
                         viewMode = next
                         acc = 1f
-                        // Snap hourHeight back to default when leaving the
-                        // timeline modes entirely (e.g. day → month).
                         if (next !in timelineViewModes) hourHeight = 52.dp
                     }
                 }
             }
     ) {
-        // Header
         TopAppBar(
             title = {
                 if (viewMode == CalendarViewMode.YEAR) {
@@ -279,41 +281,29 @@ fun CalendarScreen(
                         DropdownMenuItem(
                             text = { Text("필터 보기 범위") },
                             onClick = { showMoreMenu = false },
-                            leadingIcon = {
-                                Icon(Icons.Outlined.FilterList, contentDescription = null, modifier = Modifier.size(20.dp))
-                            }
+                            leadingIcon = { Icon(Icons.Outlined.FilterList, null, modifier = Modifier.size(20.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("옵션 보기") },
                             onClick = { showMoreMenu = false },
-                            leadingIcon = {
-                                Icon(Icons.Outlined.Settings, contentDescription = null, modifier = Modifier.size(20.dp))
-                            }
+                            leadingIcon = { Icon(Icons.Outlined.Settings, null, modifier = Modifier.size(20.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("할 일 배정하기") },
                             onClick = { showMoreMenu = false },
-                            leadingIcon = {
-                                Icon(Icons.Outlined.TaskAlt, contentDescription = null, modifier = Modifier.size(20.dp))
-                            }
+                            leadingIcon = { Icon(Icons.Outlined.TaskAlt, null, modifier = Modifier.size(20.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("공유") },
                             onClick = { showMoreMenu = false },
-                            leadingIcon = {
-                                Icon(Icons.Outlined.Share, contentDescription = null, modifier = Modifier.size(20.dp))
-                            }
+                            leadingIcon = { Icon(Icons.Outlined.Share, null, modifier = Modifier.size(20.dp)) }
                         )
                     }
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = DarkBackground
-            )
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
         )
 
-        // Sticky day-of-week header — only meaningful for the MONTH grid.
-        // Timeline and year views render their own column headers inline.
         if (viewMode == CalendarViewMode.MONTH) {
             Row(
                 modifier = Modifier
@@ -347,9 +337,7 @@ fun CalendarScreen(
                     onDateSelected = { viewModel.selectDate(it) },
                     hourHeight = hourHeight,
                     onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             }
 
@@ -366,29 +354,20 @@ fun CalendarScreen(
                     onDateSelected = { viewModel.selectDate(it) },
                     hourHeight = hourHeight,
                     onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             }
 
             CalendarViewMode.DAY -> {
                 val anchor = date ?: java.time.LocalDate.now()
                 val week = remember(anchor) { weekContaining(anchor) }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                ) {
-                    // Full week navigation strip — mirrors Samsung/Google Calendar
-                    // day view header so the user can tap to jump to a nearby day.
+                Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
                     DayViewNavStrip(
                         week = week,
                         today = java.time.LocalDate.now(),
                         selectedDate = anchor,
                         onDateSelected = { viewModel.selectDate(it) }
                     )
-                    // Single-column timeline below the nav strip.
                     WeekTimelineView(
                         weekDates = listOf(anchor),
                         allTasks = weekTasks,
@@ -398,9 +377,7 @@ fun CalendarScreen(
                         showDayHeader = false,
                         hourHeight = hourHeight,
                         onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth()
+                        modifier = Modifier.weight(1f).fillMaxWidth()
                     )
                 }
             }
@@ -411,9 +388,7 @@ fun CalendarScreen(
                     today = java.time.LocalDate.now(),
                     selectedDate = date,
                     onDateSelected = { viewModel.selectDate(it) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             }
 
@@ -427,9 +402,7 @@ fun CalendarScreen(
                         viewMode = CalendarViewMode.MONTH
                     },
                     onVisibleYearChanged = { viewModel.onVisibleYearChanged(it) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
+                    modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             }
 
@@ -451,16 +424,13 @@ fun CalendarScreen(
                     )
                 } else {
                     val today = remember { java.time.LocalDate.now() }
-
                     var activeDrag by remember { mutableStateOf<ActiveDrag?>(null) }
                     val dateBounds = remember { mutableStateMapOf<java.time.LocalDate, Rect>() }
                     var pendingRecurringMove by remember {
                         mutableStateOf<Triple<com.bettertick.data.model.Task, java.time.LocalDate, java.time.LocalDate>?>(null)
                     }
                     var displayedAnchor by remember { mutableStateOf(currentDate) }
-                    androidx.compose.runtime.LaunchedEffect(currentDate) {
-                        displayedAnchor = currentDate
-                    }
+                    androidx.compose.runtime.LaunchedEffect(currentDate) { displayedAnchor = currentDate }
                     androidx.compose.runtime.LaunchedEffect(activeDrag) {
                         if (activeDrag == null) displayedAnchor = currentDate
                     }
@@ -503,7 +473,6 @@ fun CalendarScreen(
                                 onDateBounds = { d, r -> dateBounds[d] = r },
                                 onExpandMonth = { viewModel.clearSelection() }
                             )
-
                             SelectedDatePanel(
                                 tasks = lookup.tasksOn(currentDate),
                                 selectedDate = currentDate,
@@ -516,9 +485,7 @@ fun CalendarScreen(
                                 onAbandon = { task -> viewModel.setAbandoned(task.id, true) },
                                 onUnabandon = { task -> viewModel.setAbandoned(task.id, false) },
                                 onDelete = { task -> viewModel.deleteTask(task.id) },
-                                onSkipOccurrence = { task, d ->
-                                    viewModel.skipTaskOccurrence(task.id, d)
-                                },
+                                onSkipOccurrence = { task, d -> viewModel.skipTaskOccurrence(task.id, d) },
                                 tags = viewModel.tags.collectAsState().value,
                                 onCreateTag = { viewModel.createTag(it) },
                                 onDragTaskUpdate = { drag -> activeDrag = drag },
@@ -533,9 +500,7 @@ fun CalendarScreen(
                                             } else {
                                                 pendingRecurringMove = Triple(task, currentDate, targetDate)
                                             }
-                                            if (targetDate != currentDate) {
-                                                viewModel.selectDate(targetDate)
-                                            }
+                                            if (targetDate != currentDate) viewModel.selectDate(targetDate)
                                         }
                                     }
                                     activeDrag = null
@@ -574,10 +539,7 @@ fun CalendarScreen(
                                             (drag.currentOffset.y - outerBoxRootPos.y).roundToInt() - previewSize.height / 2
                                         )
                                     }
-                                    .background(
-                                        DarkCard.copy(alpha = 0.95f),
-                                        RoundedCornerShape(8.dp)
-                                    )
+                                    .background(DarkCard.copy(alpha = 0.95f), RoundedCornerShape(8.dp))
                                     .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
                                     .padding(horizontal = 10.dp, vertical = 6.dp)
                             ) {
@@ -592,42 +554,42 @@ fun CalendarScreen(
                 }
             }
         }
+    }
 
-        // Dialog: shown after drag-to-create completes on the timeline
-        createPreset?.let { preset ->
-            var taskTitle by remember(preset) { mutableStateOf("") }
-            val st = preset.startTime
-            val ampm = if (st.hour < 12) "오전" else "오후"
-            val h = when {
-                st.hour == 0 -> 12
-                st.hour > 12 -> st.hour - 12
-                else -> st.hour
-            }
-            val timeLabel = if (st.minute == 0) "$ampm ${h}시" else "$ampm $h:%02d".format(st.minute)
-            val dow = listOf("일", "월", "화", "수", "목", "금", "토")
-            val dowLabel = dow[preset.date.dayOfWeek.value % 7]
-            AlertDialog(
-                onDismissRequest = { createPreset = null },
-                title = { Text("새 할일") },
-                text = {
-                    Column {
-                        Text(
-                            "${preset.date.monthValue}월 ${preset.date.dayOfMonth}일 ($dowLabel) $timeLabel · ${preset.durationMinutes}분",
-                            fontSize = 13.sp,
-                            color = TextSecondary
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = taskTitle,
-                            onValueChange = { taskTitle = it },
-                            label = { Text("제목") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                },
-                confirmButton = {
-                    TextButton(onClick = {
+    // Quick-add bottom sheet — slides up after drag-to-create on the timeline
+    createPreset?.let { preset ->
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        var taskTitle by remember(preset) { mutableStateOf("") }
+        var taskNote by remember(preset) { mutableStateOf("") }
+        val focusRequester = remember { FocusRequester() }
+
+        ModalBottomSheet(
+            onDismissRequest = { createPreset = null },
+            sheetState = sheetState,
+            containerColor = Color(0xFF1C1C1E),
+            dragHandle = {}
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(top = 24.dp, bottom = 12.dp)
+                    .imePadding()
+            ) {
+                // Title input
+                BasicTextField(
+                    value = taskTitle,
+                    onValueChange = { taskTitle = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester),
+                    textStyle = TextStyle(
+                        fontSize = 20.sp,
+                        color = MaterialTheme.colorScheme.onBackground
+                    ),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = {
                         if (taskTitle.isNotBlank()) {
                             val instant = preset.date.atTime(preset.startTime)
                                 .atZone(ZoneId.systemDefault()).toInstant()
@@ -640,21 +602,102 @@ fun CalendarScreen(
                             )
                         }
                         createPreset = null
-                    }) { Text("추가") }
-                },
-                dismissButton = {
-                    TextButton(onClick = { createPreset = null }) { Text("취소") }
+                    }),
+                    decorationBox = { innerTextField ->
+                        if (taskTitle.isEmpty()) {
+                            Text(
+                                "무엇을 하고 싶으신가요?",
+                                fontSize = 20.sp,
+                                color = Color(0xFF6B6B6B)
+                            )
+                        }
+                        innerTextField()
+                    }
+                )
+
+                Spacer(Modifier.height(14.dp))
+
+                // Note input
+                BasicTextField(
+                    value = taskNote,
+                    onValueChange = { taskNote = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = TextStyle(fontSize = 14.sp, color = Color(0xFF8A8A8E)),
+                    decorationBox = { innerTextField ->
+                        if (taskNote.isEmpty()) {
+                            Text("설명", fontSize = 14.sp, color = Color(0xFF555558))
+                        }
+                        innerTextField()
+                    }
+                )
+
+                Spacer(Modifier.height(20.dp))
+
+                // Action row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val today = remember { java.time.LocalDate.now() }
+                    val isToday = preset.date == today
+                    val dow = listOf("일", "월", "화", "수", "목", "금", "토")
+                    val dowLabel = dow[preset.date.dayOfWeek.value % 7]
+                    val dateLabel = if (isToday) "오늘"
+                        else "${preset.date.monthValue}월 ${preset.date.dayOfMonth}일 ($dowLabel)"
+
+                    // Date chip
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFFFF8C00).copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, Color(0xFFFF8C00).copy(alpha = 0.5f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Outlined.Today,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = Color(0xFFFF8C00)
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(dateLabel, fontSize = 12.sp, color = Color(0xFFFF8C00))
+                        }
+                    }
+
+                    Spacer(Modifier.width(2.dp))
+
+                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Outlined.Flag, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                    }
+                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Outlined.Label, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                    }
+                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Outlined.MoveToInbox, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                    }
+                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Outlined.MoreHoriz, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                    }
+
+                    Spacer(Modifier.weight(1f))
+
+                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
+                        Icon(Icons.Outlined.Mic, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                    }
                 }
-            )
+
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
         }
     }
 }
 
-/**
- * Navigation strip used by the DAY view: shows all 7 days of the week
- * containing [selectedDate] so the user can tap to jump to a nearby day.
- * Aligned with the timeline's time gutter so columns line up visually.
- */
 @Composable
 private fun DayViewNavStrip(
     week: List<java.time.LocalDate>,
@@ -673,9 +716,7 @@ private fun DayViewNavStrip(
                     text = koreanDow[dowIdx],
                     fontSize = 11.sp,
                     color = TextSecondary,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(vertical = 4.dp),
+                    modifier = Modifier.weight(1f).padding(vertical = 4.dp),
                     textAlign = TextAlign.Center
                 )
             }
@@ -697,11 +738,8 @@ private fun DayViewNavStrip(
                         modifier = Modifier
                             .size(32.dp)
                             .then(
-                                if (d == selectedDate) {
-                                    Modifier
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2F7CF6))
-                                } else Modifier
+                                if (d == selectedDate) Modifier.clip(CircleShape).background(Color(0xFF2F7CF6))
+                                else Modifier
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -722,11 +760,6 @@ private fun DayViewNavStrip(
     }
 }
 
-/**
- * Week strip that reports each date cell's global bounds so the parent can
- * hit-test an in-flight drag. Shows a thin highlight on the cell currently
- * under the drag pointer.
- */
 @Composable
 private fun DragAwareWeekStrip(
     week: List<java.time.LocalDate>,
@@ -752,10 +785,7 @@ private fun DragAwareWeekStrip(
                     onDragCancel = { total = 0f },
                     onVerticalDrag = { _, dragAmount ->
                         total += dragAmount
-                        if (total > 60f) {
-                            total = 0f
-                            onExpandMonth()
-                        }
+                        if (total > 60f) { total = 0f; onExpandMonth() }
                     }
                 )
             }
@@ -770,7 +800,6 @@ private fun DragAwareWeekStrip(
                 lookup = lookup,
                 onDateSelected = onDateSelected
             )
-
             Row(modifier = Modifier.fillMaxWidth()) {
                 selectedWeek.forEach { d ->
                     val isHovered = activeDrag != null && hoveredDate == d
@@ -780,15 +809,7 @@ private fun DragAwareWeekStrip(
                             .height(84.dp)
                             .onGloballyPositioned { coords ->
                                 val pos = coords.positionInRoot()
-                                onDateBounds(
-                                    d,
-                                    Rect(
-                                        pos.x,
-                                        pos.y,
-                                        pos.x + coords.size.width,
-                                        pos.y + coords.size.height
-                                    )
-                                )
+                                onDateBounds(d, Rect(pos.x, pos.y, pos.x + coords.size.width, pos.y + coords.size.height))
                             },
                         contentAlignment = Alignment.TopCenter
                     ) {
@@ -810,16 +831,14 @@ private fun DragAwareWeekStrip(
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterStart)
-                    .width(20.dp)
-                    .height(84.dp)
+                    .width(20.dp).height(84.dp)
                     .clip(RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp))
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
             )
             Box(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
-                    .width(20.dp)
-                    .height(84.dp)
+                    .width(20.dp).height(84.dp)
                     .clip(RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp))
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
             )
