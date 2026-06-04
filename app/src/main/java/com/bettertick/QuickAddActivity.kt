@@ -268,16 +268,10 @@ private fun QuickDiarySheet(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = when {
-                    isEditing -> "오늘의 일기 · 수정 중"
-                    restoredFromDraft -> "오늘의 일기 · 임시저장 복구됨"
-                    else -> "오늘의 일기"
-                },
+                text = if (isEditing) "오늘의 일기 · 수정 중" else "오늘의 일기",
                 style = MaterialTheme.typography.bodySmall,
-                color = when {
-                    isEditing || restoredFromDraft -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                    else -> Color(0xFF8A8A8E)
-                }
+                color = if (isEditing) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                        else Color(0xFF8A8A8E)
             )
             Spacer(Modifier.weight(1f))
             Text(

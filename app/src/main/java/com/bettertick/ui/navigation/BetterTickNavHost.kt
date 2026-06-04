@@ -1,40 +1,44 @@
 package com.bettertick.ui.navigation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -88,6 +92,43 @@ import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextTertiary
 import kotlinx.coroutines.launch
+
+@Composable
+private fun BottomNavTab(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    val tint = if (selected) accent else TextTertiary
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = tint,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(Modifier.height(3.dp))
+        Text(
+            text = label,
+            color = tint,
+            fontSize = 10.sp,
+            style = MaterialTheme.typography.labelSmall
+        )
+    }
+}
 
 /** Map a tab-catalog id (as stored in the user's [TabBarConfig]) to the
  *  nav route it should drive. Ids without a known route yet (dday/search)
@@ -289,26 +330,6 @@ private fun MainContent(
     ) {
         Scaffold(
             containerColor = DarkBackground,
-            floatingActionButton = {
-                if (isTabRoute &&
-                    currentRoute != BottomNavItem.Habits.route &&
-                    currentRoute != BottomNavItem.Diary.route
-                ) {
-                    FloatingActionButton(
-                        onClick = { showTaskInput = true },
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = Color.White,
-                        shape = CircleShape,
-                        modifier = Modifier.size(56.dp)
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "Add task",
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
-            },
             bottomBar = {
                 if (isTabRoute) {
                     val accent = MaterialTheme.colorScheme.primary
@@ -327,92 +348,110 @@ private fun MainContent(
                     val visibleUserItems = allUserItems.take(userCap)
                     val overflowItems = allUserItems.drop(userCap)
                     val hasOverflow = overflowItems.isNotEmpty()
+                    val moreTab = catalog.firstOrNull { it.id == "more" }
+                    val moreRoute = BottomNavItem.More.route
 
-                    NavigationBar(
-                        containerColor = Color.Transparent,
-                        contentColor = accent
-                    ) {
-                        val currentDestination = navBackStackEntry?.destination
-
-                        visibleUserItems.forEach { (_, tab, route) ->
-                            val selected = currentDestination?.hierarchy?.any { it.route == route } == true
-                            NavigationBarItem(
-                                icon = {
-                                    Icon(
-                                        imageVector = tab.icon,
-                                        contentDescription = tab.name
-                                    )
-                                },
-                                selected = selected,
-                                onClick = {
-                                    navController.navigate(route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = accent,
-                                    selectedTextColor = accent,
-                                    unselectedIconColor = TextTertiary,
-                                    unselectedTextColor = TextTertiary,
-                                    indicatorColor = Color.Transparent
-                                )
-                            )
-                        }
-
-                        val moreTab = catalog.firstOrNull { it.id == "more" }
-                        val moreRoute = BottomNavItem.More.route
+                    // Build full nav item list (left + right, center is always +)
+                    val allNavItems = buildList {
+                        addAll(visibleUserItems)
                         if (hasOverflow) {
-                            val overflowOrMoreSelected = overflowItems.any { (_, _, r) ->
-                                currentDestination?.hierarchy?.any { it.route == r } == true
-                            } || currentDestination?.hierarchy?.any { it.route == moreRoute } == true
-                            NavigationBarItem(
-                                icon = {
-                                    Icon(
-                                        imageVector = Icons.Outlined.MoreHoriz,
-                                        contentDescription = "더보기"
-                                    )
-                                },
-                                selected = overflowOrMoreSelected,
-                                onClick = { showOverflowSheet = true },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = accent,
-                                    selectedTextColor = accent,
-                                    unselectedIconColor = TextTertiary,
-                                    unselectedTextColor = TextTertiary,
-                                    indicatorColor = Color.Transparent
-                                )
-                            )
-                        } else if (moreTab != null) {
-                            val selected = currentDestination?.hierarchy?.any { it.route == moreRoute } == true
-                            NavigationBarItem(
-                                icon = {
-                                    Icon(
-                                        imageVector = moreTab.icon,
-                                        contentDescription = moreTab.name
-                                    )
-                                },
-                                selected = selected,
-                                onClick = {
-                                    navController.navigate(moreRoute) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
+                            moreTab?.let { add(Triple("__overflow__", it, moreRoute)) }
+                        } else {
+                            moreTab?.let { add(Triple("more", it, moreRoute)) }
+                        }
+                    }
+                    val mid = allNavItems.size / 2
+                    val leftItems = allNavItems.take(mid)
+                    val rightItems = allNavItems.drop(mid)
+                    val currentDestination = navBackStackEntry?.destination
+
+                    Surface(
+                        color = DarkSurface,
+                        shadowElevation = 8.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .windowInsetsPadding(WindowInsets.navigationBars)
+                                .height(62.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            leftItems.forEach { (id, tab, route) ->
+                                val selected = currentDestination?.hierarchy?.any { it.route == route } == true
+                                BottomNavTab(
+                                    modifier = Modifier.weight(1f),
+                                    icon = tab.icon,
+                                    label = tab.name,
+                                    selected = selected,
+                                    accent = accent,
+                                    onClick = {
+                                        navController.navigate(route) {
+                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                            launchSingleTop = true
+                                            restoreState = true
                                         }
-                                        launchSingleTop = true
-                                        restoreState = true
                                     }
-                                },
-                                colors = NavigationBarItemDefaults.colors(
-                                    selectedIconColor = accent,
-                                    selectedTextColor = accent,
-                                    unselectedIconColor = TextTertiary,
-                                    unselectedTextColor = TextTertiary,
-                                    indicatorColor = Color.Transparent
                                 )
-                            )
+                            }
+
+                            // Center + button (TickTick style)
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) { showTaskInput = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(50.dp)
+                                        .background(accent, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        Icons.Default.Add,
+                                        contentDescription = "추가",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
+                            }
+
+                            rightItems.forEach { (id, tab, route) ->
+                                if (id == "__overflow__") {
+                                    val overflowSelected = overflowItems.any { (_, _, r) ->
+                                        currentDestination?.hierarchy?.any { it.route == r } == true
+                                    } || currentDestination?.hierarchy?.any { it.route == moreRoute } == true
+                                    BottomNavTab(
+                                        modifier = Modifier.weight(1f),
+                                        icon = Icons.Outlined.MoreHoriz,
+                                        label = "더보기",
+                                        selected = overflowSelected,
+                                        accent = accent,
+                                        onClick = { showOverflowSheet = true }
+                                    )
+                                } else {
+                                    val selected = currentDestination?.hierarchy?.any { it.route == route } == true
+                                    BottomNavTab(
+                                        modifier = Modifier.weight(1f),
+                                        icon = tab.icon,
+                                        label = tab.name,
+                                        selected = selected,
+                                        accent = accent,
+                                        onClick = {
+                                            navController.navigate(route) {
+                                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                                launchSingleTop = true
+                                                restoreState = true
+                                            }
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -640,13 +679,26 @@ private fun MainContent(
                 contentAlignment = Alignment.BottomCenter
             ) {
                 Surface(
-                    shape = RoundedCornerShape(20.dp),
+                    shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
                     color = DarkSurface,
-                    shadowElevation = 12.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 16.dp)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
+                    Column {
+                        // Drag handle
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 10.dp, bottom = 2.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .width(40.dp)
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(Color.White.copy(alpha = 0.18f))
+                            )
+                        }
                     if (currentRoute == BottomNavItem.Matrix.route) {
                         MatrixQuickAddSheet(
                             onDismiss = { showTaskInput = false }
@@ -674,6 +726,7 @@ private fun MainContent(
                                 java.time.LocalDate.now()
                         )
                     }
+                    } // close Column (drag handle wrapper)
                 }
             }
         }
