@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.DragHandle
@@ -88,6 +89,7 @@ fun tabCatalog(): List<TabItem> = listOf(
     TabItem("pomodoro", "포모도로", "포모 타이머나 스톱워치를 사용하여 집중력을 유지하세요.", Icons.Outlined.RadioButtonUnchecked),
     TabItem("more", "설정", "현재 설정을 변경하고 확인하세요.", Icons.Outlined.MoreHoriz),
     TabItem("habits", "습관", "습관을 기르고 그것을 추적하십시오.", Icons.Outlined.Schedule),
+    TabItem("diary", "일기", "매일의 생각과 감정을 기록하세요.", Icons.Outlined.Book),
     TabItem("dday", "디데이", "특별한 날을 기억하세요.", Icons.Outlined.Star),
     TabItem("search", "검색", "빠르게 작업을 검색하세요.", Icons.Outlined.Search)
 )
@@ -98,21 +100,12 @@ fun TabBarScreen(
     onBack: () -> Unit,
     viewModel: TabBarViewModel = hiltViewModel()
 ) {
-    // Catalog of every tab the user can toggle on/off. The id is the stable
-    // key used in the persisted config — keep these in sync with the route
-    // map in BetterTickNavHost (tabRoutes).
     val catalog = remember { tabCatalog() }
 
     val persisted by viewModel.config.collectAsState()
 
-    // "more" (설정) is always pinned at the end of the tab bar at runtime
-    // (see BetterTickNavHost) — hide it from the picker so the user never
-    // removes, reorders, or sees it here.
     val pickerCatalog = remember(catalog) { catalog.filter { it.id != "more" } }
 
-    // Local edit state so toggles/reorders feel snappy before the StateFlow
-    // round-trips. Seeded from the persisted config, and re-seeded whenever
-    // a fresh config arrives from Firestore.
     val enabledTabs = remember { mutableStateListOf<TabItem>() }
     var maxTabs by remember { mutableIntStateOf(persisted.maxTabs) }
     LaunchedEffect(persisted) {
@@ -124,8 +117,6 @@ fun TabBarScreen(
         maxTabs = persisted.maxTabs
     }
 
-    // Whenever the local edit state diverges from persisted, push through VM.
-    // Keyed on the snapshot so a no-op re-compose doesn't spam Firestore.
     fun commit() {
         viewModel.saveConfig(
             TabBarConfig(
@@ -174,7 +165,6 @@ fun TabBarScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Enabled tabs — reorderable via drag handle
             ReorderableEnabledList(
                 enabledTabs = enabledTabs,
                 onToggle = { tab ->
@@ -186,8 +176,6 @@ fun TabBarScreen(
                 onReorderCommit = { commit() }
             )
 
-            // "사용 안 함" header — only shown when at least one tab sits in
-            // this section (otherwise the empty card below looks stranded).
             if (unusedTabs.isNotEmpty()) {
                 Text(
                     text = "사용 안 함",
@@ -197,7 +185,6 @@ fun TabBarScreen(
                 )
             }
 
-            // Unused tabs
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -209,9 +196,6 @@ fun TabBarScreen(
                         tab = tab,
                         isEnabled = false,
                         onToggle = {
-                            // Allow adding even when over maxTabs — extras
-                            // just land behind the "더보기" tile. Matches how
-                            // the reference apps behave.
                             enabledTabs.add(tab)
                             commit()
                         }
@@ -219,7 +203,6 @@ fun TabBarScreen(
                 }
             }
 
-            // Max tabs setting
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -257,17 +240,12 @@ fun TabBarScreen(
             )
         }
 
-        // Live preview — pinned at the bottom so the user can see what the
-        // real tab bar will look like as they add/remove/reorder. Tabs that
-        // overflow the maxTabs cap get bundled behind a "더보기" slot, just
-        // like the actual bottom nav does at runtime.
         TabBarPreview(
             enabled = enabledTabs,
             maxTabs = maxTabs
         )
     }
 
-    // Max tabs dialog
     if (showMaxTabsDialog) {
         AlertDialog(
             onDismissRequest = { showMaxTabsDialog = false },
@@ -289,9 +267,6 @@ fun TabBarScreen(
                                 .fillMaxWidth()
                                 .clickable {
                                     maxTabs = count
-                                    // Keep all enabled tabs in the list — any
-                                    // overflow renders behind the 더보기 tile
-                                    // instead of being dropped.
                                     showMaxTabsDialog = false
                                     commit()
                                 }
@@ -316,16 +291,11 @@ fun TabBarScreen(
     }
 }
 
-/** Horizontal preview strip mirroring the real bottom nav. Shows up to
- *  [maxTabs] icons as rounded tiles with "설정" always pinned at the end. */
 @Composable
 private fun TabBarPreview(
     enabled: List<TabItem>,
     maxTabs: Int
 ) {
-    // Reserve the last slot for 설정 (or for a combined "더보기" when there's
-    // overflow — the sheet behind that tile includes 설정 so there's never
-    // two "..." tiles in a row).
     val userCap = (maxTabs - 1).coerceAtLeast(0)
     val visible = enabled.take(userCap)
     Row(
@@ -343,9 +313,6 @@ private fun TabBarPreview(
     }
 }
 
-/** Enabled-tab list with per-row drag-reorder. Dragging the handle moves
- *  the item up/down in [enabledTabs]; on release we invoke [onReorderCommit]
- *  so the new order is persisted. */
 @Composable
 private fun ReorderableEnabledList(
     enabledTabs: androidx.compose.runtime.snapshots.SnapshotStateList<TabItem>,
@@ -419,8 +386,6 @@ private fun ReorderableEnabledList(
                     modifier = Modifier
                         .size(28.dp)
                         .pointerInput(tab.id) {
-                            // Long-press before drag so the outer verticalScroll
-                            // can't race this detector for touch-slop.
                             detectDragGesturesAfterLongPress(
                                 onDragStart = {
                                     draggingId = tab.id
@@ -497,7 +462,6 @@ private fun TabListItem(
             .padding(horizontal = 12.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Add/Remove button
         Icon(
             imageVector = if (isEnabled) Icons.Outlined.RadioButtonUnchecked else Icons.Outlined.RadioButtonUnchecked,
             contentDescription = if (isEnabled) "Remove" else "Add",
@@ -508,10 +472,8 @@ private fun TabListItem(
                 .clickable { onToggle() }
         )
 
-        // Red minus or green plus circle
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Tab icon
         Icon(
             imageVector = tab.icon,
             contentDescription = null,
@@ -521,7 +483,6 @@ private fun TabListItem(
 
         Spacer(modifier = Modifier.width(12.dp))
 
-        // Title & description
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = tab.name,
@@ -537,7 +498,6 @@ private fun TabListItem(
             )
         }
 
-        // Drag handle
         Icon(
             imageVector = Icons.Outlined.GridView,
             contentDescription = "Reorder",
