@@ -137,6 +137,7 @@ fun DiaryScreen(
         }
 
         // Month navigation
+        val isNotToday = selectedDate != LocalDate.now()
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -149,14 +150,33 @@ fun DiaryScreen(
             ) {
                 Icon(Icons.Outlined.ChevronLeft, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
             }
-            Text(
-                text = displayMonth.format(DateTimeFormatter.ofPattern("yyyy년 M월")),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f)
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = isNotToday) {
+                        saveIfNeeded()
+                        viewModel.selectDate(LocalDate.now())
+                        displayMonth = LocalDate.now().withDayOfMonth(1)
+                    }
+                    .padding(vertical = 4.dp)
+            ) {
+                Text(
+                    text = displayMonth.format(DateTimeFormatter.ofPattern("yyyy년 M월")),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center
+                )
+                if (isNotToday) {
+                    Text(
+                        text = "오늘로 돌아가기",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
             IconButton(
                 onClick = { displayMonth = displayMonth.plusMonths(1) },
                 modifier = Modifier.size(36.dp)
