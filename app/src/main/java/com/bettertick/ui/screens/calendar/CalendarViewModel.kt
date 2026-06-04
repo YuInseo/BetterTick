@@ -202,6 +202,12 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    fun createTask(task: Task) {
+        viewModelScope.launch {
+            taskRepository.addTask(task)
+        }
+    }
+
     /** Lists used to resolve the display name in the detail sheet header. */
     val lists: StateFlow<List<TaskList>> =
         listRepository.observeLists()

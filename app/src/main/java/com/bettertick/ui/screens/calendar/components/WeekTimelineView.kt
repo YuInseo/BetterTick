@@ -1,7 +1,9 @@
 package com.bettertick.ui.screens.calendar.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,13 +25,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -66,6 +73,7 @@ fun WeekTimelineView(
     onDateSelected: (LocalDate) -> Unit,
     showDayHeader: Boolean = true,
     hourHeight: Dp = 52.dp,
+    onCreateTask: ((date: LocalDate, startTime: LocalTime, durationMinutes: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -142,6 +150,7 @@ fun WeekTimelineView(
                             today = today,
                             timed = byDay[date]?.timed ?: emptyList(),
                             hourHeight = hourHeight,
+                            onCreateTask = onCreateTask?.let { cb -> { st, dur -> cb(date, st, dur) } },
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         )
                     }
@@ -311,6 +320,7 @@ private fun DayColumn(
     today: LocalDate,
     timed: List<Task>,
     hourHeight: Dp,
+    onCreateTask: ((startTime: LocalTime, durationMinutes: Int) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -319,72 +329,123 @@ private fun DayColumn(
     val nowTime = LocalTime.now()
     val isToday = date == today
 
-    Layout(
-        modifier = modifier
-            .drawBehind {
-                // Horizontal hour lines
-                val strokePx = 1f
-                for (h in 0..24) {
-                    val y = h * hourHeightPx
+    var dragStartMin by remember { mutableStateOf(0) }
+    var dragEndMin by remember { mutableStateOf(0) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    Box(modifier = modifier) {
+        Layout(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val strokePx = 1f
+                    for (h in 0..24) {
+                        val y = h * hourHeightPx
+                        drawLine(
+                            color = gridLineColor,
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = strokePx
+                        )
+                    }
                     drawLine(
                         color = gridLineColor,
-                        start = Offset(0f, y),
-                        end = Offset(size.width, y),
+                        start = Offset(0f, 0f),
+                        end = Offset(0f, size.height),
                         strokeWidth = strokePx
                     )
-                }
-                // Left vertical separator
-                drawLine(
-                    color = gridLineColor,
-                    start = Offset(0f, 0f),
-                    end = Offset(0f, size.height),
-                    strokeWidth = strokePx
+                    if (isToday) {
+                        val y = (nowTime.hour + nowTime.minute / 60f) * hourHeightPx
+                        drawLine(
+                            color = OverdueRed,
+                            start = Offset(0f, y),
+                            end = Offset(size.width, y),
+                            strokeWidth = 2f
+                        )
+                    }
+                },
+            content = {
+                timed.forEach { task -> TimedBlock(task = task, date = date) }
+            }
+        ) { measurables, constraints ->
+            val colWidth = constraints.maxWidth
+            val colHeight = (hourHeightPx * 24).roundToInt()
+            val placements = measurables.mapIndexed { i, m ->
+                val task = timed[i]
+                val lt = task.dueDate?.toDate()?.toInstant()
+                    ?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
+                    ?: LocalDateTime.of(date, LocalTime.NOON)
+                val startMinutes = lt.hour * 60 + lt.minute
+                val dur = task.durationMinutes.coerceAtLeast(15)
+                val top = (startMinutes / 60f * hourHeightPx).roundToInt()
+                val blockH = (dur / 60f * hourHeightPx).roundToInt().coerceAtLeast(
+                    with(density) { 18.dp.toPx() }.roundToInt()
                 )
-                // Current-time indicator — only on today's column.
-                if (isToday) {
-                    val y = (nowTime.hour + nowTime.minute / 60f) * hourHeightPx
-                    drawLine(
-                        color = OverdueRed,
-                        start = Offset(0f, y),
-                        end = Offset(size.width, y),
-                        strokeWidth = 2f
+                val placeable = m.measure(
+                    Constraints(minWidth = 0, maxWidth = colWidth, minHeight = blockH, maxHeight = blockH)
+                )
+                Triple(placeable, top, blockH)
+            }
+            layout(colWidth, colHeight) { placements.forEach { (p, top, _) -> p.place(0, top) } }
+        }
+
+        // Transparent long-press drag overlay for creating new tasks
+        if (onCreateTask != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(onCreateTask, hourHeightPx) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { offset ->
+                                val snapped = ((offset.y / hourHeightPx * 60f).roundToInt() / 15) * 15
+                                dragStartMin = snapped.coerceIn(0, 24 * 60 - 15)
+                                dragEndMin = (dragStartMin + 60).coerceAtMost(24 * 60)
+                                isDragging = true
+                            },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                val deltaMin = (dragAmount.y / hourHeightPx * 60f).roundToInt()
+                                dragEndMin = (dragEndMin + deltaMin).coerceIn(dragStartMin + 15, 24 * 60)
+                            },
+                            onDragEnd = {
+                                if (isDragging) {
+                                    onCreateTask(
+                                        LocalTime.of(dragStartMin / 60, dragStartMin % 60),
+                                        dragEndMin - dragStartMin
+                                    )
+                                    isDragging = false
+                                }
+                            },
+                            onDragCancel = { isDragging = false }
+                        )
+                    }
+            )
+
+            // Drag preview block
+            if (isDragging) {
+                val startT = LocalTime.of(dragStartMin / 60, dragStartMin % 60)
+                val endT = LocalTime.of(dragEndMin / 60, dragEndMin % 60)
+                val topDp = with(density) { (dragStartMin / 60f * hourHeightPx).toDp() }
+                val blockHeight = with(density) { ((dragEndMin - dragStartMin) / 60f * hourHeightPx).toDp() }
+                    .coerceAtLeast(18.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(y = topDp)
+                        .height(blockHeight)
+                        .padding(horizontal = 1.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF4257B2).copy(alpha = 0.45f))
+                        .border(1.dp, Color(0xFF4257B2).copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "${formatShortTime(startT)} - ${formatShortTime(endT)}",
+                        fontSize = 10.sp,
+                        color = Color.White,
+                        maxLines = 1
                     )
                 }
-            },
-        content = {
-            timed.forEach { task ->
-                TimedBlock(task = task, date = date)
-            }
-        }
-    ) { measurables, constraints ->
-        val colWidth = constraints.maxWidth
-        val colHeight = (hourHeightPx * 24).roundToInt()
-
-        val placements = measurables.mapIndexed { i, m ->
-            val task = timed[i]
-            val lt = task.dueDate?.toDate()?.toInstant()
-                ?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
-                ?: LocalDateTime.of(date, LocalTime.NOON)
-            val startMinutes = lt.hour * 60 + lt.minute
-            val dur = task.durationMinutes.coerceAtLeast(15)
-            val top = (startMinutes / 60f * hourHeightPx).roundToInt()
-            val blockH = (dur / 60f * hourHeightPx).roundToInt().coerceAtLeast(
-                with(density) { 18.dp.toPx() }.roundToInt()
-            )
-            val placeable = m.measure(
-                Constraints(
-                    minWidth = 0,
-                    maxWidth = colWidth,
-                    minHeight = blockH,
-                    maxHeight = blockH
-                )
-            )
-            Triple(placeable, top, blockH)
-        }
-
-        layout(colWidth, colHeight) {
-            placements.forEach { (p, top, _) ->
-                p.place(0, top)
             }
         }
     }
