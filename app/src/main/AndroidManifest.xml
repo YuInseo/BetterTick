@@ -36,6 +36,13 @@
             android:theme="@style/Theme.BetterTick.QuickAdd" />
 
         <activity
+            android:name=".QuickMemoActivity"
+            android:exported="true"
+            android:launchMode="singleInstance"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.BetterTick.QuickAdd" />
+
+        <activity
             android:name=".widget.calendar.WidgetActionDispatcher"
             android:exported="true"
             android:launchMode="singleTop"
@@ -97,6 +104,16 @@
             </intent-filter>
             <meta-data android:name="android.appwidget.provider"
                 android:resource="@xml/widget_focus_distribution_info" />
+        </receiver>
+
+        <receiver android:name=".widget.diary.DiaryWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_diary_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/widget_diary_info" />
         </receiver>
     </application>
 

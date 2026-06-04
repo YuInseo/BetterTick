@@ -10,4 +10,7 @@
 
     <string name="widget_focus_distribution_label">시간 분포에 집중하세요</string>
     <string name="widget_focus_distribution_description">이번 주 집중 시간 분포를 빠르게 확인하세요.</string>
+
+    <string name="widget_diary_label">일기 위젯</string>
+    <string name="widget_diary_description">빠르게 오늘의 일기를 작성하세요.</string>
 </resources>
