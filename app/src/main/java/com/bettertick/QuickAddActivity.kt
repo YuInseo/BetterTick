@@ -49,8 +49,11 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bettertick.data.export.DiaryTxtExporter
 import com.bettertick.data.model.DiaryEntry
+import com.bettertick.data.repository.DiaryDraftRepository
 import com.bettertick.data.repository.DiaryRepository
+import kotlinx.coroutines.delay
 import com.bettertick.ui.screens.tasks.QuickAddViewModel
 import com.bettertick.ui.screens.tasks.components.TaskInputSheet
 import com.bettertick.ui.theme.BetterTickTheme
@@ -68,13 +71,17 @@ import javax.inject.Inject
 
 @HiltViewModel
 class QuickAddDiaryViewModel @Inject constructor(
-    private val diaryRepository: DiaryRepository
+    private val diaryRepository: DiaryRepository,
+    private val draftRepository: DiaryDraftRepository,
+    private val txtExporter: DiaryTxtExporter
 ) : ViewModel() {
     private val _todayEntry = MutableStateFlow<DiaryEntry?>(null)
     val todayEntry: StateFlow<DiaryEntry?> = _todayEntry.asStateFlow()
 
     private val _isLoaded = MutableStateFlow(false)
     val isLoaded: StateFlow<Boolean> = _isLoaded.asStateFlow()
+
+    val todayDraft: String? get() = draftRepository.getDraft(LocalDate.now().toString())
 
     init {
         viewModelScope.launch {
@@ -86,6 +93,15 @@ class QuickAddDiaryViewModel @Inject constructor(
         }
     }
 
+    fun saveDraft(content: String) {
+        if (content.isBlank()) return
+        draftRepository.saveDraft(LocalDate.now().toString(), content)
+    }
+
+    fun deleteDraft() {
+        draftRepository.deleteDraft(LocalDate.now().toString())
+    }
+
     fun save(content: String) {
         if (content.isBlank()) return
         viewModelScope.launch {
@@ -93,6 +109,8 @@ class QuickAddDiaryViewModel @Inject constructor(
             val entry = existing?.copy(content = content)
                 ?: DiaryEntry(dateStr = LocalDate.now().toString(), content = content)
             diaryRepository.saveEntry(entry)
+            draftRepository.deleteDraft(LocalDate.now().toString())
+            txtExporter.export(entry)
         }
     }
 }
@@ -210,7 +228,9 @@ private fun QuickDiarySheet(
     val todayEntry by vm.todayEntry.collectAsState()
     val isEditing = todayEntry != null
 
-    var text by remember { mutableStateOf(todayEntry?.content ?: "") }
+    val draft = remember { vm.todayDraft }
+    var text by remember { mutableStateOf(todayEntry?.content ?: draft ?: "") }
+    val restoredFromDraft = remember { todayEntry == null && draft != null }
     val focusRequester = remember { FocusRequester() }
     val dateLabel = LocalDate.now().format(
         DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)
@@ -221,6 +241,20 @@ private fun QuickDiarySheet(
         if (todayEntry != null && text.isBlank()) {
             text = todayEntry!!.content
         }
+    }
+
+    // Auto-save draft after 1.5s of inactivity
+    LaunchedEffect(text) {
+        if (text.isNotBlank()) {
+            delay(1500)
+            vm.saveDraft(text)
+        }
+    }
+
+    // Save draft on dismiss if text is non-blank
+    val handleDismiss = {
+        if (text.isNotBlank()) vm.saveDraft(text)
+        onDismiss()
     }
 
     Column(
@@ -234,10 +268,16 @@ private fun QuickDiarySheet(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = if (isEditing) "오늘의 일기 · 수정 중" else "오늘의 일기",
+                text = when {
+                    isEditing -> "오늘의 일기 · 수정 중"
+                    restoredFromDraft -> "오늘의 일기 · 임시저장 복구됨"
+                    else -> "오늘의 일기"
+                },
                 style = MaterialTheme.typography.bodySmall,
-                color = if (isEditing) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                        else Color(0xFF8A8A8E)
+                color = when {
+                    isEditing || restoredFromDraft -> MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                    else -> Color(0xFF8A8A8E)
+                }
             )
             Spacer(Modifier.weight(1f))
             Text(
@@ -280,7 +320,7 @@ private fun QuickDiarySheet(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = handleDismiss) {
                 Text("취소", color = Color(0xFF8A8A8E))
             }
             Spacer(Modifier.width(8.dp))

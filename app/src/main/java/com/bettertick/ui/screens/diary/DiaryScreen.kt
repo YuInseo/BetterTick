@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -64,6 +65,7 @@ fun DiaryScreen(
     val selectedDate by viewModel.selectedDate.collectAsState()
     val currentEntry by viewModel.currentEntry.collectAsState()
     val entriesMap by viewModel.entriesMap.collectAsState()
+    val draftContent by viewModel.draftContent.collectAsState()
 
     var displayMonth by remember { mutableStateOf(LocalDate.now().withDayOfMonth(1)) }
     var textContent by remember { mutableStateOf("") }
@@ -75,6 +77,16 @@ fun DiaryScreen(
         selectedMood = currentEntry?.mood ?: 0
         hasUnsaved = false
     }
+
+    // Auto-save draft after 2s of inactivity
+    LaunchedEffect(textContent) {
+        if (textContent.isNotBlank() && hasUnsaved) {
+            delay(2000)
+            viewModel.saveDraft(textContent)
+        }
+    }
+
+    val showDraftBanner = draftContent != null && draftContent != textContent
 
     val listState = rememberLazyListState()
     LaunchedEffect(selectedDate, displayMonth) {
@@ -274,6 +286,37 @@ fun DiaryScreen(
         }
 
         Spacer(Modifier.height(8.dp))
+
+        // Draft restore banner
+        if (showDraftBanner) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(bottom = 6.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "임시저장된 내용이 있습니다",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(
+                    onClick = {
+                        textContent = draftContent!!
+                        viewModel.deleteDraft()
+                        hasUnsaved = true
+                    }
+                ) { Text("복구", style = MaterialTheme.typography.labelSmall) }
+                TextButton(onClick = { viewModel.deleteDraft() }) {
+                    Text("삭제", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8A8A8E))
+                }
+            }
+        }
 
         // Writing area
         Box(

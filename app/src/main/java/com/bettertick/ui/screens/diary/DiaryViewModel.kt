@@ -2,7 +2,9 @@ package com.bettertick.ui.screens.diary
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bettertick.data.export.DiaryTxtExporter
 import com.bettertick.data.model.DiaryEntry
+import com.bettertick.data.repository.DiaryDraftRepository
 import com.bettertick.data.repository.DiaryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -15,7 +17,9 @@ import javax.inject.Inject
 
 @HiltViewModel
 class DiaryViewModel @Inject constructor(
-    private val repository: DiaryRepository
+    private val repository: DiaryRepository,
+    private val draftRepository: DiaryDraftRepository,
+    private val txtExporter: DiaryTxtExporter
 ) : ViewModel() {
 
     private val _selectedDate = MutableStateFlow(LocalDate.now())
@@ -26,6 +30,9 @@ class DiaryViewModel @Inject constructor(
 
     private val _entriesMap = MutableStateFlow<Map<String, DiaryEntry>>(emptyMap())
     val entriesMap: StateFlow<Map<String, DiaryEntry>> = _entriesMap.asStateFlow()
+
+    private val _draftContent = MutableStateFlow<String?>(null)
+    val draftContent: StateFlow<String?> = _draftContent.asStateFlow()
 
     private var dateJob: Job? = null
 
@@ -45,11 +52,22 @@ class DiaryViewModel @Inject constructor(
 
     private fun observeDate() {
         dateJob?.cancel()
+        _draftContent.value = draftRepository.getDraft(_selectedDate.value.toString())
         dateJob = viewModelScope.launch {
             repository.observeEntryForDate(_selectedDate.value.toString()).collect {
                 _currentEntry.value = it
             }
         }
+    }
+
+    fun saveDraft(content: String) {
+        draftRepository.saveDraft(_selectedDate.value.toString(), content)
+        _draftContent.value = content
+    }
+
+    fun deleteDraft() {
+        draftRepository.deleteDraft(_selectedDate.value.toString())
+        _draftContent.value = null
     }
 
     fun saveEntry(content: String, mood: Int) {
@@ -61,6 +79,9 @@ class DiaryViewModel @Inject constructor(
                 DiaryEntry(dateStr = _selectedDate.value.toString(), content = content, mood = mood)
             }
             repository.saveEntry(entry)
+            draftRepository.deleteDraft(_selectedDate.value.toString())
+            _draftContent.value = null
+            txtExporter.export(entry)
         }
     }
 
@@ -68,6 +89,8 @@ class DiaryViewModel @Inject constructor(
         viewModelScope.launch {
             _currentEntry.value?.id?.takeIf { it.isNotBlank() }?.let {
                 repository.deleteEntry(it)
+                draftRepository.deleteDraft(_selectedDate.value.toString())
+                _draftContent.value = null
             }
         }
     }
