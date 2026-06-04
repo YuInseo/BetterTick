@@ -4,6 +4,7 @@ import com.bettertick.data.firebase.DataSeeder
 import com.bettertick.data.firebase.FirestoreProvider
 import com.bettertick.data.firebase.SyncManager
 import com.bettertick.data.repository.AuthRepository
+import com.bettertick.data.repository.DiaryRepository
 import com.bettertick.data.repository.FocusRepository
 import com.bettertick.data.repository.HabitRepository
 import com.bettertick.data.repository.ListRepository
@@ -109,4 +110,10 @@ object AppModule {
     fun provideTabBarRepository(
         firestoreProvider: FirestoreProvider
     ): TabBarRepository = TabBarRepository(firestoreProvider)
+
+    @Provides
+    @Singleton
+    fun provideDiaryRepository(
+        firestoreProvider: FirestoreProvider
+    ): DiaryRepository = DiaryRepository(firestoreProvider)
 }

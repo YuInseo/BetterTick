@@ -61,6 +61,7 @@ import com.bettertick.ui.screens.auth.AuthViewModel
 import com.bettertick.ui.screens.auth.LoginScreen
 import com.bettertick.ui.screens.auth.RegisterScreen
 import com.bettertick.ui.screens.calendar.CalendarScreen
+import com.bettertick.ui.screens.diary.DiaryScreen
 import com.bettertick.ui.screens.focus.FocusScreen
 import com.bettertick.ui.screens.focus.FocusStatsScreen
 import com.bettertick.ui.screens.habits.HabitsScreen
@@ -97,6 +98,7 @@ internal fun tabRouteFor(tabId: String): String? = when (tabId) {
     "eisenhower" -> BottomNavItem.Matrix.route
     "pomodoro" -> BottomNavItem.Focus.route
     "habits" -> BottomNavItem.Habits.route
+    "diary" -> BottomNavItem.Diary.route
     "more" -> BottomNavItem.More.route
     else -> null
 }
@@ -169,23 +171,15 @@ private fun MainContent(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val quickAddViewModel: QuickAddViewModel = hiltViewModel()
-    // Hoisted so the drawer and TasksScreen share one filter/VM instance —
-    // tapping a list in the drawer must mutate the same state the screen
-    // observes, otherwise the list switch has no visible effect.
     val tasksViewModel: TasksViewModel = hiltViewModel()
     val allTasks by tasksViewModel.allTasks.collectAsState()
     val lists by tasksViewModel.lists.collectAsState()
     val tags by tasksViewModel.tags.collectAsState()
     val currentFilter by tasksViewModel.currentFilter.collectAsState()
-    // Tab bar config drives the bottom nav's contents — read once here so
-    // both the bottom bar and the matrix FAB branch see the same state.
     val tabBarViewModel: TabBarViewModel = hiltViewModel()
     val tabBarConfig by tabBarViewModel.config.collectAsState()
     var showTaskInput by remember { mutableStateOf(false) }
     var showOverflowSheet by remember { mutableStateOf(false) }
-    // Tracks Calendar tab's currently-selected date so the quick-add input
-    // can default to that date instead of today when the FAB is pressed
-    // from the calendar.
     var calendarSelectedDate by remember { mutableStateOf<java.time.LocalDate?>(null) }
 
     LaunchedEffect(openQuickAdd.value) {
@@ -195,7 +189,6 @@ private fun MainContent(
         }
     }
 
-    // Observe current route for FAB/bottom nav visibility
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val isTabRoute = currentRoute == null || BottomNavItem.items.any { it.route == currentRoute }
@@ -207,9 +200,6 @@ private fun MainContent(
             ModalDrawerSheet(
                 drawerContainerColor = DarkBackground
             ) {
-                // Derive counts directly from the observed task list so the
-                // drawer's badges stay in sync with whatever the repository
-                // is publishing — no second subscription needed.
                 val today = java.time.LocalDate.now()
                 val todayCount = remember(allTasks, today) {
                     allTasks.count { t ->
@@ -269,9 +259,6 @@ private fun MainContent(
                         scope.launch { drawerState.close() }
                     },
                     onTagClick = { _ ->
-                        // Tag-based filtering isn't wired into TaskFilter yet;
-                        // close the drawer and leave the current filter alone
-                        // so the tap is at least non-disruptive.
                         scope.launch { drawerState.close() }
                     },
                     onAddListClick = {
@@ -303,7 +290,10 @@ private fun MainContent(
         Scaffold(
             containerColor = DarkBackground,
             floatingActionButton = {
-                if (isTabRoute && currentRoute != BottomNavItem.Habits.route) {
+                if (isTabRoute &&
+                    currentRoute != BottomNavItem.Habits.route &&
+                    currentRoute != BottomNavItem.Diary.route
+                ) {
                     FloatingActionButton(
                         onClick = { showTaskInput = true },
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -323,8 +313,6 @@ private fun MainContent(
                 if (isTabRoute) {
                     val accent = MaterialTheme.colorScheme.primary
                     val catalog = remember { tabCatalog() }
-                    // Resolve all user-enabled tabs (excluding "more", which
-                    // we always pin at the end as the settings tab).
                     val allUserItems = remember(tabBarConfig, catalog) {
                         tabBarConfig.enabledIds
                             .filter { it != "more" }
@@ -335,12 +323,6 @@ private fun MainContent(
                                 Triple(id, tab, routed)
                             }
                     }
-                    // Slots breakdown (maxTabs=5 default):
-                    //   - "more" (설정) is always the last slot.
-                    //   - Up to (maxTabs - 1) user tabs are visible.
-                    //   - Remaining user tabs fold into a "더보기" overflow tile
-                    //     that sits between visible user tabs and 설정 — this
-                    //     matches the preview tile layout in TabBarScreen.
                     val userCap = (tabBarConfig.maxTabs - 1).coerceAtLeast(0)
                     val visibleUserItems = allUserItems.take(userCap)
                     val overflowItems = allUserItems.drop(userCap)
@@ -384,10 +366,6 @@ private fun MainContent(
                         val moreTab = catalog.firstOrNull { it.id == "more" }
                         val moreRoute = BottomNavItem.More.route
                         if (hasOverflow) {
-                            // Last slot is a combined "더보기" that opens a sheet
-                            // containing both the overflow tabs and 설정. This
-                            // avoids stacking two "..." tiles at the end of the
-                            // bar when there's overflow.
                             val overflowOrMoreSelected = overflowItems.any { (_, _, r) ->
                                 currentDestination?.hierarchy?.any { it.route == r } == true
                             } || currentDestination?.hierarchy?.any { it.route == moreRoute } == true
@@ -409,7 +387,6 @@ private fun MainContent(
                                 )
                             )
                         } else if (moreTab != null) {
-                            // No overflow — 설정 sits directly in the last slot.
                             val selected = currentDestination?.hierarchy?.any { it.route == moreRoute } == true
                             NavigationBarItem(
                                 icon = {
@@ -491,6 +468,9 @@ private fun MainContent(
                 composable(BottomNavItem.Habits.route) {
                     HabitsScreen()
                 }
+                composable(BottomNavItem.Diary.route) {
+                    DiaryScreen()
+                }
                 composable(BottomNavItem.More.route) {
                     MoreScreen(
                         userName = authViewModel.userName,
@@ -537,8 +517,6 @@ private fun MainContent(
                     })
                 ) { entry ->
                     val listId = entry.arguments?.getString("listId")
-                    // Pull the current list out of the hoisted VM's snapshot —
-                    // it's always up to date because lists is a StateFlow.
                     val target = lists.firstOrNull { it.id == listId }
                     AddListScreen(
                         onBack = { navController.popBackStack() },
@@ -576,9 +554,6 @@ private fun MainContent(
         }
     }
 
-    // Overflow sheet — shown when the user has more enabled tabs than fit
-    // in the bottom bar. Contains overflow tabs AND 설정, so the bar only
-    // needs one trailing "..." tile instead of two.
     if (showOverflowSheet) {
         val catalog = remember { tabCatalog() }
         val allUserItems = remember(tabBarConfig, catalog) {
@@ -650,9 +625,6 @@ private fun MainContent(
         }
     }
 
-    // Task input — floating modal docked just above the keyboard. Dialog
-    // (rather than ModalBottomSheet) so the card has visible margins on all
-    // four sides instead of being flush to the screen edges.
     if (showTaskInput) {
         Dialog(
             onDismissRequest = { showTaskInput = false },
@@ -676,19 +648,12 @@ private fun MainContent(
                         .padding(horizontal = 12.dp, vertical = 16.dp)
                 ) {
                     if (currentRoute == BottomNavItem.Matrix.route) {
-                        // Matrix tab gets its own quick-add with a quadrant
-                        // selector — the created task is stamped with the
-                        // selected quadrant's facets so it appears in-place.
                         MatrixQuickAddSheet(
                             onDismiss = { showTaskInput = false }
                         )
                     } else {
                         val selectedKanbanColumn by tasksViewModel.selectedKanbanColumn.collectAsState()
                         val contextListId = (currentFilter as? TaskFilter.ByList)?.listId ?: ""
-                        // Kanban mode treats the FAB as "add card to this column"
-                        // — no due date by default, user can set one from the
-                        // detail sheet. Other views keep the existing behaviour
-                        // of stamping today/calendar-selected date.
                         val isKanbanContext = contextListId.isNotEmpty() &&
                             lists.firstOrNull { it.id == contextListId }?.viewType == "kanban"
                         val contextColumn = if (isKanbanContext) selectedKanbanColumn else ""
