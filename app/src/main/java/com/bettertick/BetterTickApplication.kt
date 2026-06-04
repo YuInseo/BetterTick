@@ -42,9 +42,10 @@ class BetterTickApplication : Application() {
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
         // Schedule periodic widget updates
         WidgetUpdateWorker.enqueue(this)
-        // Schedule background app update checks (every 6 hours)
-        AppUpdateWorker.createNotificationChannel(this)
+        // Schedule background app update checks (every 6 hours) + immediate first check
+        AppUpdateWorker.createNotificationChannels(this)
         AppUpdateWorker.enqueue(this)
+        AppUpdateWorker.runImmediately(this)
 
         // Server-backed sync for tasks. The widget (and the rest of the app)
         // reads from ListenSource.CACHE, so nothing pulls from the server by
