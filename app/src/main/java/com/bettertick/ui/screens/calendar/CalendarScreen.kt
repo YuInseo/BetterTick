@@ -34,13 +34,16 @@ import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.ViewDay
 import androidx.compose.material.icons.outlined.ViewWeek
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -66,6 +69,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.bettertick.data.model.Task
 import com.bettertick.ui.screens.calendar.components.ActiveDrag
 import com.bettertick.ui.screens.calendar.components.ListCalendarView
 import com.bettertick.ui.screens.calendar.components.ScrollableMonthCalendar
@@ -78,6 +82,9 @@ import com.bettertick.ui.screens.calendar.components.weekContaining
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.TextSecondary
+import com.google.firebase.Timestamp
+import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -114,6 +121,12 @@ private val timelineViewModes = setOf(
     CalendarViewMode.DAY
 )
 
+private data class CreatePreset(
+    val date: java.time.LocalDate,
+    val startTime: LocalTime,
+    val durationMinutes: Int
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalendarScreen(
@@ -137,6 +150,8 @@ fun CalendarScreen(
     var hourHeight by remember { mutableStateOf(52.dp) }
     val minHourHeight = 32.dp
     val maxHourHeight = 140.dp
+
+    var createPreset by remember { mutableStateOf<CreatePreset?>(null) }
 
     val monthFormatter = DateTimeFormatter.ofPattern("M월", Locale.KOREAN)
     val initialMonth = remember { selectedMonth }
@@ -331,6 +346,7 @@ fun CalendarScreen(
                     selectedDate = anchor,
                     onDateSelected = { viewModel.selectDate(it) },
                     hourHeight = hourHeight,
+                    onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
@@ -349,6 +365,7 @@ fun CalendarScreen(
                     selectedDate = anchor,
                     onDateSelected = { viewModel.selectDate(it) },
                     hourHeight = hourHeight,
+                    onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxWidth()
@@ -380,6 +397,7 @@ fun CalendarScreen(
                         onDateSelected = { viewModel.selectDate(it) },
                         showDayHeader = false,
                         hourHeight = hourHeight,
+                        onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
@@ -573,6 +591,61 @@ fun CalendarScreen(
                     }
                 }
             }
+        }
+
+        // Dialog: shown after drag-to-create completes on the timeline
+        createPreset?.let { preset ->
+            var taskTitle by remember(preset) { mutableStateOf("") }
+            val st = preset.startTime
+            val ampm = if (st.hour < 12) "오전" else "오후"
+            val h = when {
+                st.hour == 0 -> 12
+                st.hour > 12 -> st.hour - 12
+                else -> st.hour
+            }
+            val timeLabel = if (st.minute == 0) "$ampm ${h}시" else "$ampm $h:%02d".format(st.minute)
+            val dow = listOf("일", "월", "화", "수", "목", "금", "토")
+            val dowLabel = dow[preset.date.dayOfWeek.value % 7]
+            AlertDialog(
+                onDismissRequest = { createPreset = null },
+                title = { Text("새 할일") },
+                text = {
+                    Column {
+                        Text(
+                            "${preset.date.monthValue}월 ${preset.date.dayOfMonth}일 ($dowLabel) $timeLabel · ${preset.durationMinutes}분",
+                            fontSize = 13.sp,
+                            color = TextSecondary
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = taskTitle,
+                            onValueChange = { taskTitle = it },
+                            label = { Text("제목") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (taskTitle.isNotBlank()) {
+                            val instant = preset.date.atTime(preset.startTime)
+                                .atZone(ZoneId.systemDefault()).toInstant()
+                            viewModel.createTask(
+                                Task(
+                                    title = taskTitle.trim(),
+                                    dueDate = Timestamp(instant.epochSecond, 0),
+                                    durationMinutes = preset.durationMinutes
+                                )
+                            )
+                        }
+                        createPreset = null
+                    }) { Text("추가") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { createPreset = null }) { Text("취소") }
+                }
+            )
         }
     }
 }
