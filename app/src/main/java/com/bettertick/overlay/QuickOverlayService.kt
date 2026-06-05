@@ -109,7 +109,8 @@ class QuickOverlayService : Service() {
                 WindowManager.LayoutParams.SOFT_INPUT_STATE_VISIBLE
         }
 
-        val view = ComposeView(this).also { overlayView = it }
+        val ctx = android.view.ContextThemeWrapper(this, com.bettertick.R.style.Theme_BetterTick)
+        val view = ComposeView(ctx).also { overlayView = it }
         view.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
         view.setViewTreeLifecycleOwner(lifecycleOwner)
         view.setViewTreeSavedStateRegistryOwner(lifecycleOwner)

@@ -108,8 +108,12 @@ class FloatingOverlayService : Service() {
         super.onCreate()
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         startForegroundCompat()
-        lifecycleOwner.start()
-        if (Settings.canDrawOverlays(this)) showFloatingButton()
+        try {
+            lifecycleOwner.start()
+            if (Settings.canDrawOverlays(this)) showFloatingButton()
+        } catch (e: Exception) {
+            stopSelf()
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -362,7 +366,8 @@ class FloatingOverlayService : Service() {
     // ── Helpers ────────────────────────────────────────────────────────────
 
     private fun makeComposeView(): ComposeView {
-        val view = ComposeView(this)
+        val ctx = android.view.ContextThemeWrapper(this, com.bettertick.R.style.Theme_BetterTick)
+        val view = ComposeView(ctx)
         view.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
         view.setViewTreeLifecycleOwner(lifecycleOwner)
         view.setViewTreeSavedStateRegistryOwner(lifecycleOwner)
