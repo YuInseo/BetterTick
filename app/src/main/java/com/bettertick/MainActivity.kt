@@ -12,6 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.bettertick.ui.navigation.BetterTickNavHost
 import com.bettertick.ui.theme.BetterTickTheme
+import com.bettertick.overlay.FloatingOverlayService
 import com.bettertick.update.AppUpdater
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -33,8 +34,8 @@ class MainActivity : ComponentActivity() {
         checkForUpdate()
         requestOverlayPermissionIfNeeded()
         val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
-        if (prefs.getBoolean("lock_screen_bar", true)) {
-            LockScreenBar.show(this)
+        if (prefs.getBoolean("lock_screen_bar", true) && Settings.canDrawOverlays(this)) {
+            FloatingOverlayService.start(this)
         }
     }
 
@@ -80,6 +81,14 @@ class MainActivity : ComponentActivity() {
             Log.i("MainActivity", "Update ${release.versionName} (code ${release.versionCode}) available (current $current)")
             val apk = AppUpdater.downloadApk(this@MainActivity, release) ?: return@launch
             AppUpdater.launchInstall(this@MainActivity, apk)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
+        if (prefs.getBoolean("lock_screen_bar", true) && Settings.canDrawOverlays(this)) {
+            FloatingOverlayService.start(this)
         }
     }
 
