@@ -146,13 +146,13 @@
         <service
             android:name=".overlay.QuickOverlayService"
             android:exported="false"
-            android:foregroundServiceType="specialUse"
+            android:foregroundServiceType="dataSync"
             tools:ignore="ForegroundServicePermission" />
 
         <service
             android:name=".overlay.FloatingOverlayService"
             android:exported="false"
-            android:foregroundServiceType="specialUse"
+            android:foregroundServiceType="dataSync"
             tools:ignore="ForegroundServicePermission" />
 
         <service
