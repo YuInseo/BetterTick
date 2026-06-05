@@ -1,5 +1,6 @@
 package com.bettertick
 
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -23,6 +24,7 @@ object LockScreenBar {
     private const val CHANNEL_ID = "bettertick_lockscreen"
     private const val NOTIF_ID = 9901
 
+    @SuppressLint("MissingPermission")
     fun show(context: Context) {
         if (!hasNotificationPermission(context)) return
         createChannel(context)
