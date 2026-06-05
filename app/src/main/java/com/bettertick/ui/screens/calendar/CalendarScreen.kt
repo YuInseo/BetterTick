@@ -85,6 +85,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.data.model.Task
+import com.bettertick.ui.screens.tasks.components.TaskDetailSheet
 import com.bettertick.ui.screens.calendar.components.ActiveDrag
 import com.bettertick.ui.screens.calendar.components.ListCalendarView
 import com.bettertick.ui.screens.calendar.components.ScrollableMonthCalendar
@@ -163,6 +164,8 @@ fun CalendarScreen(
     val maxHourHeight = 140.dp
 
     var createPreset by remember { mutableStateOf<CreatePreset?>(null) }
+    var selectedTask by remember { mutableStateOf<Task?>(null) }
+    val tags by viewModel.tags.collectAsState()
 
     val monthFormatter = DateTimeFormatter.ofPattern("M월", Locale.KOREAN)
     val initialMonth = remember { selectedMonth }
@@ -337,6 +340,7 @@ fun CalendarScreen(
                     onDateSelected = { viewModel.selectDate(it) },
                     hourHeight = hourHeight,
                     onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
+                    onTaskClick = { selectedTask = it },
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             }
@@ -354,6 +358,7 @@ fun CalendarScreen(
                     onDateSelected = { viewModel.selectDate(it) },
                     hourHeight = hourHeight,
                     onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
+                    onTaskClick = { selectedTask = it },
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             }
@@ -377,6 +382,7 @@ fun CalendarScreen(
                         showDayHeader = false,
                         hourHeight = hourHeight,
                         onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
+                        onTaskClick = { selectedTask = it },
                         modifier = Modifier.weight(1f).fillMaxWidth()
                     )
                 }
@@ -554,6 +560,18 @@ fun CalendarScreen(
                 }
             }
         }
+    }
+
+    selectedTask?.let { task ->
+        TaskDetailSheet(
+            task = task,
+            listName = viewModel.listNameFor(task.listId),
+            onDismiss = { selectedTask = null },
+            onUpdateTask = { updated -> viewModel.updateTask(updated); selectedTask = null },
+            onToggleComplete = { viewModel.toggleTaskComplete(task.id, !task.isCompleted) },
+            tags = tags,
+            onCreateTag = { name -> viewModel.createTag(name) }
+        )
     }
 
     // Quick-add bottom sheet — slides up after drag-to-create on the timeline
