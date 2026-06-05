@@ -15,7 +15,9 @@ import androidx.glance.GlanceModifier
 import androidx.glance.LocalContext
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.action.actionSendBroadcast
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityWithIntent
+import com.bettertick.overlay.QuickOverlayReceiver
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
@@ -126,8 +128,8 @@ class WeeklyCalendarWidget : GlanceAppWidget() {
         val context = LocalContext.current
         val prevWeek = anchorDate.minusWeeks(1)
         val nextWeek = anchorDate.plusWeeks(1)
-        val addIntent = Intent(context, QuickAddActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val addIntent = Intent(QuickOverlayReceiver.ACTION_QUICK_ADD).apply {
+            setClass(context, QuickOverlayReceiver::class.java)
         }
         val monthName = monthShortName(anchorDate.monthValue)
 
@@ -212,7 +214,7 @@ class WeeklyCalendarWidget : GlanceAppWidget() {
                     modifier = GlanceModifier
                         .width(28.dp)
                         .height(28.dp)
-                        .clickable(actionStartActivityWithIntent(addIntent)),
+                        .clickable(actionSendBroadcast(addIntent)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(

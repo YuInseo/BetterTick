@@ -18,7 +18,9 @@ import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
+import androidx.glance.appwidget.action.actionSendBroadcast
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityWithIntent
+import com.bettertick.overlay.QuickOverlayReceiver
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
@@ -275,8 +277,8 @@ class ReminderWidget : GlanceAppWidget() {
         val context = LocalContext.current
         val prevWeek = selectedDate.minusWeeks(1)
         val nextWeek = selectedDate.plusWeeks(1)
-        val addIntent = Intent(context, QuickAddActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val addIntent = Intent(QuickOverlayReceiver.ACTION_QUICK_ADD).apply {
+            setClass(context, QuickOverlayReceiver::class.java)
         }
         val menuToggleIntent = dispatcherIntent(
             context,
@@ -349,7 +351,7 @@ class ReminderWidget : GlanceAppWidget() {
                     Box(
                         modifier = GlanceModifier
                             .size(32.dp)
-                            .clickable(actionStartActivityWithIntent(addIntent)),
+                            .clickable(actionSendBroadcast(addIntent)),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
