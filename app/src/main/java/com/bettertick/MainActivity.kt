@@ -33,10 +33,6 @@ class MainActivity : ComponentActivity() {
         }
         checkForUpdate()
         requestOverlayPermissionIfNeeded()
-        val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
-        if (prefs.getBoolean("lock_screen_bar", true) && Settings.canDrawOverlays(this)) {
-            FloatingOverlayService.start(this)
-        }
     }
 
     /**
@@ -86,10 +82,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
-        if (prefs.getBoolean("lock_screen_bar", true) && Settings.canDrawOverlays(this)) {
-            FloatingOverlayService.start(this)
-        }
+        try {
+            val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
+            if (prefs.getBoolean("lock_screen_bar", true) && Settings.canDrawOverlays(this)) {
+                FloatingOverlayService.start(this)
+            }
+        } catch (_: Exception) {}
     }
 
     override fun onNewIntent(intent: Intent) {
