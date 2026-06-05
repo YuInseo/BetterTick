@@ -1,9 +1,10 @@
 package com.bettertick.ui.screens.more
 
+import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.material3.Switch
-import com.bettertick.LockScreenBar
+import com.bettertick.overlay.FloatingOverlayService
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -219,7 +220,7 @@ fun MoreScreen(
                             color = MaterialTheme.colorScheme.onBackground
                         )
                         Text(
-                            "알림 버튼으로 암호 없이 할일·메모 추가",
+                            "플로팅 버튼으로 잠금화면에서 암호 없이 할일 추가",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary
                         )
@@ -229,8 +230,15 @@ fun MoreScreen(
                         onCheckedChange = { enabled ->
                             lockScreenBarEnabled = enabled
                             prefs.edit().putBoolean("lock_screen_bar", enabled).apply()
-                            if (enabled) LockScreenBar.show(context)
-                            else LockScreenBar.hide(context)
+                            if (enabled) {
+                                if (Settings.canDrawOverlays(context)) {
+                                    FloatingOverlayService.start(context)
+                                } else {
+                                    Toast.makeText(context, "다른 앱 위에 표시 권한이 필요합니다", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                FloatingOverlayService.stop(context)
+                            }
                         }
                     )
                 }
