@@ -111,6 +111,10 @@ class FloatingOverlayService : Service() {
         if (Settings.canDrawOverlays(this)) showFloatingButton()
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        return START_STICKY
+    }
+
     // ── Floating "+" button ────────────────────────────────────────────────
 
     private fun showFloatingButton() {
