@@ -1,7 +1,9 @@
 package com.bettertick
 
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,6 +31,39 @@ class MainActivity : ComponentActivity() {
             }
         }
         checkForUpdate()
+        requestOverlayPermissionIfNeeded()
+    }
+
+    /**
+     * Requests SYSTEM_ALERT_WINDOW ("Display over other apps") permission the first time the
+     * app launches, so QuickAdd / QuickMemo can appear over any running app and the lock screen.
+     * The permission cannot be granted via a runtime dialog — Android always redirects to Settings.
+     * We only redirect once (tracked via a SharedPreference) to avoid nagging on every launch.
+     */
+    private fun requestOverlayPermissionIfNeeded() {
+        if (Settings.canDrawOverlays(this)) return
+
+        val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
+        if (prefs.getBoolean("overlay_permission_asked", false)) return
+
+        prefs.edit().putBoolean("overlay_permission_asked", true).apply()
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("다른 앱 위에 표시 권한")
+            .setMessage(
+                "잠금화면 및 다른 앱 위에서 빠른 추가/메모 팝업을 사용하려면\n" +
+                "\"다른 앱 위에 표시\" 권한이 필요합니다."
+            )
+            .setPositiveButton("권한 허용") { _, _ ->
+                startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:$packageName")
+                    )
+                )
+            }
+            .setNegativeButton("나중에") { dialog, _ -> dialog.dismiss() }
+            .show()
     }
 
     /** Fire-and-forget update check: fetch latest release, download if newer,

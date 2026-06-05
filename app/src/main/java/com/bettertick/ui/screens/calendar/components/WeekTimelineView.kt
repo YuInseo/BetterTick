@@ -74,6 +74,7 @@ fun WeekTimelineView(
     showDayHeader: Boolean = true,
     hourHeight: Dp = 52.dp,
     onCreateTask: ((date: LocalDate, startTime: LocalTime, durationMinutes: Int) -> Unit)? = null,
+    onTaskClick: (Task) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -128,7 +129,8 @@ fun WeekTimelineView(
                 rows = maxAllDayRows,
                 rowHeight = allDayRowHeight,
                 timeGutter = timeGutter,
-                height = allDayBandHeight
+                height = allDayBandHeight,
+                onTaskClick = onTaskClick
             )
         }
 
@@ -151,6 +153,7 @@ fun WeekTimelineView(
                             timed = byDay[date]?.timed ?: emptyList(),
                             hourHeight = hourHeight,
                             onCreateTask = onCreateTask?.let { cb -> { st, dur -> cb(date, st, dur) } },
+                            onTaskClick = onTaskClick,
                             modifier = Modifier.weight(1f).fillMaxHeight()
                         )
                     }
@@ -234,7 +237,8 @@ private fun AllDayStrip(
     rows: Int,
     rowHeight: Dp,
     timeGutter: Dp,
-    height: Dp
+    height: Dp,
+    onTaskClick: (Task) -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -270,6 +274,7 @@ private fun AllDayStrip(
                             .padding(bottom = 2.dp)
                             .clip(RoundedCornerShape(4.dp))
                             .background(Color(0xFF4257B2).copy(alpha = if (task.isCompleted) 0.35f else 0.9f))
+                            .clickable { onTaskClick(task) }
                             .padding(horizontal = 4.dp),
                         contentAlignment = Alignment.CenterStart
                     ) {
@@ -321,6 +326,7 @@ private fun DayColumn(
     timed: List<Task>,
     hourHeight: Dp,
     onCreateTask: ((startTime: LocalTime, durationMinutes: Int) -> Unit)? = null,
+    onTaskClick: (Task) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -365,7 +371,7 @@ private fun DayColumn(
                     }
                 },
             content = {
-                timed.forEach { task -> TimedBlock(task = task, date = date) }
+                timed.forEach { task -> TimedBlock(task = task, date = date, onTaskClick = onTaskClick) }
             }
         ) { measurables, constraints ->
             val colWidth = constraints.maxWidth
@@ -452,7 +458,7 @@ private fun DayColumn(
 }
 
 @Composable
-private fun TimedBlock(task: Task, date: LocalDate) {
+private fun TimedBlock(task: Task, date: LocalDate, onTaskClick: (Task) -> Unit = {}) {
     val lt = task.dueDate?.toDate()?.toInstant()
         ?.atZone(ZoneId.systemDefault())?.toLocalDateTime()
     val startLabel = lt?.let { formatShortTime(it.toLocalTime()) } ?: ""
@@ -465,6 +471,7 @@ private fun TimedBlock(task: Task, date: LocalDate) {
             .padding(horizontal = 1.dp, vertical = 1.dp)
             .clip(RoundedCornerShape(4.dp))
             .background(Color(0xFF4257B2).copy(alpha = alpha))
+            .clickable { onTaskClick(task) }
             .padding(horizontal = 4.dp, vertical = 2.dp)
     ) {
         Text(
