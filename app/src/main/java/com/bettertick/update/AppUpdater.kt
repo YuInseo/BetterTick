@@ -89,7 +89,12 @@ object AppUpdater {
             connectTimeout = 8000
             readTimeout = 8000
             instanceFollowRedirects = true
-            if (githubAccept) setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("Cache-Control", "no-cache")
+            setRequestProperty("Pragma", "no-cache")
+            if (githubAccept) {
+                setRequestProperty("Accept", "application/vnd.github+json")
+                setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+            }
         }
         // GitHub API는 rate limit/오류 시 403/422 등으로 응답 + JSON body 포함.
         // inputStream은 4xx/5xx에서 throw하므로 errorStream을 같이 읽어 사유 노출.
