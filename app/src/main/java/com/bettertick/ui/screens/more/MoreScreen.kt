@@ -208,7 +208,11 @@ fun MoreScreen(
                                 }
                                 val current = AppUpdater.currentVersionCode(context)
                                 if (!AppUpdater.isNewer(release.versionCode, current)) {
-                                    Toast.makeText(context, "이미 최신 버전입니다 (v$currentVersion)", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(
+                                        context,
+                                        "이미 최신 버전입니다 (설치: ${current} / 최신: ${release.versionCode})",
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                     return@launch
                                 }
                                 Toast.makeText(context, "v${release.versionName} 다운로드 중…", Toast.LENGTH_SHORT).show()
