@@ -2,6 +2,8 @@ package com.bettertick.ui.screens.more
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.material3.Switch
+import com.bettertick.LockScreenBar
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -72,6 +74,10 @@ fun MoreScreen(
     val scope = rememberCoroutineScope()
     var checkingUpdate by remember { mutableStateOf(false) }
     val currentVersion = remember { AppUpdater.currentVersionName(context) }
+    val prefs = remember { context.getSharedPreferences("bettertick_prefs", android.content.Context.MODE_PRIVATE) }
+    var lockScreenBarEnabled by remember {
+        mutableStateOf(prefs.getBoolean("lock_screen_bar", true))
+    }
 
     Column(
         modifier = Modifier
@@ -188,6 +194,46 @@ fun MoreScreen(
                     title = "통합 및 가져오기",
                     onClick = {}
                 )
+            }
+
+            // Lock screen quick bar
+            SettingsCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.Widgets,
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = TextSecondary
+                    )
+                    androidx.compose.foundation.layout.Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "잠금화면 빠른 추가",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            "알림 버튼으로 암호 없이 할일·메모 추가",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                    Switch(
+                        checked = lockScreenBarEnabled,
+                        onCheckedChange = { enabled ->
+                            lockScreenBarEnabled = enabled
+                            prefs.edit().putBoolean("lock_screen_bar", enabled).apply()
+                            if (enabled) LockScreenBar.show(context)
+                            else LockScreenBar.hide(context)
+                        }
+                    )
+                }
             }
 
             // Update check

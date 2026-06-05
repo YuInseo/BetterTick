@@ -32,6 +32,10 @@ class MainActivity : ComponentActivity() {
         }
         checkForUpdate()
         requestOverlayPermissionIfNeeded()
+        val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
+        if (prefs.getBoolean("lock_screen_bar", true)) {
+            LockScreenBar.show(this)
+        }
     }
 
     /**
