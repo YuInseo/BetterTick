@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.bettertick.ui.navigation.BetterTickNavHost
 import com.bettertick.ui.theme.BetterTickTheme
-import com.bettertick.overlay.FloatingOverlayService
 import com.bettertick.update.AppUpdater
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -35,12 +34,6 @@ class MainActivity : ComponentActivity() {
         requestOverlayPermissionIfNeeded()
     }
 
-    /**
-     * Requests SYSTEM_ALERT_WINDOW ("Display over other apps") permission the first time the
-     * app launches, so QuickAdd / QuickMemo can appear over any running app and the lock screen.
-     * The permission cannot be granted via a runtime dialog — Android always redirects to Settings.
-     * We only redirect once (tracked via a SharedPreference) to avoid nagging on every launch.
-     */
     private fun requestOverlayPermissionIfNeeded() {
         if (Settings.canDrawOverlays(this)) return
 
@@ -67,8 +60,6 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
-    /** Fire-and-forget update check: fetch latest release, download if newer,
-     *  hand off to the system installer. Silent on failure — next launch retries. */
     private fun checkForUpdate() {
         lifecycleScope.launch {
             val release = AppUpdater.fetchLatest() ?: return@launch
@@ -78,16 +69,6 @@ class MainActivity : ComponentActivity() {
             val apk = AppUpdater.downloadApk(this@MainActivity, release) ?: return@launch
             AppUpdater.launchInstall(this@MainActivity, apk)
         }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        try {
-            val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
-            if (prefs.getBoolean("lock_screen_bar", true) && Settings.canDrawOverlays(this)) {
-                FloatingOverlayService.start(this)
-            }
-        } catch (_: Exception) {}
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -106,18 +106,16 @@ class FloatingOverlayService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         startForegroundCompat()
-        try {
+        runCatching {
+            windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
             lifecycleOwner.start()
             if (Settings.canDrawOverlays(this)) showFloatingButton()
-        } catch (e: Exception) {
-            stopSelf()
-        }
+        }.onFailure { stopSelf() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     // ── Floating "+" button ────────────────────────────────────────────────
