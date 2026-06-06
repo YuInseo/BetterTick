@@ -11,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.bettertick.ui.navigation.BetterTickNavHost
+import com.bettertick.LockScreenBar
 import com.bettertick.ui.theme.BetterTickTheme
 import com.bettertick.update.AppUpdater
 import dagger.hilt.android.AndroidEntryPoint
@@ -32,6 +33,13 @@ class MainActivity : ComponentActivity() {
         }
         checkForUpdate()
         requestOverlayPermissionIfNeeded()
+        restoreLockScreenBar()
+    }
+
+    private fun restoreLockScreenBar() {
+        val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
+        if (!prefs.getBoolean("lock_screen_bar", true)) return
+        LockScreenBar.show(this)
     }
 
     private fun requestOverlayPermissionIfNeeded() {

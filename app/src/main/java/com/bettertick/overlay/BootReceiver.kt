@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import com.bettertick.LockScreenBar
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -12,8 +13,10 @@ class BootReceiver : BroadcastReceiver() {
 
         val prefs = context.getSharedPreferences("bettertick_prefs", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("lock_screen_bar", true)) return
-        if (!Settings.canDrawOverlays(context)) return
 
-        FloatingOverlayService.start(context)
+        LockScreenBar.show(context)
+        if (Settings.canDrawOverlays(context)) {
+            FloatingOverlayService.start(context)
+        }
     }
 }
