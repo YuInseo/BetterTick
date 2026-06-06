@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -222,6 +223,7 @@ private fun MainContent(
     var showTaskInput by remember { mutableStateOf(false) }
     var showOverflowSheet by remember { mutableStateOf(false) }
     var calendarSelectedDate by remember { mutableStateOf<java.time.LocalDate?>(null) }
+    val accent = MaterialTheme.colorScheme.primary
 
     LaunchedEffect(openQuickAdd.value) {
         if (openQuickAdd.value) {
@@ -377,51 +379,7 @@ private fun MainContent(
                                 .height(62.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            leftItems.forEach { (id, tab, route) ->
-                                val selected = currentDestination?.hierarchy?.any { it.route == route } == true
-                                BottomNavTab(
-                                    modifier = Modifier.weight(1f),
-                                    icon = tab.icon,
-                                    label = tab.name,
-                                    selected = selected,
-                                    accent = accent,
-                                    onClick = {
-                                        navController.navigate(route) {
-                                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    }
-                                )
-                            }
-
-                            // Center + button (TickTick style)
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .clickable(
-                                        interactionSource = remember { MutableInteractionSource() },
-                                        indication = null
-                                    ) { showTaskInput = true },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(50.dp)
-                                        .background(accent, CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        Icons.Default.Add,
-                                        contentDescription = "추가",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(26.dp)
-                                    )
-                                }
-                            }
-
-                            rightItems.forEach { (id, tab, route) ->
+                            allNavItems.forEach { (id, tab, route) ->
                                 if (id == "__overflow__") {
                                     val overflowSelected = overflowItems.any { (_, _, r) ->
                                         currentDestination?.hierarchy?.any { it.route == r } == true
@@ -457,6 +415,7 @@ private fun MainContent(
                 }
             }
         ) { paddingValues ->
+            Box(Modifier.fillMaxSize()) {
             NavHost(
                 navController = navController,
                 startDestination = BottomNavItem.Tasks.route,
@@ -589,6 +548,35 @@ private fun MainContent(
                         onEditTag = { id -> navController.navigate("edittag/$id") }
                     )
                 }
+            }
+
+            if (isTabRoute) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .statusBarsPadding()
+                        .padding(end = 16.dp, top = 8.dp),
+                    contentAlignment = Alignment.TopEnd
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .background(accent, CircleShape)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showTaskInput = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "추가",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
             }
         }
     }
