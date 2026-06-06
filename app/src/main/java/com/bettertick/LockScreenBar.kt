@@ -10,35 +10,43 @@ import android.content.Intent
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.RemoteInput
 
 /**
- * 잠금화면에서 암호 없이 QuickAdd/QuickMemo를 열 수 있도록
- * VISIBILITY_PUBLIC 고정 알림을 유지한다.
+ * 잠금화면에서 PIN 없이 할일·메모를 추가할 수 있는 고정 알림.
  *
- * 홈 화면 위젯/버튼은 keyguard를 통과해야 하지만,
- * 알림 액션은 showWhenLocked Activity와 결합하면
- * PIN/생체인증 없이 잠금화면 위에 팝업을 띄울 수 있다.
+ * RemoteInput 인라인 입력을 사용해 알림에서 바로 텍스트 입력 → Activity 실행 없이
+ * BroadcastReceiver가 저장. Android 12+ PIN 차단 우회.
  */
 object LockScreenBar {
 
     private const val CHANNEL_ID = "bettertick_lockscreen"
-    private const val NOTIF_ID = 9901
+    const val NOTIF_ID = 9901
 
     @SuppressLint("MissingPermission")
     fun show(context: Context) {
         if (!hasNotificationPermission(context)) return
         createChannel(context)
 
-        val taskIntent = PendingIntent.getActivity(
+        val taskRemoteInput = RemoteInput.Builder(LockScreenInputReceiver.KEY_TASK_TEXT)
+            .setLabel("할일을 입력하세요...")
+            .build()
+
+        val taskReplyPendingIntent = PendingIntent.getBroadcast(
             context, 0,
-            Intent(context, QuickAddActivity::class.java).apply {
-                action = "com.bettertick.QUICK_ADD"
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+            Intent(context, LockScreenInputReceiver::class.java).apply {
+                action = "com.bettertick.QUICK_ADD_TASK"
             },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                        PendingIntent.FLAG_MUTABLE
+                    else 0
         )
+
+        val taskAction = NotificationCompat.Action.Builder(0, "+ 할일", taskReplyPendingIntent)
+            .addRemoteInput(taskRemoteInput)
+            .setAllowGeneratedReplies(false)
+            .build()
 
         val memoIntent = PendingIntent.getActivity(
             context, 1,
@@ -51,18 +59,27 @@ object LockScreenBar {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val contentIntent = PendingIntent.getActivity(
+            context, 2,
+            Intent(context, QuickAddActivity::class.java).apply {
+                action = "com.bettertick.QUICK_ADD"
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("BetterTick")
-            .setContentText("탭해서 할일·메모를 빠르게 추가")
-            // 잠금화면에서도 알림 내용 전체 표시 (버튼 포함)
+            .setContentText("+ 할일 버튼으로 잠금화면에서 바로 추가")
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            // 사용자가 직접 지울 수 없는 고정 알림
             .setOngoing(true)
             .setShowWhen(false)
-            .setContentIntent(taskIntent)
-            .addAction(0, "+ 할일", taskIntent)
+            .setContentIntent(contentIntent)
+            .addAction(taskAction)
             .addAction(0, "✏ 메모", memoIntent)
             .build()
 
@@ -82,7 +99,6 @@ object LockScreenBar {
             ).apply {
                 description = "잠금화면에서 할일·메모를 바로 추가할 수 있는 고정 알림"
                 setShowBadge(false)
-                // 채널 자체도 잠금화면에 공개
                 lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             }
             (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
