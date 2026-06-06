@@ -13,4 +13,7 @@
 
     <string name="widget_diary_label">일기 위젯</string>
     <string name="widget_diary_description">빠르게 오늘의 일기를 작성하세요.</string>
+
+    <string name="widget_quickadd_label">빠른 추가</string>
+    <string name="widget_quickadd_description">잠금화면에서 PIN 없이 할일·메모를 바로 추가하세요.</string>
 </resources>
