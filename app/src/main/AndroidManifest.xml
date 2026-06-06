@@ -133,6 +133,10 @@
         </receiver>
 
         <receiver
+            android:name=".LockScreenInputReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".overlay.BootReceiver"
             android:enabled="true"
             android:exported="true">
