@@ -1,13 +1,16 @@
 package com.bettertick
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import com.bettertick.ui.navigation.BetterTickNavHost
@@ -22,6 +25,12 @@ class MainActivity : ComponentActivity() {
 
     private val openQuickAdd = mutableStateOf(false)
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) restoreLockScreenBar()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         consumeIntent(intent)
@@ -33,7 +42,31 @@ class MainActivity : ComponentActivity() {
         }
         checkForUpdate()
         requestOverlayPermissionIfNeeded()
-        restoreLockScreenBar()
+        requestNotificationPermissionIfNeeded()
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            restoreLockScreenBar()
+            return
+        }
+        val permission = android.Manifest.permission.POST_NOTIFICATIONS
+        if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+            restoreLockScreenBar()
+            return
+        }
+        val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
+        if (prefs.getBoolean("notification_permission_asked", false)) return
+        prefs.edit().putBoolean("notification_permission_asked", true).apply()
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle("알림 권한")
+            .setMessage("잠금화면에서 암호 없이 할일을 추가하려면\n알림 권한이 필요합니다.")
+            .setPositiveButton("허용") { _, _ ->
+                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+            .setNegativeButton("나중에") { dialog, _ -> dialog.dismiss() }
+            .show()
     }
 
     private fun restoreLockScreenBar() {
