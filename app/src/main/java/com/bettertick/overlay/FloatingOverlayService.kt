@@ -1,5 +1,6 @@
 package com.bettertick.overlay
 
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -14,6 +15,7 @@ import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.WindowManager
+import com.bettertick.QuickAddActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -147,7 +149,16 @@ class FloatingOverlayService : Service() {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!isDragging) {
-                        openSheet()
+                        val km = getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+                        if (km.isKeyguardLocked) {
+                            startActivity(
+                                Intent(this@FloatingOverlayService, QuickAddActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                }
+                            )
+                        } else {
+                            openSheet()
+                        }
                     }
                     false
                 }
