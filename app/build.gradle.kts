@@ -31,14 +31,6 @@ android {
         versionName = System.getenv("CI_VERSION_NAME") ?: "0.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        val mapsKey = System.getenv("MAPS_API_KEY")
-            ?: run {
-                val lp = java.util.Properties()
-                rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { lp.load(it) }
-                lp.getProperty("MAPS_API_KEY", "")
-            }
-        manifestPlaceholders["mapsApiKey"] = mapsKey
     }
 
     signingConfigs {
@@ -146,6 +138,5 @@ dependencies {
     // with auto-capture + edge detection UI, matching the TickTick UX.
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
     implementation("com.google.android.gms:play-services-location:21.3.0")
-    implementation("com.google.android.gms:play-services-maps:18.2.0")
-    implementation("com.google.maps.android:maps-compose:4.3.3")
+    implementation("org.osmdroid:osmdroid-android:6.1.18")
 }

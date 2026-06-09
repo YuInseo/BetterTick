@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.location
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -41,28 +42,45 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.bettertick.R
 import com.bettertick.data.model.LocationRecord
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.model.CameraPosition
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.LatLngBounds
-import com.google.android.gms.maps.model.MapStyleOptions
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.MapProperties
-import com.google.maps.android.compose.MapUiSettings
-import com.google.maps.android.compose.Marker
-import com.google.maps.android.compose.MarkerState
-import com.google.maps.android.compose.Polyline
-import com.google.maps.android.compose.rememberCameraPositionState
+import org.osmdroid.config.Configuration
+import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
+import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
+import org.osmdroid.util.BoundingBox
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.util.MapTileIndex
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+private val CARTO_DARK = object : OnlineTileSourceBase(
+    "CartoDark", 0, 19, 256, ".png",
+    arrayOf(
+        "https://a.basemaps.cartocdn.com/dark_all/",
+        "https://b.basemaps.cartocdn.com/dark_all/",
+        "https://c.basemaps.cartocdn.com/dark_all/"
+    ),
+    "© CartoDB, © OpenStreetMap contributors",
+    TileSourcePolicy(
+        2,
+        TileSourcePolicy.FLAG_NO_BULK or TileSourcePolicy.FLAG_NO_PREVENTIVE or
+            TileSourcePolicy.FLAG_USER_AGENT_MEANINGFUL or TileSourcePolicy.FLAG_USER_AGENT_NORMALIZED
+    )
+) {
+    override fun getTileURLString(pMapTileIndex: Long): String =
+        "${baseUrl}${MapTileIndex.getZoom(pMapTileIndex)}" +
+            "/${MapTileIndex.getX(pMapTileIndex)}" +
+            "/${MapTileIndex.getY(pMapTileIndex)}.png"
+}
 
 @Composable
 fun LocationHistoryScreen(
@@ -146,60 +164,73 @@ private fun TopBar(
 @Composable
 private fun RouteMapView(records: List<LocationRecord>) {
     val context = LocalContext.current
-    val points = remember(records) { records.map { LatLng(it.latitude, it.longitude) } }
-    val cameraPositionState = rememberCameraPositionState {
-        if (points.isNotEmpty()) position = CameraPosition.fromLatLngZoom(points.last(), 14f)
-    }
-
+    val points = remember(records) { records.map { GeoPoint(it.latitude, it.longitude) } }
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
+    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
 
     LaunchedEffect(points) {
-        if (points.size >= 2) {
-            val boundsBuilder = LatLngBounds.builder()
-            points.forEach { boundsBuilder.include(it) }
-            val bounds = boundsBuilder.build()
-            cameraPositionState.animate(CameraUpdateFactory.newLatLngBounds(bounds, 120))
-        } else if (points.size == 1) {
-            cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(points[0], 15f))
+        val mapView = mapViewRef.value ?: return@LaunchedEffect
+        when {
+            points.size >= 2 -> {
+                val bounds = BoundingBox.fromGeoPoints(points)
+                mapView.post { mapView.zoomToBoundingBox(bounds, true, 120) }
+            }
+            points.size == 1 -> {
+                mapView.controller.setZoom(15.0)
+                mapView.controller.setCenter(points[0])
+            }
         }
-    }
-
-    val mapStyle = remember {
-        runCatching { MapStyleOptions.loadRawResourceStyle(context, R.raw.map_style_dark) }.getOrNull()
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        GoogleMap(
+        AndroidView(
             modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState,
-            properties = MapProperties(mapStyleOptions = mapStyle),
-            uiSettings = MapUiSettings(
-                zoomControlsEnabled = false,
-                myLocationButtonEnabled = false,
-                mapToolbarEnabled = false
-            )
-        ) {
-            if (points.size >= 2) {
-                Polyline(
-                    points = points,
-                    color = Color(0xFFFF8C00),
-                    width = 10f
-                )
+            factory = { ctx ->
+                Configuration.getInstance().apply {
+                    load(ctx, ctx.getSharedPreferences("osm_prefs", Context.MODE_PRIVATE))
+                    userAgentValue = ctx.packageName
+                    osmdroidBasePath = ctx.cacheDir
+                    osmdroidTileCache = java.io.File(ctx.cacheDir, "osm_tiles")
+                }
+                MapView(ctx).also { mapView ->
+                    mapViewRef.value = mapView
+                    mapView.setTileSource(CARTO_DARK)
+                    mapView.setMultiTouchControls(true)
+                    @Suppress("DEPRECATION")
+                    mapView.setBuiltInZoomControls(false)
+                }
+            },
+            update = { mapView ->
+                mapView.overlays.clear()
+                if (points.size >= 2) {
+                    val polyline = Polyline(mapView).apply {
+                        setPoints(points)
+                        outlinePaint.color = 0xFFFF8C00.toInt()
+                        outlinePaint.strokeWidth = 12f
+                        outlinePaint.isAntiAlias = true
+                    }
+                    mapView.overlays.add(polyline)
+                }
+                records.forEachIndexed { index, record ->
+                    val marker = Marker(mapView).apply {
+                        position = GeoPoint(record.latitude, record.longitude)
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        title = when (index) {
+                            0 -> "출발"
+                            records.lastIndex -> "도착"
+                            else -> null
+                        }
+                        setOnMarkerClickListener { _, _ ->
+                            selectedRecord = record
+                            true
+                        }
+                    }
+                    mapView.overlays.add(marker)
+                }
+                mapView.invalidate()
             }
+        )
 
-            records.forEachIndexed { index, record ->
-                val isFirst = index == 0
-                val isLast = index == records.lastIndex
-                Marker(
-                    state = MarkerState(position = LatLng(record.latitude, record.longitude)),
-                    title = if (isFirst) "출발" else if (isLast) "도착" else null,
-                    snippet = record.address.take(30),
-                    onClick = { selectedRecord = record; false }
-                )
-            }
-        }
-
-        // Record count badge
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -216,7 +247,6 @@ private fun RouteMapView(records: List<LocationRecord>) {
             )
         }
 
-        // Selected record info card
         selectedRecord?.let { rec ->
             val time = remember(rec.timestamp) {
                 java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(rec.timestamp.toDate())
