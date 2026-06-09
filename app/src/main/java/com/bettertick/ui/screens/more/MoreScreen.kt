@@ -1,9 +1,14 @@
 package com.bettertick.ui.screens.more
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.material3.Switch
+import androidx.core.content.ContextCompat
 import com.bettertick.LockScreenBar
 import com.bettertick.overlay.FloatingOverlayService
 import androidx.compose.foundation.clickable
@@ -84,6 +89,20 @@ fun MoreScreen(
     }
     var locationTrackingEnabled by remember {
         mutableStateOf(prefs.getBoolean("location_tracking", false))
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            locationTrackingEnabled = true
+            prefs.edit().putBoolean("location_tracking", true).apply()
+            LocationTrackingService.start(context)
+        } else {
+            Toast.makeText(context, "위치 권한이 필요합니다", Toast.LENGTH_SHORT).show()
+        }
     }
 
     Column(
@@ -281,10 +300,25 @@ fun MoreScreen(
                     Switch(
                         checked = locationTrackingEnabled,
                         onCheckedChange = { enabled ->
-                            locationTrackingEnabled = enabled
-                            prefs.edit().putBoolean("location_tracking", enabled).apply()
-                            if (enabled) LocationTrackingService.start(context)
-                            else LocationTrackingService.stop(context)
+                            if (!enabled) {
+                                locationTrackingEnabled = false
+                                prefs.edit().putBoolean("location_tracking", false).apply()
+                                LocationTrackingService.stop(context)
+                                return@Switch
+                            }
+                            val hasPermission = ContextCompat.checkSelfPermission(
+                                context, Manifest.permission.ACCESS_FINE_LOCATION
+                            ) == PackageManager.PERMISSION_GRANTED
+                            if (hasPermission) {
+                                locationTrackingEnabled = true
+                                prefs.edit().putBoolean("location_tracking", true).apply()
+                                LocationTrackingService.start(context)
+                            } else {
+                                locationPermissionLauncher.launch(arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                ))
+                            }
                         }
                     )
                 }
