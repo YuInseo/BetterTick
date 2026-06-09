@@ -6,6 +6,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
+import android.location.Address
+import android.location.Geocoder
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -55,7 +58,10 @@ import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
@@ -68,6 +74,7 @@ import org.osmdroid.views.overlay.Polyline
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.coroutines.resume
 
 private val CARTO_VOYAGER = object : OnlineTileSourceBase(
     "CartoVoyager", 0, 19, 256, ".png",
@@ -89,7 +96,6 @@ private val CARTO_VOYAGER = object : OnlineTileSourceBase(
             "/${MapTileIndex.getY(pMapTileIndex)}.png"
 }
 
-/** Colored dot with white border — used instead of the default OSMDroid hand icon. */
 private fun Context.dotMarker(colorInt: Int = 0xFFFF8C00.toInt(), sizeDp: Float = 18f): BitmapDrawable {
     val px = (sizeDp * resources.displayMetrics.density + 0.5f).toInt()
     val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
@@ -103,6 +109,48 @@ private fun Context.dotMarker(colorInt: Int = 0xFFFF8C00.toInt(), sizeDp: Float 
         color = 0xFFFFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = strokeW
     })
     return BitmapDrawable(resources, bmp)
+}
+
+private val COORD_PATTERN = Regex("^-?\\d+\\.\\d+,\\s*-?\\d+\\.\\d+$")
+
+/** Resolve an address string: if it looks like raw coordinates, geocode it. */
+private suspend fun resolveAddress(context: Context, record: LocationRecord): String {
+    if (!record.address.matches(COORD_PATTERN)) return record.address
+    if (!Geocoder.isPresent()) return record.address
+    val geocoder = Geocoder(context, Locale.KOREAN)
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        suspendCancellableCoroutine { cont ->
+            try {
+                geocoder.getFromLocation(record.latitude, record.longitude, 1,
+                    object : Geocoder.GeocodeListener {
+                        override fun onGeocode(addresses: MutableList<Address>) {
+                            cont.resume(addresses.firstOrNull()?.getAddressLine(0) ?: record.address)
+                        }
+                        override fun onError(errorMessage: String?) { cont.resume(record.address) }
+                    })
+            } catch (e: Exception) { cont.resume(record.address) }
+        }
+    } else {
+        withContext(Dispatchers.IO) {
+            @Suppress("DEPRECATION")
+            runCatching {
+                geocoder.getFromLocation(record.latitude, record.longitude, 1)
+                    ?.firstOrNull()?.getAddressLine(0)
+            }.getOrNull() ?: record.address
+        }
+    }
+}
+
+/** Shows a record's address, geocoding on-the-fly when stored value is raw coordinates. */
+@Composable
+private fun resolvedAddress(record: LocationRecord): String {
+    val context = LocalContext.current
+    var display by remember(record.id) { mutableStateOf(record.address) }
+    LaunchedEffect(record.id) {
+        val resolved = resolveAddress(context, record)
+        if (resolved != record.address) display = resolved
+    }
+    return display
 }
 
 @SuppressLint("MissingPermission")
@@ -136,7 +184,6 @@ fun LocationHistoryScreen(
             onToggleView = { showMap = !showMap }
         )
 
-        // weight(1f) ensures TopBar is never covered by the map/list
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             when {
                 showMap && (records.isNotEmpty() || currentLocation != null) ->
@@ -163,7 +210,6 @@ private fun TopBar(
         today.minusDays(1) -> "어제"
         else -> date.format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN))
     }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -204,8 +250,14 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
 
-    LaunchedEffect(points, currentLocation) {
+    // Camera + overlay management in one effect.
+    // Keys: points, currentLocation, mapViewRef.value — so this ONLY reruns when actual
+    // data changes, NOT on every recomposition (e.g. selectedRecord tap).
+    // Using mapView.post{} for overlays avoids the clear→blank→redraw flicker.
+    LaunchedEffect(points, currentLocation, mapViewRef.value) {
         val mapView = mapViewRef.value ?: return@LaunchedEffect
+
+        // Camera
         when {
             points.size >= 2 -> {
                 val bounds = BoundingBox.fromGeoPoints(points)
@@ -219,6 +271,60 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                 mapView.controller.setZoom(15.0)
                 mapView.controller.setCenter(currentLocation)
             }
+        }
+
+        // Overlays — post to next frame so tile rendering isn't interrupted
+        mapView.post {
+            mapView.overlays.clear()
+
+            if (points.size >= 2) {
+                // Glow layer
+                mapView.overlays.add(Polyline(mapView).apply {
+                    setPoints(points)
+                    outlinePaint.color = 0x55FF8C00.toInt()
+                    outlinePaint.strokeWidth = 28f
+                    outlinePaint.isAntiAlias = true
+                    outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                    outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
+                })
+                // Core line
+                mapView.overlays.add(Polyline(mapView).apply {
+                    setPoints(points)
+                    outlinePaint.color = 0xFFFF8C00.toInt()
+                    outlinePaint.strokeWidth = 10f
+                    outlinePaint.isAntiAlias = true
+                    outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                    outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
+                })
+            }
+
+            if (records.isNotEmpty()) {
+                records.forEachIndexed { index, record ->
+                    val isFirst = index == 0
+                    val isLast = index == records.lastIndex
+                    val color = when {
+                        isFirst -> 0xFF4CAF50.toInt()
+                        isLast  -> 0xFFF44336.toInt()
+                        else    -> 0xFFFF8C00.toInt()
+                    }
+                    mapView.overlays.add(Marker(mapView).apply {
+                        position = GeoPoint(record.latitude, record.longitude)
+                        icon = context.dotMarker(color, if (isFirst || isLast) 22f else 14f)
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        title = when { isFirst -> "출발"; isLast -> "도착"; else -> null }
+                        setOnMarkerClickListener { _, _ -> selectedRecord = record; true }
+                    })
+                }
+            } else if (currentLocation != null) {
+                mapView.overlays.add(Marker(mapView).apply {
+                    position = currentLocation
+                    icon = context.dotMarker(0xFF2196F3.toInt(), 22f)
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    title = "현재 위치"
+                })
+            }
+
+            mapView.invalidate()
         }
     }
 
@@ -243,63 +349,6 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                     mapView.controller.setZoom(14.0)
                     mapView.controller.setCenter(initCenter)
                 }
-            },
-            update = { mapView ->
-                mapView.overlays.clear()
-                if (points.size >= 2) {
-                    // Glow layer (wider, semi-transparent)
-                    mapView.overlays.add(Polyline(mapView).apply {
-                        setPoints(points)
-                        outlinePaint.color = 0x55FF8C00.toInt()
-                        outlinePaint.strokeWidth = 28f
-                        outlinePaint.isAntiAlias = true
-                        outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
-                        outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
-                    })
-                    // Core line
-                    mapView.overlays.add(Polyline(mapView).apply {
-                        setPoints(points)
-                        outlinePaint.color = 0xFFFF8C00.toInt()
-                        outlinePaint.strokeWidth = 10f
-                        outlinePaint.isAntiAlias = true
-                        outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
-                        outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
-                    })
-                }
-                if (records.isNotEmpty()) {
-                    records.forEachIndexed { index, record ->
-                        val isFirst = index == 0
-                        val isLast = index == records.lastIndex
-                        // Start = green, end = red, middle = orange
-                        val color = when {
-                            isFirst -> 0xFF4CAF50.toInt()
-                            isLast  -> 0xFFF44336.toInt()
-                            else    -> 0xFFFF8C00.toInt()
-                        }
-                        val size = if (isFirst || isLast) 22f else 14f
-                        mapView.overlays.add(Marker(mapView).apply {
-                            position = GeoPoint(record.latitude, record.longitude)
-                            icon = context.dotMarker(color, size)
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                            title = when {
-                                isFirst -> "출발"
-                                isLast  -> "도착"
-                                else    -> null
-                            }
-                            setOnMarkerClickListener { _, _ ->
-                                selectedRecord = record; true
-                            }
-                        })
-                    }
-                } else if (currentLocation != null) {
-                    mapView.overlays.add(Marker(mapView).apply {
-                        position = currentLocation
-                        icon = context.dotMarker(0xFF2196F3.toInt(), 22f)
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        title = "현재 위치"
-                    })
-                }
-                mapView.invalidate()
             }
         )
 
@@ -325,6 +374,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
             val time = remember(rec.timestamp) {
                 java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(rec.timestamp.toDate())
             }
+            val address = resolvedAddress(rec)
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -344,11 +394,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(4.dp))
-                        Text(
-                            rec.address.ifBlank { "%.4f, %.4f".format(rec.latitude, rec.longitude) },
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 14.sp
-                        )
+                        Text(address, color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
                     }
                 }
             }
@@ -364,6 +410,7 @@ private fun RouteListView(records: List<LocationRecord>) {
             val time = remember(record.timestamp) {
                 java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(record.timestamp.toDate())
             }
+            val address = resolvedAddress(record)
 
             Row(
                 modifier = Modifier
@@ -398,7 +445,7 @@ private fun RouteListView(records: List<LocationRecord>) {
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            record.address.ifBlank { "%.4f, %.4f".format(record.latitude, record.longitude) },
+                            address,
                             color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp,
                             lineHeight = 20.sp
