@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.location
 
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,8 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.data.model.LocationRecord
+import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.tasks.await
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
@@ -82,6 +85,7 @@ private val CARTO_DARK = object : OnlineTileSourceBase(
             "/${MapTileIndex.getY(pMapTileIndex)}.png"
 }
 
+@SuppressLint("MissingPermission")
 @Composable
 fun LocationHistoryScreen(
     viewModel: LocationHistoryViewModel = hiltViewModel()
@@ -89,6 +93,15 @@ fun LocationHistoryScreen(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var showMap by remember { mutableStateOf(true) }
     val records by viewModel.getRecordsForDate(selectedDate.toString()).collectAsState(emptyList())
+    val context = LocalContext.current
+    var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
+
+    LaunchedEffect(Unit) {
+        runCatching {
+            val loc = LocationServices.getFusedLocationProviderClient(context).lastLocation.await()
+            if (loc != null) currentLocation = GeoPoint(loc.latitude, loc.longitude)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -103,10 +116,10 @@ fun LocationHistoryScreen(
             onToggleView = { showMap = !showMap }
         )
 
-        if (records.isEmpty()) {
+        if (showMap) {
+            RouteMapView(records = records, currentLocation = currentLocation)
+        } else if (records.isEmpty()) {
             EmptyState()
-        } else if (showMap) {
-            RouteMapView(records = records)
         } else {
             RouteListView(records = records)
         }
@@ -162,13 +175,13 @@ private fun TopBar(
 }
 
 @Composable
-private fun RouteMapView(records: List<LocationRecord>) {
+private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoint?) {
     val context = LocalContext.current
     val points = remember(records) { records.map { GeoPoint(it.latitude, it.longitude) } }
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
 
-    LaunchedEffect(points) {
+    LaunchedEffect(points, currentLocation) {
         val mapView = mapViewRef.value ?: return@LaunchedEffect
         when {
             points.size >= 2 -> {
@@ -178,6 +191,10 @@ private fun RouteMapView(records: List<LocationRecord>) {
             points.size == 1 -> {
                 mapView.controller.setZoom(15.0)
                 mapView.controller.setCenter(points[0])
+            }
+            currentLocation != null -> {
+                mapView.controller.setZoom(15.0)
+                mapView.controller.setCenter(currentLocation)
             }
         }
     }
@@ -211,19 +228,28 @@ private fun RouteMapView(records: List<LocationRecord>) {
                     }
                     mapView.overlays.add(polyline)
                 }
-                records.forEachIndexed { index, record ->
+                if (records.isNotEmpty()) {
+                    records.forEachIndexed { index, record ->
+                        val marker = Marker(mapView).apply {
+                            position = GeoPoint(record.latitude, record.longitude)
+                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                            title = when (index) {
+                                0 -> "출발"
+                                records.lastIndex -> "도착"
+                                else -> null
+                            }
+                            setOnMarkerClickListener { _, _ ->
+                                selectedRecord = record
+                                true
+                            }
+                        }
+                        mapView.overlays.add(marker)
+                    }
+                } else if (currentLocation != null) {
                     val marker = Marker(mapView).apply {
-                        position = GeoPoint(record.latitude, record.longitude)
+                        position = currentLocation
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        title = when (index) {
-                            0 -> "출발"
-                            records.lastIndex -> "도착"
-                            else -> null
-                        }
-                        setOnMarkerClickListener { _, _ ->
-                            selectedRecord = record
-                            true
-                        }
+                        title = "현재 위치"
                     }
                     mapView.overlays.add(marker)
                 }
@@ -231,20 +257,22 @@ private fun RouteMapView(records: List<LocationRecord>) {
             }
         )
 
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(DarkSurface.copy(alpha = 0.9f))
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-        ) {
-            Text(
-                "${records.size}곳 방문",
-                color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
+        if (records.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DarkSurface.copy(alpha = 0.9f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    "${records.size}곳 방문",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
 
         selectedRecord?.let { rec ->
