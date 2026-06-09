@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import com.bettertick.LockScreenBar
+import com.bettertick.location.LocationTrackingService
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -17,6 +18,9 @@ class BootReceiver : BroadcastReceiver() {
         LockScreenBar.show(context)
         if (Settings.canDrawOverlays(context)) {
             FloatingOverlayService.start(context)
+        }
+        if (prefs.getBoolean("location_tracking", false)) {
+            LocationTrackingService.start(context)
         }
     }
 }

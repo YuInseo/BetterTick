@@ -46,6 +46,7 @@ class FirestoreProvider @Inject constructor(
     fun focusSessionsCollection(): CollectionReference = userDoc().collection("focusSessions")
     fun focusCategoriesCollection(): CollectionReference = userDoc().collection("focusCategories")
     fun diaryCollection(): CollectionReference = userDoc().collection("diary")
+    fun locationRecordsCollection(): CollectionReference = userDoc().collection("locationRecords")
 
     /** Settings live as single docs under users/{uid}/settings, e.g. "matrix". */
     fun settingsDocument(name: String) = userDoc().collection("settings").document(name)

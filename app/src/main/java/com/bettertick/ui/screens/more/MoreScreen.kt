@@ -27,10 +27,12 @@ import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.MusicNote
+import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Widgets
+import com.bettertick.location.LocationTrackingService
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -79,6 +81,9 @@ fun MoreScreen(
     val prefs = remember { context.getSharedPreferences("bettertick_prefs", android.content.Context.MODE_PRIVATE) }
     var lockScreenBarEnabled by remember {
         mutableStateOf(prefs.getBoolean("lock_screen_bar", true))
+    }
+    var locationTrackingEnabled by remember {
+        mutableStateOf(prefs.getBoolean("location_tracking", false))
     }
 
     Column(
@@ -240,6 +245,46 @@ fun MoreScreen(
                                 LockScreenBar.hide(context)
                                 FloatingOverlayService.stop(context)
                             }
+                        }
+                    )
+                }
+            }
+
+            // Location tracking
+            SettingsCard {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.LocationOn,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "오늘의 동선 기록",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            "GPS로 오늘 방문한 장소를 자동 기록 (10분 간격)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                    Switch(
+                        checked = locationTrackingEnabled,
+                        onCheckedChange = { enabled ->
+                            locationTrackingEnabled = enabled
+                            prefs.edit().putBoolean("location_tracking", enabled).apply()
+                            if (enabled) LocationTrackingService.start(context)
+                            else LocationTrackingService.stop(context)
                         }
                     )
                 }
