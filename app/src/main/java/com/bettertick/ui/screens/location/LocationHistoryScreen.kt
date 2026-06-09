@@ -69,12 +69,12 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val CARTO_DARK = object : OnlineTileSourceBase(
-    "CartoDark", 0, 19, 256, ".png",
+private val CARTO_VOYAGER = object : OnlineTileSourceBase(
+    "CartoVoyager", 0, 19, 256, ".png",
     arrayOf(
-        "https://a.basemaps.cartocdn.com/dark_all/",
-        "https://b.basemaps.cartocdn.com/dark_all/",
-        "https://c.basemaps.cartocdn.com/dark_all/"
+        "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
+        "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
+        "https://c.basemaps.cartocdn.com/rastertiles/voyager/"
     ),
     "© CartoDB, © OpenStreetMap contributors",
     TileSourcePolicy(
@@ -89,15 +89,15 @@ private val CARTO_DARK = object : OnlineTileSourceBase(
             "/${MapTileIndex.getY(pMapTileIndex)}.png"
 }
 
-/** Orange dot with white border — used instead of the default OSMDroid hand icon. */
-private fun Context.dotMarker(sizeDp: Float = 18f): BitmapDrawable {
+/** Colored dot with white border — used instead of the default OSMDroid hand icon. */
+private fun Context.dotMarker(colorInt: Int = 0xFFFF8C00.toInt(), sizeDp: Float = 18f): BitmapDrawable {
     val px = (sizeDp * resources.displayMetrics.density + 0.5f).toInt()
     val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
     val cv = Canvas(bmp)
     val strokeW = px * 0.18f
     val r = px / 2f - strokeW / 2
     cv.drawCircle(px / 2f, px / 2f, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = 0xFFFF8C00.toInt(); style = Paint.Style.FILL
+        color = colorInt; style = Paint.Style.FILL
     })
     cv.drawCircle(px / 2f, px / 2f, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFFFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = strokeW
@@ -234,7 +234,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                 }
                 MapView(ctx).also { mapView ->
                     mapViewRef.value = mapView
-                    mapView.setTileSource(CARTO_DARK)
+                    mapView.setTileSource(CARTO_VOYAGER)
                     mapView.setMultiTouchControls(true)
                     @Suppress("DEPRECATION")
                     mapView.setBuiltInZoomControls(false)
@@ -247,24 +247,44 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
             update = { mapView ->
                 mapView.overlays.clear()
                 if (points.size >= 2) {
+                    // Glow layer (wider, semi-transparent)
+                    mapView.overlays.add(Polyline(mapView).apply {
+                        setPoints(points)
+                        outlinePaint.color = 0x55FF8C00.toInt()
+                        outlinePaint.strokeWidth = 28f
+                        outlinePaint.isAntiAlias = true
+                        outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                        outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
+                    })
+                    // Core line
                     mapView.overlays.add(Polyline(mapView).apply {
                         setPoints(points)
                         outlinePaint.color = 0xFFFF8C00.toInt()
-                        outlinePaint.strokeWidth = 14f
+                        outlinePaint.strokeWidth = 10f
                         outlinePaint.isAntiAlias = true
+                        outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                        outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
                     })
                 }
-                val dotIcon = context.dotMarker()
                 if (records.isNotEmpty()) {
                     records.forEachIndexed { index, record ->
+                        val isFirst = index == 0
+                        val isLast = index == records.lastIndex
+                        // Start = green, end = red, middle = orange
+                        val color = when {
+                            isFirst -> 0xFF4CAF50.toInt()
+                            isLast  -> 0xFFF44336.toInt()
+                            else    -> 0xFFFF8C00.toInt()
+                        }
+                        val size = if (isFirst || isLast) 22f else 14f
                         mapView.overlays.add(Marker(mapView).apply {
                             position = GeoPoint(record.latitude, record.longitude)
-                            icon = dotIcon
+                            icon = context.dotMarker(color, size)
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                            title = when (index) {
-                                0 -> "출발"
-                                records.lastIndex -> "도착"
-                                else -> null
+                            title = when {
+                                isFirst -> "출발"
+                                isLast  -> "도착"
+                                else    -> null
                             }
                             setOnMarkerClickListener { _, _ ->
                                 selectedRecord = record; true
@@ -274,7 +294,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                 } else if (currentLocation != null) {
                     mapView.overlays.add(Marker(mapView).apply {
                         position = currentLocation
-                        icon = context.dotMarker(22f)
+                        icon = context.dotMarker(0xFF2196F3.toInt(), 22f)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                         title = "현재 위치"
                     })
