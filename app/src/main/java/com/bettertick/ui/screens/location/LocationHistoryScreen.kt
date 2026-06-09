@@ -116,12 +116,12 @@ fun LocationHistoryScreen(
             onToggleView = { showMap = !showMap }
         )
 
-        if (showMap) {
-            RouteMapView(records = records, currentLocation = currentLocation)
-        } else if (records.isEmpty()) {
-            EmptyState()
-        } else {
-            RouteListView(records = records)
+        when {
+            showMap && (records.isNotEmpty() || currentLocation != null) ->
+                RouteMapView(records = records, currentLocation = currentLocation)
+            !showMap && records.isNotEmpty() ->
+                RouteListView(records = records)
+            else -> EmptyState()
         }
     }
 }
@@ -215,6 +215,11 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                     mapView.setMultiTouchControls(true)
                     @Suppress("DEPRECATION")
                     mapView.setBuiltInZoomControls(false)
+                    // Set initial view to Korea so zoom=0 world tile never flashes
+                    val initCenter = currentLocation ?: points.lastOrNull()
+                        ?: GeoPoint(37.5665, 126.9780)
+                    mapView.controller.setZoom(14.0)
+                    mapView.controller.setCenter(initCenter)
                 }
             },
             update = { mapView ->
