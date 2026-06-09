@@ -2,6 +2,10 @@ package com.bettertick.ui.screens.location
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.drawable.BitmapDrawable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,12 +50,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.data.model.LocationRecord
-import com.google.android.gms.location.LocationServices
-import kotlinx.coroutines.tasks.await
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
+import com.google.android.gms.location.LocationServices
+import kotlinx.coroutines.tasks.await
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
@@ -85,6 +89,22 @@ private val CARTO_DARK = object : OnlineTileSourceBase(
             "/${MapTileIndex.getY(pMapTileIndex)}.png"
 }
 
+/** Orange dot with white border — used instead of the default OSMDroid hand icon. */
+private fun Context.dotMarker(sizeDp: Float = 18f): BitmapDrawable {
+    val px = (sizeDp * resources.displayMetrics.density + 0.5f).toInt()
+    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+    val cv = Canvas(bmp)
+    val strokeW = px * 0.18f
+    val r = px / 2f - strokeW / 2
+    cv.drawCircle(px / 2f, px / 2f, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFF8C00.toInt(); style = Paint.Style.FILL
+    })
+    cv.drawCircle(px / 2f, px / 2f, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = strokeW
+    })
+    return BitmapDrawable(resources, bmp)
+}
+
 @SuppressLint("MissingPermission")
 @Composable
 fun LocationHistoryScreen(
@@ -116,12 +136,15 @@ fun LocationHistoryScreen(
             onToggleView = { showMap = !showMap }
         )
 
-        when {
-            showMap && (records.isNotEmpty() || currentLocation != null) ->
-                RouteMapView(records = records, currentLocation = currentLocation)
-            !showMap && records.isNotEmpty() ->
-                RouteListView(records = records)
-            else -> EmptyState()
+        // weight(1f) ensures TopBar is never covered by the map/list
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                showMap && (records.isNotEmpty() || currentLocation != null) ->
+                    RouteMapView(records = records, currentLocation = currentLocation)
+                !showMap && records.isNotEmpty() ->
+                    RouteListView(records = records)
+                else -> EmptyState()
+            }
         }
     }
 }
@@ -215,7 +238,6 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                     mapView.setMultiTouchControls(true)
                     @Suppress("DEPRECATION")
                     mapView.setBuiltInZoomControls(false)
-                    // Set initial view to Korea so zoom=0 world tile never flashes
                     val initCenter = currentLocation ?: points.lastOrNull()
                         ?: GeoPoint(37.5665, 126.9780)
                     mapView.controller.setZoom(14.0)
@@ -225,18 +247,19 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
             update = { mapView ->
                 mapView.overlays.clear()
                 if (points.size >= 2) {
-                    val polyline = Polyline(mapView).apply {
+                    mapView.overlays.add(Polyline(mapView).apply {
                         setPoints(points)
                         outlinePaint.color = 0xFFFF8C00.toInt()
-                        outlinePaint.strokeWidth = 12f
+                        outlinePaint.strokeWidth = 14f
                         outlinePaint.isAntiAlias = true
-                    }
-                    mapView.overlays.add(polyline)
+                    })
                 }
+                val dotIcon = context.dotMarker()
                 if (records.isNotEmpty()) {
                     records.forEachIndexed { index, record ->
-                        val marker = Marker(mapView).apply {
+                        mapView.overlays.add(Marker(mapView).apply {
                             position = GeoPoint(record.latitude, record.longitude)
+                            icon = dotIcon
                             setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                             title = when (index) {
                                 0 -> "출발"
@@ -244,19 +267,17 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                                 else -> null
                             }
                             setOnMarkerClickListener { _, _ ->
-                                selectedRecord = record
-                                true
+                                selectedRecord = record; true
                             }
-                        }
-                        mapView.overlays.add(marker)
+                        })
                     }
                 } else if (currentLocation != null) {
-                    val marker = Marker(mapView).apply {
+                    mapView.overlays.add(Marker(mapView).apply {
                         position = currentLocation
+                        icon = context.dotMarker(22f)
                         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
                         title = "현재 위치"
-                    }
-                    mapView.overlays.add(marker)
+                    })
                 }
                 mapView.invalidate()
             }

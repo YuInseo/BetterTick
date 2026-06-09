@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.location.Address
 import android.location.Geocoder
 import android.os.Build
 import android.os.IBinder
@@ -26,6 +27,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 import java.time.LocalDate
 import java.util.Date
 import java.util.Locale
@@ -90,15 +93,26 @@ class LocationTrackingService : Service() {
         )
     }
 
-    @Suppress("DEPRECATION")
-    private fun reverseGeocode(lat: Double, lng: Double): String {
-        return runCatching {
-            val geocoder = Geocoder(applicationContext, Locale.KOREAN)
-            geocoder.getFromLocation(lat, lng, 1)
-                ?.firstOrNull()
-                ?.getAddressLine(0)
-                ?: "%.4f, %.4f".format(lat, lng)
-        }.getOrDefault("%.4f, %.4f".format(lat, lng))
+    private suspend fun reverseGeocode(lat: Double, lng: Double): String {
+        val fallback = "%.4f, %.4f".format(lat, lng)
+        if (!Geocoder.isPresent()) return fallback
+        val geocoder = Geocoder(applicationContext, Locale.KOREAN)
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            suspendCancellableCoroutine { cont ->
+                try {
+                    geocoder.getFromLocation(lat, lng, 1, Geocoder.GeocodeListener { addresses ->
+                        cont.resume(addresses.firstOrNull()?.getAddressLine(0) ?: fallback)
+                    })
+                } catch (e: Exception) {
+                    cont.resume(fallback)
+                }
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            runCatching {
+                geocoder.getFromLocation(lat, lng, 1)?.firstOrNull()?.getAddressLine(0)
+            }.getOrNull() ?: fallback
+        }
     }
 
     private fun startForegroundCompat() {
