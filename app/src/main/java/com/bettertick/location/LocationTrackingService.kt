@@ -28,6 +28,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import java.time.LocalDate
 import java.util.Date
@@ -100,18 +101,25 @@ class LocationTrackingService : Service() {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             suspendCancellableCoroutine { cont ->
                 try {
-                    geocoder.getFromLocation(lat, lng, 1, Geocoder.GeocodeListener { addresses ->
-                        cont.resume(addresses.firstOrNull()?.getAddressLine(0) ?: fallback)
+                    geocoder.getFromLocation(lat, lng, 1, object : Geocoder.GeocodeListener {
+                        override fun onGeocode(addresses: MutableList<Address>) {
+                            cont.resume(addresses.firstOrNull()?.getAddressLine(0) ?: fallback)
+                        }
+                        override fun onError(errorMessage: String?) {
+                            cont.resume(fallback)
+                        }
                     })
                 } catch (e: Exception) {
                     cont.resume(fallback)
                 }
             }
         } else {
-            @Suppress("DEPRECATION")
-            runCatching {
-                geocoder.getFromLocation(lat, lng, 1)?.firstOrNull()?.getAddressLine(0)
-            }.getOrNull() ?: fallback
+            withContext(Dispatchers.IO) {
+                @Suppress("DEPRECATION")
+                runCatching {
+                    geocoder.getFromLocation(lat, lng, 1)?.firstOrNull()?.getAddressLine(0)
+                }.getOrNull() ?: fallback
+            }
         }
     }
 
