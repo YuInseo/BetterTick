@@ -80,6 +80,7 @@ import com.bettertick.ui.screens.matrix.MatrixQuickAddSheet
 import com.bettertick.ui.screens.matrix.MatrixScreen
 import com.bettertick.ui.screens.matrix.QuadrantEditScreen
 import com.bettertick.ui.screens.more.MoreScreen
+import com.bettertick.ui.screens.location.LocationHistoryScreen
 import com.bettertick.ui.screens.tags.AddTagScreen
 import com.bettertick.ui.screens.tags.TagManagementScreen
 import com.bettertick.ui.screens.more.TabBarScreen
@@ -141,6 +142,7 @@ internal fun tabRouteFor(tabId: String): String? = when (tabId) {
     "pomodoro" -> BottomNavItem.Focus.route
     "habits" -> BottomNavItem.Habits.route
     "diary" -> BottomNavItem.Diary.route
+    "location" -> "location"
     "more" -> BottomNavItem.More.route
     else -> null
 }
@@ -234,7 +236,8 @@ private fun MainContent(
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val isTabRoute = currentRoute == null || BottomNavItem.items.any { it.route == currentRoute }
+    val isTabRoute = currentRoute == null || currentRoute == "location" ||
+            BottomNavItem.items.any { it.route == currentRoute }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -547,6 +550,9 @@ private fun MainContent(
                         onAddTag = { navController.navigate("addtag") },
                         onEditTag = { id -> navController.navigate("edittag/$id") }
                     )
+                }
+                composable("location") {
+                    LocationHistoryScreen()
                 }
             }
 

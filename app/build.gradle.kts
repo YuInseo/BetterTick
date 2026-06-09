@@ -137,4 +137,5 @@ dependencies {
     // ML Kit Document Scanner (Play Services) — powers 첨부 → 문서 스캔
     // with auto-capture + edge detection UI, matching the TickTick UX.
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
 }
