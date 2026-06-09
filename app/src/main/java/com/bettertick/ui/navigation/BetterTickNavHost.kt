@@ -52,6 +52,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -127,7 +129,10 @@ private fun BottomNavTab(
             text = label,
             color = tint,
             fontSize = 10.sp,
-            style = MaterialTheme.typography.labelSmall
+            style = MaterialTheme.typography.labelSmall,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -556,7 +561,7 @@ private fun MainContent(
                 }
             }
 
-            if (isTabRoute) {
+            if (isTabRoute && currentRoute != "location") {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
