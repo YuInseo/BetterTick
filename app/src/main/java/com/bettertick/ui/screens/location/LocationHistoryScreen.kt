@@ -10,6 +10,7 @@ import android.location.Address
 import android.location.Geocoder
 import android.os.Build
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -173,8 +174,8 @@ fun LocationHistoryScreen(
     // Real-time location updates while this screen is active
     DisposableEffect(Unit) {
         val client = LocationServices.getFusedLocationProviderClient(context)
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3_000L)
-            .setMinUpdateDistanceMeters(5f)
+        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 5_000L)
+            .setMinUpdateDistanceMeters(0f)
             .build()
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
@@ -265,7 +266,6 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     // Separate ref for the live "current location" dot — updated in-place, no full overlay rebuild
     val liveMarkerRef = remember { mutableStateOf<Marker?>(null) }
-    var cameraCenteredOnLoc by remember { mutableStateOf(false) }
 
     // Rebuild route overlays ONLY when records or mapView changes (never on location update)
     LaunchedEffect(points, mapViewRef.value) {
@@ -328,11 +328,10 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
         val mapView = mapViewRef.value ?: return@LaunchedEffect
         val loc = currentLocation ?: return@LaunchedEffect
 
-        // Center camera only once (when no route to show)
-        if (!cameraCenteredOnLoc && records.isEmpty()) {
+        // When no historical records, keep camera following live location
+        if (records.isEmpty()) {
             mapView.controller.setZoom(15.0)
             mapView.controller.setCenter(loc)
-            cameraCenteredOnLoc = true
         }
 
         mapView.post {
@@ -393,6 +392,59 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                     color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        // Zoom controls (bottom-left)
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(12.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(DarkSurface.copy(alpha = 0.9f)),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable { mapViewRef.value?.controller?.zoomIn() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("+", color = MaterialTheme.colorScheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.12f)))
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable { mapViewRef.value?.controller?.zoomOut() },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("−", color = MaterialTheme.colorScheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        // "내 위치" button (bottom-right) — only when records exist so user can find their dot
+        if (records.isNotEmpty() && currentLocation != null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(12.dp)
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkSurface.copy(alpha = 0.9f))
+                    .clickable {
+                        currentLocation?.let { loc ->
+                            mapViewRef.value?.controller?.animateTo(loc)
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.LocationOn,
+                    contentDescription = "내 위치로",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
                 )
             }
         }
