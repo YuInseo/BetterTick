@@ -39,8 +39,7 @@ class BetterTickApplication : Application() {
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
-        // TODO: Replace with real Kakao Native App Key from developers.kakao.com
-        KakaoMapSdk.init(this, "KAKAO_NATIVE_APP_KEY_HERE")
+        KakaoMapSdk.init(this, "da06236688146ce72cca3953e6a5760a")
         // Initialize widget service locator for AppWidget access
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
         // Schedule periodic widget updates
