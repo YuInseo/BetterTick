@@ -39,7 +39,7 @@ class BetterTickApplication : Application() {
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
-        KakaoMapSdk.init(this, "da06236688146ce72cca3953e6a5760a")
+        KakaoMapSdk.init(this, "36af0c02f9ab81fb67df8c9bbeefc7f1")
         // Initialize widget service locator for AppWidget access
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
         // Schedule periodic widget updates
