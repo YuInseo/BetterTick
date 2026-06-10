@@ -174,6 +174,17 @@ fun LocationHistoryScreen(
     // Real-time location updates while this screen is active
     DisposableEffect(Unit) {
         val client = LocationServices.getFusedLocationProviderClient(context)
+        val cts = com.google.android.gms.tasks.CancellationTokenSource()
+        // 1) Last known position → dot appears instantly
+        client.lastLocation.addOnSuccessListener { loc ->
+            if (loc != null) currentLocation = GeoPoint(loc.latitude, loc.longitude)
+        }
+        // 2) One-shot fresh fix → accurate position within seconds
+        client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
+            .addOnSuccessListener { loc ->
+                if (loc != null) currentLocation = GeoPoint(loc.latitude, loc.longitude)
+            }
+        // 3) Ongoing updates every 5 s
         val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 5_000L)
             .setMinUpdateDistanceMeters(0f)
             .build()
@@ -183,7 +194,10 @@ fun LocationHistoryScreen(
             }
         }
         runCatching { client.requestLocationUpdates(request, callback, Looper.getMainLooper()) }
-        onDispose { runCatching { client.removeLocationUpdates(callback) } }
+        onDispose {
+            cts.cancel()
+            runCatching { client.removeLocationUpdates(callback) }
+        }
     }
 
     Column(
