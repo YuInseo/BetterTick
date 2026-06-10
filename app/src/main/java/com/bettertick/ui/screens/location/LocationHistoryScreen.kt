@@ -55,6 +55,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bettertick.data.model.LocationRecord
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
@@ -259,12 +262,28 @@ private fun TopBar(
 @Composable
 private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
     val kakaoMapRef = remember { mutableStateOf<KakaoMap?>(null) }
+    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val markerLayerRef = remember { mutableStateOf<LabelLayer?>(null) }
     val liveLayerRef = remember { mutableStateOf<LabelLayer?>(null) }
     val liveLabelRef = remember { mutableStateOf<Label?>(null) }
     val points = remember(records) { records.map { LatLng.from(it.latitude, it.longitude) } }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            val mv = mapViewRef.value ?: return@LifecycleEventObserver
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> mv.resume()
+                Lifecycle.Event.ON_PAUSE -> mv.pause()
+                Lifecycle.Event.ON_DESTROY -> mv.finish()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Rebuild route overlays when records change
     LaunchedEffect(points, kakaoMapRef.value) {
@@ -361,12 +380,15 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
                 MapView(ctx).also { mv ->
+                    mapViewRef.value = mv
                     val initCenter = currentLocation ?: points.lastOrNull()
                         ?: LatLng.from(37.5665, 126.9780)
                     mv.start(
                         object : MapLifeCycleCallback() {
                             override fun onMapDestroy() {}
-                            override fun onMapError(error: Exception) {}
+                            override fun onMapError(error: Exception) {
+                                android.util.Log.e("KakaoMap", "Map error: ${error.message}", error)
+                            }
                         },
                         object : KakaoMapReadyCallback() {
                             override fun getPosition(): LatLng = initCenter
@@ -376,6 +398,9 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                             }
                         }
                     )
+                    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                        mv.resume()
+                    }
                 }
             }
         )
