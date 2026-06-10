@@ -285,6 +285,12 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // resume() must be called AFTER the view is attached to the window (not in factory).
+    // LaunchedEffect fires after the first composition commit — by then MapView has dimensions.
+    LaunchedEffect(mapViewRef.value) {
+        mapViewRef.value?.resume()
+    }
+
     // Rebuild route overlays when records change
     LaunchedEffect(points, kakaoMapRef.value) {
         val map = kakaoMapRef.value ?: return@LaunchedEffect
@@ -398,9 +404,6 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                             }
                         }
                     )
-                    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-                        mv.resume()
-                    }
                 }
             }
         )
