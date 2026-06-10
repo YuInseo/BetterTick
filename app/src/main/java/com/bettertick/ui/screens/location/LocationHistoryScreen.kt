@@ -9,6 +9,9 @@ import android.location.Address
 import android.location.Geocoder
 import android.os.Build
 import android.os.Looper
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -26,6 +29,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
@@ -51,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -135,6 +140,44 @@ private suspend fun resolveAddress(context: Context, record: LocationRecord): St
             }.getOrNull() ?: record.address
         }
     }
+}
+
+private suspend fun resolvePlaceName(context: Context, record: LocationRecord): String {
+    if (!Geocoder.isPresent()) return "방문한 장소"
+    val geocoder = Geocoder(context, Locale.KOREAN)
+    val addr: Address? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        suspendCancellableCoroutine { cont ->
+            try {
+                geocoder.getFromLocation(record.latitude, record.longitude, 1,
+                    object : Geocoder.GeocodeListener {
+                        override fun onGeocode(addresses: MutableList<Address>) {
+                            cont.resume(addresses.firstOrNull())
+                        }
+                        override fun onError(errorMessage: String?) { cont.resume(null) }
+                    })
+            } catch (e: Exception) { cont.resume(null) }
+        }
+    } else {
+        withContext(Dispatchers.IO) {
+            @Suppress("DEPRECATION")
+            runCatching { geocoder.getFromLocation(record.latitude, record.longitude, 1)?.firstOrNull() }.getOrNull()
+        }
+    }
+    val feature = addr?.featureName
+    return when {
+        feature != null && feature.isNotBlank() && !feature.all { it.isDigit() } -> feature
+        addr?.thoroughfare != null -> addr.thoroughfare
+        addr?.subLocality != null -> addr.subLocality
+        else -> "방문한 장소"
+    }
+}
+
+@Composable
+private fun resolvedPlaceName(record: LocationRecord): String {
+    val context = LocalContext.current
+    var name by remember(record.id) { mutableStateOf("방문한 장소") }
+    LaunchedEffect(record.id) { name = resolvePlaceName(context, record) }
+    return name
 }
 
 @Composable
@@ -480,32 +523,91 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             }
         }
 
-        // Selected record info card (bottom)
-        selectedRecord?.let { rec ->
-            val time = remember(rec.timestamp) {
-                java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(rec.timestamp.toDate())
-            }
-            val address = resolvedAddress(rec)
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(16.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(DarkSurface)
-                    .padding(16.dp)
-            ) {
-                Column {
-                    Text(time, color = TextTertiary, fontSize = 11.sp)
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+        // Naver Maps style place info bottom sheet
+        var lastSelectedRec by remember { mutableStateOf<LocationRecord?>(null) }
+        if (selectedRecord != null) lastSelectedRec = selectedRecord
+
+        AnimatedVisibility(
+            visible = selectedRecord != null,
+            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(initialOffsetY = { it }),
+            exit = slideOutVertically(targetOffsetY = { it })
+        ) {
+            lastSelectedRec?.let { rec ->
+                val time = remember(rec.timestamp) {
+                    java.text.SimpleDateFormat("a h:mm", Locale.KOREAN).format(rec.timestamp.toDate())
+                }
+                val address = resolvedAddress(rec)
+                val placeName = resolvedPlaceName(rec)
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                        .background(DarkSurface)
+                        .padding(bottom = 24.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(top = 10.dp)
+                            .size(width = 36.dp, height = 4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.18f))
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 20.dp, end = 4.dp, top = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                placeName,
+                                color = MaterialTheme.colorScheme.onBackground,
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                address,
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                maxLines = 2,
+                                lineHeight = 17.sp,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        IconButton(onClick = { selectedRecord = null }) {
+                            Icon(Icons.Filled.Close, contentDescription = "닫기", tint = TextSecondary)
+                        }
+                    }
+
+                    Spacer(Modifier.height(14.dp))
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .height(1.dp)
+                            .background(Color.White.copy(alpha = 0.08f))
+                    )
+                    Spacer(Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(
-                            Icons.Filled.LocationOn, null,
+                            Icons.Filled.LocationOn,
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(14.dp)
                         )
-                        Spacer(Modifier.width(4.dp))
-                        Text(address, color = MaterialTheme.colorScheme.onBackground, fontSize = 14.sp)
+                        Spacer(Modifier.width(6.dp))
+                        Text("$time 방문", color = TextTertiary, fontSize = 13.sp)
                     }
                 }
             }
