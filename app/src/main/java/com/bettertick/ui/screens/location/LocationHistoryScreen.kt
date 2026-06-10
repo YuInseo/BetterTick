@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -197,7 +198,7 @@ fun LocationHistoryScreen(
             onToggleView = { showMap = !showMap }
         )
 
-        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
             when {
                 showMap && (records.isNotEmpty() || currentLocation != null) ->
                     RouteMapView(records = records, currentLocation = currentLocation)
@@ -372,6 +373,8 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                         ?: GeoPoint(37.5665, 126.9780)
                     mapView.controller.setZoom(14.0)
                     mapView.controller.setCenter(initCenter)
+                    mapView.outlineProvider = android.view.ViewOutlineProvider.BOUNDS
+                    mapView.clipToOutline = true
                 }
             }
         )
