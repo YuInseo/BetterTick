@@ -5,10 +5,10 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.drawable.BitmapDrawable
 import android.location.Address
 import android.location.Geocoder
 import android.os.Build
+import android.os.Looper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -36,6 +36,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -54,56 +55,42 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bettertick.data.model.LocationRecord
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
-import com.google.android.gms.location.LocationServices
-import android.os.Looper
-import androidx.compose.runtime.DisposableEffect
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.kakao.vectormap.KakaoMap
+import com.kakao.vectormap.KakaoMapReadyCallback
+import com.kakao.vectormap.LatLng
+import com.kakao.vectormap.MapView
+import com.kakao.vectormap.camera.CameraUpdateFactory
+import com.kakao.vectormap.label.Label
+import com.kakao.vectormap.label.LabelLayer
+import com.kakao.vectormap.label.LabelLayerOptions
+import com.kakao.vectormap.label.LabelOptions
+import com.kakao.vectormap.label.LabelStyle
+import com.kakao.vectormap.label.LabelStyles
+import com.kakao.vectormap.route.RouteLineOptions
+import com.kakao.vectormap.route.RouteLineSegment
+import com.kakao.vectormap.route.RouteLineStyle
+import com.kakao.vectormap.route.RouteLineStyles
+import com.kakao.vectormap.route.RouteLineStylesSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
-import org.osmdroid.tileprovider.tilesource.TileSourcePolicy
-import org.osmdroid.util.BoundingBox
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.util.MapTileIndex
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.Polyline
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.coroutines.resume
 
-private val CARTO_VOYAGER = object : OnlineTileSourceBase(
-    "CartoVoyager", 0, 19, 256, ".png",
-    arrayOf(
-        "https://a.basemaps.cartocdn.com/rastertiles/voyager/",
-        "https://b.basemaps.cartocdn.com/rastertiles/voyager/",
-        "https://c.basemaps.cartocdn.com/rastertiles/voyager/"
-    ),
-    "© CartoDB, © OpenStreetMap contributors",
-    TileSourcePolicy(
-        2,
-        TileSourcePolicy.FLAG_NO_BULK or TileSourcePolicy.FLAG_NO_PREVENTIVE or
-            TileSourcePolicy.FLAG_USER_AGENT_MEANINGFUL or TileSourcePolicy.FLAG_USER_AGENT_NORMALIZED
-    )
-) {
-    override fun getTileURLString(pMapTileIndex: Long): String =
-        "${baseUrl}${MapTileIndex.getZoom(pMapTileIndex)}" +
-            "/${MapTileIndex.getX(pMapTileIndex)}" +
-            "/${MapTileIndex.getY(pMapTileIndex)}.png"
-}
-
-private fun Context.dotMarker(colorInt: Int = 0xFFFF8C00.toInt(), sizeDp: Float = 18f): BitmapDrawable {
+private fun Context.dotBitmap(colorInt: Int = 0xFFFF8C00.toInt(), sizeDp: Float = 18f): Bitmap {
     val px = (sizeDp * resources.displayMetrics.density + 0.5f).toInt()
     val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
     val cv = Canvas(bmp)
@@ -115,12 +102,11 @@ private fun Context.dotMarker(colorInt: Int = 0xFFFF8C00.toInt(), sizeDp: Float 
     cv.drawCircle(px / 2f, px / 2f, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
         color = 0xFFFFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = strokeW
     })
-    return BitmapDrawable(resources, bmp)
+    return bmp
 }
 
 private val COORD_PATTERN = Regex("^-?\\d+\\.\\d+,\\s*-?\\d+\\.\\d+$")
 
-/** Resolve an address string: if it looks like raw coordinates, geocode it. */
 private suspend fun resolveAddress(context: Context, record: LocationRecord): String {
     if (!record.address.matches(COORD_PATTERN)) return record.address
     if (!Geocoder.isPresent()) return record.address
@@ -148,7 +134,6 @@ private suspend fun resolveAddress(context: Context, record: LocationRecord): St
     }
 }
 
-/** Shows a record's address, geocoding on-the-fly when stored value is raw coordinates. */
 @Composable
 private fun resolvedAddress(record: LocationRecord): String {
     val context = LocalContext.current
@@ -169,20 +154,19 @@ fun LocationHistoryScreen(
     var showMap by remember { mutableStateOf(true) }
     val records by viewModel.getRecordsForDate(selectedDate.toString()).collectAsState(emptyList())
     val context = LocalContext.current
-    var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
+    var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
-    // Real-time location updates while this screen is active
     DisposableEffect(Unit) {
         val client = LocationServices.getFusedLocationProviderClient(context)
         val cts = com.google.android.gms.tasks.CancellationTokenSource()
         // 1) Last known position → dot appears instantly
         client.lastLocation.addOnSuccessListener { loc ->
-            if (loc != null) currentLocation = GeoPoint(loc.latitude, loc.longitude)
+            if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
         }
         // 2) One-shot fresh fix → accurate position within seconds
         client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
             .addOnSuccessListener { loc ->
-                if (loc != null) currentLocation = GeoPoint(loc.latitude, loc.longitude)
+                if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
             }
         // 3) Ongoing updates every 5 s
         val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 5_000L)
@@ -190,7 +174,7 @@ fun LocationHistoryScreen(
             .build()
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { currentLocation = GeoPoint(it.latitude, it.longitude) }
+                result.lastLocation?.let { currentLocation = LatLng.from(it.latitude, it.longitude) }
             }
         }
         runCatching { client.requestLocationUpdates(request, callback, Looper.getMainLooper()) }
@@ -273,96 +257,105 @@ private fun TopBar(
 }
 
 @Composable
-private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoint?) {
+private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?) {
     val context = LocalContext.current
-    val points = remember(records) { records.map { GeoPoint(it.latitude, it.longitude) } }
+    val lifecycleOwner = LocalLifecycleOwner.current
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
-    val mapViewRef = remember { mutableStateOf<MapView?>(null) }
-    // Separate ref for the live "current location" dot — updated in-place, no full overlay rebuild
-    val liveMarkerRef = remember { mutableStateOf<Marker?>(null) }
+    val kakaoMapRef = remember { mutableStateOf<KakaoMap?>(null) }
+    val markerLayerRef = remember { mutableStateOf<LabelLayer?>(null) }
+    val liveLayerRef = remember { mutableStateOf<LabelLayer?>(null) }
+    val liveLabelRef = remember { mutableStateOf<Label?>(null) }
+    val points = remember(records) { records.map { LatLng.from(it.latitude, it.longitude) } }
 
-    // Rebuild route overlays ONLY when records or mapView changes (never on location update)
-    LaunchedEffect(points, mapViewRef.value) {
-        val mapView = mapViewRef.value ?: return@LaunchedEffect
+    // Rebuild route overlays when records change
+    LaunchedEffect(points, kakaoMapRef.value) {
+        val map = kakaoMapRef.value ?: return@LaunchedEffect
 
-        // Camera for routes
+        // Camera for route
         when {
-            points.size >= 2 -> {
-                val bounds = BoundingBox.fromGeoPoints(points)
-                mapView.post { mapView.zoomToBoundingBox(bounds, true, 120) }
-            }
-            points.size == 1 -> {
-                mapView.controller.setZoom(15.0)
-                mapView.controller.setCenter(points[0])
-            }
+            points.size >= 2 ->
+                map.moveCamera(CameraUpdateFactory.fitMapPoints(points.toTypedArray(), 200))
+            points.size == 1 ->
+                map.moveCamera(CameraUpdateFactory.newCenterPosition(points[0], 15))
         }
 
-        mapView.post {
-            // Keep the live marker, remove everything else
-            val live = liveMarkerRef.value
-            mapView.overlays.removeAll { it != live }
+        // Clear old markers and route
+        markerLayerRef.value?.let { map.labelManager?.removeLayer(it) }
+        map.routeLineManager?.layer?.removeAll()
 
-            if (points.size >= 2) {
-                mapView.overlays.add(0, Polyline(mapView).apply {
-                    setPoints(points)
-                    outlinePaint.color = 0x55FF8C00.toInt()
-                    outlinePaint.strokeWidth = 28f
-                    outlinePaint.isAntiAlias = true
-                    outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
-                    outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
-                })
-                mapView.overlays.add(1, Polyline(mapView).apply {
-                    setPoints(points)
-                    outlinePaint.color = 0xFFFF8C00.toInt()
-                    outlinePaint.strokeWidth = 10f
-                    outlinePaint.isAntiAlias = true
-                    outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
-                    outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
-                })
+        if (points.size >= 2) {
+            val glowSet = RouteLineStylesSet.from(
+                "glow",
+                RouteLineStyles.from(RouteLineStyle.from(28f, 0x55FF8C00.toInt()))
+            )
+            val coreSet = RouteLineStylesSet.from(
+                "core",
+                RouteLineStyles.from(RouteLineStyle.from(10f, 0xFFFF8C00.toInt()))
+            )
+            map.routeLineManager?.addRouteLineStylesSet(glowSet)
+            map.routeLineManager?.addRouteLineStylesSet(coreSet)
+            map.routeLineManager?.layer?.addRouteLine(
+                RouteLineOptions.from(listOf(RouteLineSegment.from(points).setStyles(glowSet.getStyles(0))))
+            )
+            map.routeLineManager?.layer?.addRouteLine(
+                RouteLineOptions.from(listOf(RouteLineSegment.from(points).setStyles(coreSet.getStyles(0))))
+            )
+        }
+
+        if (records.isNotEmpty()) {
+            val layer = map.labelManager?.addLayer(LabelLayerOptions.from("markers"))
+                ?: return@LaunchedEffect
+            markerLayerRef.value = layer
+
+            records.forEachIndexed { i, record ->
+                val isFirst = i == 0
+                val isLast = i == records.lastIndex
+                val color = when {
+                    isFirst -> 0xFF4CAF50.toInt()
+                    isLast -> 0xFFF44336.toInt()
+                    else -> 0xFFFF8C00.toInt()
+                }
+                layer.addLabel(
+                    LabelOptions.from(LatLng.from(record.latitude, record.longitude))
+                        .setStyles(LabelStyles.from(
+                            LabelStyle.from(context.dotBitmap(color, if (isFirst || isLast) 22f else 14f))
+                                .setAnchorPoint(0.5f, 0.5f)
+                        ))
+                        .setTag(record)
+                )
             }
 
-            records.forEachIndexed { index, record ->
-                val isFirst = index == 0
-                val isLast = index == records.lastIndex
-                val color = when { isFirst -> 0xFF4CAF50.toInt(); isLast -> 0xFFF44336.toInt(); else -> 0xFFFF8C00.toInt() }
-                mapView.overlays.add(Marker(mapView).apply {
-                    position = GeoPoint(record.latitude, record.longitude)
-                    icon = context.dotMarker(color, if (isFirst || isLast) 22f else 14f)
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                    title = when { isFirst -> "출발"; isLast -> "도착"; else -> null }
-                    setOnMarkerClickListener { _, _ -> selectedRecord = record; true }
-                })
+            map.setOnLabelClickListener { _, _, label ->
+                (label.tag as? LocationRecord)?.let { selectedRecord = it }
+                true
             }
-            mapView.invalidate()
         }
     }
 
-    // Live location dot — just move the marker, NO overlay rebuild → zero flicker
-    LaunchedEffect(currentLocation, mapViewRef.value) {
-        val mapView = mapViewRef.value ?: return@LaunchedEffect
+    // Live location dot — repositioned independently, no overlay rebuild
+    LaunchedEffect(currentLocation, kakaoMapRef.value) {
+        val map = kakaoMapRef.value ?: return@LaunchedEffect
         val loc = currentLocation ?: return@LaunchedEffect
 
-        // When no historical records, keep camera following live location
         if (records.isEmpty()) {
-            mapView.controller.setZoom(15.0)
-            mapView.controller.setCenter(loc)
+            map.moveCamera(CameraUpdateFactory.newCenterPosition(loc, 15))
         }
 
-        mapView.post {
-            val existing = liveMarkerRef.value
-            if (existing != null) {
-                existing.position = loc
-            } else {
-                val marker = Marker(mapView).apply {
-                    position = loc
-                    icon = context.dotMarker(0xFF2196F3.toInt(), 24f)
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                    title = "현재 위치"
-                }
-                mapView.overlays.add(marker)
-                liveMarkerRef.value = marker
-            }
-            mapView.invalidate()
+        val existing = liveLabelRef.value
+        if (existing != null) {
+            existing.moveTo(loc)
+        } else {
+            val layer = liveLayerRef.value ?: map.labelManager?.addLayer(
+                LabelLayerOptions.from("live")
+            ) ?: return@LaunchedEffect
+            liveLayerRef.value = layer
+            liveLabelRef.value = layer.addLabel(
+                LabelOptions.from(loc)
+                    .setStyles(LabelStyles.from(
+                        LabelStyle.from(context.dotBitmap(0xFF2196F3.toInt(), 24f))
+                            .setAnchorPoint(0.5f, 0.5f)
+                    ))
+            )
         }
     }
 
@@ -370,28 +363,21 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
-                Configuration.getInstance().apply {
-                    load(ctx, ctx.getSharedPreferences("osm_prefs", Context.MODE_PRIVATE))
-                    userAgentValue = ctx.packageName
-                    osmdroidBasePath = ctx.cacheDir
-                    osmdroidTileCache = java.io.File(ctx.cacheDir, "osm_tiles")
-                }
-                MapView(ctx).also { mapView ->
-                    mapViewRef.value = mapView
-                    mapView.setTileSource(CARTO_VOYAGER)
-                    mapView.setMultiTouchControls(true)
-                    @Suppress("DEPRECATION")
-                    mapView.setBuiltInZoomControls(false)
+                MapView(ctx).also { mv ->
                     val initCenter = currentLocation ?: points.lastOrNull()
-                        ?: GeoPoint(37.5665, 126.9780)
-                    mapView.controller.setZoom(14.0)
-                    mapView.controller.setCenter(initCenter)
-                    mapView.outlineProvider = android.view.ViewOutlineProvider.BOUNDS
-                    mapView.clipToOutline = true
+                        ?: LatLng.from(37.5665, 126.9780)
+                    mv.start(lifecycleOwner, object : KakaoMapReadyCallback() {
+                        override fun getPosition(): LatLng = initCenter
+                        override fun getZoomLevel(): Int = if (records.isEmpty()) 15 else 14
+                        override fun onMapReady(map: KakaoMap) {
+                            kakaoMapRef.value = map
+                        }
+                    })
                 }
             }
         )
 
+        // Visit count badge (top-right)
         if (records.isNotEmpty()) {
             Box(
                 modifier = Modifier
@@ -422,7 +408,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .clickable { mapViewRef.value?.controller?.zoomIn() },
+                    .clickable { kakaoMapRef.value?.moveCamera(CameraUpdateFactory.zoomIn()) },
                 contentAlignment = Alignment.Center
             ) {
                 Text("+", color = MaterialTheme.colorScheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
@@ -431,14 +417,14 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
             Box(
                 modifier = Modifier
                     .size(36.dp)
-                    .clickable { mapViewRef.value?.controller?.zoomOut() },
+                    .clickable { kakaoMapRef.value?.moveCamera(CameraUpdateFactory.zoomOut()) },
                 contentAlignment = Alignment.Center
             ) {
                 Text("−", color = MaterialTheme.colorScheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             }
         }
 
-        // "내 위치" button (bottom-right) — only when records exist so user can find their dot
+        // "내 위치" button (bottom-right)
         if (records.isNotEmpty() && currentLocation != null) {
             Box(
                 modifier = Modifier
@@ -449,7 +435,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                     .background(DarkSurface.copy(alpha = 0.9f))
                     .clickable {
                         currentLocation?.let { loc ->
-                            mapViewRef.value?.controller?.animateTo(loc)
+                            kakaoMapRef.value?.moveCamera(CameraUpdateFactory.newCenterPosition(loc))
                         }
                     },
                 contentAlignment = Alignment.Center
@@ -463,6 +449,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
             }
         }
 
+        // Selected record info card (bottom)
         selectedRecord?.let { rec ->
             val time = remember(rec.timestamp) {
                 java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(rec.timestamp.toDate())

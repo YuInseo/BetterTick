@@ -13,6 +13,7 @@ import com.bettertick.widget.WidgetUpdateWorker
 import com.bettertick.widget.calendar.ReminderWidget
 import com.bettertick.widget.calendar.WeeklyCalendarWidget
 import com.bettertick.widget.focus.FocusDistributionWidget
+import com.kakao.vectormap.KakaoMapSdk
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +39,8 @@ class BetterTickApplication : Application() {
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
+        // TODO: Replace with real Kakao Native App Key from developers.kakao.com
+        KakaoMapSdk.init(this, "KAKAO_NATIVE_APP_KEY_HERE")
         // Initialize widget service locator for AppWidget access
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
         // Schedule periodic widget updates
