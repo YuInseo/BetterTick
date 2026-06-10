@@ -55,7 +55,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.bettertick.data.model.LocationRecord
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
@@ -69,6 +68,7 @@ import com.google.android.gms.location.Priority
 import com.kakao.vectormap.KakaoMap
 import com.kakao.vectormap.KakaoMapReadyCallback
 import com.kakao.vectormap.LatLng
+import com.kakao.vectormap.MapLifeCycleCallback
 import com.kakao.vectormap.MapView
 import com.kakao.vectormap.camera.CameraUpdateFactory
 import com.kakao.vectormap.label.Label
@@ -259,7 +259,6 @@ private fun TopBar(
 @Composable
 private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?) {
     val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
     val kakaoMapRef = remember { mutableStateOf<KakaoMap?>(null) }
     val markerLayerRef = remember { mutableStateOf<LabelLayer?>(null) }
@@ -280,7 +279,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
         }
 
         // Clear old markers and route
-        markerLayerRef.value?.let { map.labelManager?.removeLayer(it) }
+        markerLayerRef.value?.removeAll()
         map.routeLineManager?.layer?.removeAll()
 
         if (points.size >= 2) {
@@ -292,8 +291,6 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                 "core",
                 RouteLineStyles.from(RouteLineStyle.from(10f, 0xFFFF8C00.toInt()))
             )
-            map.routeLineManager?.addRouteLineStylesSet(glowSet)
-            map.routeLineManager?.addRouteLineStylesSet(coreSet)
             map.routeLineManager?.layer?.addRouteLine(
                 RouteLineOptions.from(listOf(RouteLineSegment.from(points).setStyles(glowSet.getStyles(0))))
             )
@@ -366,13 +363,19 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                 MapView(ctx).also { mv ->
                     val initCenter = currentLocation ?: points.lastOrNull()
                         ?: LatLng.from(37.5665, 126.9780)
-                    mv.start(lifecycleOwner, object : KakaoMapReadyCallback() {
-                        override fun getPosition(): LatLng = initCenter
-                        override fun getZoomLevel(): Int = if (records.isEmpty()) 15 else 14
-                        override fun onMapReady(map: KakaoMap) {
-                            kakaoMapRef.value = map
+                    mv.start(
+                        object : MapLifeCycleCallback() {
+                            override fun onMapDestroy() {}
+                            override fun onMapError(error: Exception) {}
+                        },
+                        object : KakaoMapReadyCallback() {
+                            override fun getPosition(): LatLng = initCenter
+                            override fun getZoomLevel(): Int = if (records.isEmpty()) 15 else 14
+                            override fun onMapReady(map: KakaoMap) {
+                                kakaoMapRef.value = map
+                            }
                         }
-                    })
+                    )
                 }
             }
         )
