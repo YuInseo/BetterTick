@@ -58,9 +58,14 @@ import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import com.google.android.gms.location.LocationServices
+import android.os.Looper
+import androidx.compose.runtime.DisposableEffect
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.Priority
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import org.osmdroid.config.Configuration
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
@@ -164,11 +169,19 @@ fun LocationHistoryScreen(
     val context = LocalContext.current
     var currentLocation by remember { mutableStateOf<GeoPoint?>(null) }
 
-    LaunchedEffect(Unit) {
-        runCatching {
-            val loc = LocationServices.getFusedLocationProviderClient(context).lastLocation.await()
-            if (loc != null) currentLocation = GeoPoint(loc.latitude, loc.longitude)
+    // Real-time location updates while this screen is active
+    DisposableEffect(Unit) {
+        val client = LocationServices.getFusedLocationProviderClient(context)
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3_000L)
+            .setMinUpdateDistanceMeters(5f)
+            .build()
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { currentLocation = GeoPoint(it.latitude, it.longitude) }
+            }
         }
+        runCatching { client.requestLocationUpdates(request, callback, Looper.getMainLooper()) }
+        onDispose { runCatching { client.removeLocationUpdates(callback) } }
     }
 
     Column(
@@ -249,15 +262,15 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
     val points = remember(records) { records.map { GeoPoint(it.latitude, it.longitude) } }
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
+    // Separate ref for the live "current location" dot — updated in-place, no full overlay rebuild
+    val liveMarkerRef = remember { mutableStateOf<Marker?>(null) }
+    var cameraCenteredOnLoc by remember { mutableStateOf(false) }
 
-    // Camera + overlay management in one effect.
-    // Keys: points, currentLocation, mapViewRef.value — so this ONLY reruns when actual
-    // data changes, NOT on every recomposition (e.g. selectedRecord tap).
-    // Using mapView.post{} for overlays avoids the clear→blank→redraw flicker.
-    LaunchedEffect(points, currentLocation, mapViewRef.value) {
+    // Rebuild route overlays ONLY when records or mapView changes (never on location update)
+    LaunchedEffect(points, mapViewRef.value) {
         val mapView = mapViewRef.value ?: return@LaunchedEffect
 
-        // Camera
+        // Camera for routes
         when {
             points.size >= 2 -> {
                 val bounds = BoundingBox.fromGeoPoints(points)
@@ -267,19 +280,15 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                 mapView.controller.setZoom(15.0)
                 mapView.controller.setCenter(points[0])
             }
-            currentLocation != null -> {
-                mapView.controller.setZoom(15.0)
-                mapView.controller.setCenter(currentLocation)
-            }
         }
 
-        // Overlays — post to next frame so tile rendering isn't interrupted
         mapView.post {
-            mapView.overlays.clear()
+            // Keep the live marker, remove everything else
+            val live = liveMarkerRef.value
+            mapView.overlays.removeAll { it != live }
 
             if (points.size >= 2) {
-                // Glow layer
-                mapView.overlays.add(Polyline(mapView).apply {
+                mapView.overlays.add(0, Polyline(mapView).apply {
                     setPoints(points)
                     outlinePaint.color = 0x55FF8C00.toInt()
                     outlinePaint.strokeWidth = 28f
@@ -287,8 +296,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                     outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
                     outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
                 })
-                // Core line
-                mapView.overlays.add(Polyline(mapView).apply {
+                mapView.overlays.add(1, Polyline(mapView).apply {
                     setPoints(points)
                     outlinePaint.color = 0xFFFF8C00.toInt()
                     outlinePaint.strokeWidth = 10f
@@ -298,32 +306,48 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: GeoPoin
                 })
             }
 
-            if (records.isNotEmpty()) {
-                records.forEachIndexed { index, record ->
-                    val isFirst = index == 0
-                    val isLast = index == records.lastIndex
-                    val color = when {
-                        isFirst -> 0xFF4CAF50.toInt()
-                        isLast  -> 0xFFF44336.toInt()
-                        else    -> 0xFFFF8C00.toInt()
-                    }
-                    mapView.overlays.add(Marker(mapView).apply {
-                        position = GeoPoint(record.latitude, record.longitude)
-                        icon = context.dotMarker(color, if (isFirst || isLast) 22f else 14f)
-                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                        title = when { isFirst -> "출발"; isLast -> "도착"; else -> null }
-                        setOnMarkerClickListener { _, _ -> selectedRecord = record; true }
-                    })
-                }
-            } else if (currentLocation != null) {
+            records.forEachIndexed { index, record ->
+                val isFirst = index == 0
+                val isLast = index == records.lastIndex
+                val color = when { isFirst -> 0xFF4CAF50.toInt(); isLast -> 0xFFF44336.toInt(); else -> 0xFFFF8C00.toInt() }
                 mapView.overlays.add(Marker(mapView).apply {
-                    position = currentLocation
-                    icon = context.dotMarker(0xFF2196F3.toInt(), 22f)
+                    position = GeoPoint(record.latitude, record.longitude)
+                    icon = context.dotMarker(color, if (isFirst || isLast) 22f else 14f)
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                    title = "현재 위치"
+                    title = when { isFirst -> "출발"; isLast -> "도착"; else -> null }
+                    setOnMarkerClickListener { _, _ -> selectedRecord = record; true }
                 })
             }
+            mapView.invalidate()
+        }
+    }
 
+    // Live location dot — just move the marker, NO overlay rebuild → zero flicker
+    LaunchedEffect(currentLocation, mapViewRef.value) {
+        val mapView = mapViewRef.value ?: return@LaunchedEffect
+        val loc = currentLocation ?: return@LaunchedEffect
+
+        // Center camera only once (when no route to show)
+        if (!cameraCenteredOnLoc && records.isEmpty()) {
+            mapView.controller.setZoom(15.0)
+            mapView.controller.setCenter(loc)
+            cameraCenteredOnLoc = true
+        }
+
+        mapView.post {
+            val existing = liveMarkerRef.value
+            if (existing != null) {
+                existing.position = loc
+            } else {
+                val marker = Marker(mapView).apply {
+                    position = loc
+                    icon = context.dotMarker(0xFF2196F3.toInt(), 24f)
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                    title = "현재 위치"
+                }
+                mapView.overlays.add(marker)
+                liveMarkerRef.value = marker
+            }
             mapView.invalidate()
         }
     }
