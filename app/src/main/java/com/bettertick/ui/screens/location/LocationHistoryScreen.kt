@@ -245,9 +245,9 @@ fun LocationHistoryScreen(
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
             when {
-                showMap && (records.isNotEmpty() || currentLocation != null) ->
+                showMap ->
                     RouteMapView(records = records, currentLocation = currentLocation)
-                !showMap && records.isNotEmpty() ->
+                records.isNotEmpty() ->
                     RouteListView(records = records)
                 else -> EmptyState()
             }
@@ -450,6 +450,23 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                 }
             }
         )
+
+        // No-records overlay (shown on top of the map)
+        if (records.isEmpty() && currentLocation == null) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(DarkSurface.copy(alpha = 0.85f))
+                    .padding(horizontal = 20.dp, vertical = 14.dp)
+            ) {
+                Text(
+                    "이 날의 위치 기록이 없어요",
+                    color = TextSecondary,
+                    fontSize = 13.sp
+                )
+            }
+        }
 
         // Visit count badge (top-right)
         if (records.isNotEmpty()) {
