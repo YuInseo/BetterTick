@@ -40,9 +40,29 @@ class MainActivity : ComponentActivity() {
                 BetterTickNavHost(openQuickAdd = openQuickAdd)
             }
         }
-        checkForUpdate()
         requestOverlayPermissionIfNeeded()
         requestNotificationPermissionIfNeeded()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Re-check on every foreground transition (not just cold start) so a
+        // release published while the app is open or backgrounded is picked up
+        // as soon as the user returns to the screen — "실시간" 업데이트 감지.
+        maybeCheckForUpdate()
+    }
+
+    /**
+     * Debounced foreground update check. onStart fires on every app→foreground
+     * transition, but the GitHub API is unauthenticated (60 req/hr per IP), so
+     * we throttle to at most once per [UPDATE_CHECK_MIN_INTERVAL_MS] to avoid
+     * burning the rate limit when the user flips in and out of the app.
+     */
+    private fun maybeCheckForUpdate() {
+        val now = System.currentTimeMillis()
+        if (now - lastUpdateCheckAt < UPDATE_CHECK_MIN_INTERVAL_MS) return
+        lastUpdateCheckAt = now
+        checkForUpdate()
     }
 
     private fun requestNotificationPermissionIfNeeded() {
@@ -127,5 +147,11 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OPEN_QUICK_ADD = "open_quick_add"
+
+        // Minimum gap between foreground update checks. Process-scoped so it
+        // survives Activity recreation (config changes) but resets on a cold
+        // start, where a fresh check is wanted anyway.
+        private const val UPDATE_CHECK_MIN_INTERVAL_MS = 15 * 60 * 1000L
+        @Volatile private var lastUpdateCheckAt = 0L
     }
 }
