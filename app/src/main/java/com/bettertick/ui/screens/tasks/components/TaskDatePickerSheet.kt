@@ -27,6 +27,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -118,6 +119,27 @@ fun TaskDatePickerSheet(
     // collapse while the wheel-picker (시작/끝) view is active. Otherwise
     // 날짜/지속시간 tabs + 삭제/취소/확인 bleed through the advanced UI.
     var durationAdvanced by remember { mutableStateOf(false) }
+
+    // When the user picks a specific 시간 (on the 날짜 tab, or changes the
+    // date while a time is set), seed the 지속 시간 tab from it: start at that
+    // moment and end 30 minutes later. Without this, switching to 지속 시간
+    // after choosing a time still showed the original seed (initialTime ?:
+    // 오후 2시) and a 60-min span, ignoring the time the user just set.
+    //
+    // The first run is skipped so an existing task's saved time + duration
+    // (passed in via initialTime/initialDurationMinutes when editing) isn't
+    // clobbered with a 30-min default on open.
+    var durationSeeded by remember { mutableStateOf(false) }
+    LaunchedEffect(selectedTime, selectedDate) {
+        if (!durationSeeded) {
+            durationSeeded = true
+            return@LaunchedEffect
+        }
+        val time = selectedTime ?: return@LaunchedEffect
+        val newStart = LocalDateTime.of(selectedDate, time)
+        durationStart = newStart
+        durationEnd = newStart.plusMinutes(30)
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
