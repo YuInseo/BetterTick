@@ -44,6 +44,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -317,6 +318,10 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
     // 지도만 보고 원인을 알 수 없었다. 화면에 띄워 키/키해시 등록 문제를
     // 바로 진단할 수 있게 한다.
     var mapError by remember { mutableStateOf<String?>(null) }
+    // Bumping this forces the AndroidView/MapView to be recreated from scratch
+    // — used by the error overlay's "다시 시도" so a transient init/network
+    // failure can recover without restarting the app.
+    var mapRetryKey by remember { mutableStateOf(0) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -429,32 +434,37 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                MapView(ctx).also { mv ->
-                    mapViewRef.value = mv
-                    val initCenter = currentLocation ?: points.lastOrNull()
-                        ?: LatLng.from(37.5665, 126.9780)
-                    mv.start(
-                        object : MapLifeCycleCallback() {
-                            override fun onMapDestroy() {}
-                            override fun onMapError(error: Exception) {
-                                android.util.Log.e("KakaoMap", "Map error: ${error.message}", error)
-                                mapError = error.message ?: error.javaClass.simpleName
+        // key(mapRetryKey): recreating the MapView is how "다시 시도" recovers.
+        // Each recreation must finish the old view and reset the cached refs so
+        // the overlay-rebuild effects re-run against the fresh KakaoMap.
+        key(mapRetryKey) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    MapView(ctx).also { mv ->
+                        mapViewRef.value = mv
+                        val initCenter = currentLocation ?: points.lastOrNull()
+                            ?: LatLng.from(37.5665, 126.9780)
+                        mv.start(
+                            object : MapLifeCycleCallback() {
+                                override fun onMapDestroy() {}
+                                override fun onMapError(error: Exception) {
+                                    android.util.Log.e("KakaoMap", "Map error: ${error.message}", error)
+                                    mapError = error.message ?: error.javaClass.simpleName
+                                }
+                            },
+                            object : KakaoMapReadyCallback() {
+                                override fun getPosition(): LatLng = initCenter
+                                override fun getZoomLevel(): Int = if (records.isEmpty()) 15 else 14
+                                override fun onMapReady(map: KakaoMap) {
+                                    kakaoMapRef.value = map
+                                }
                             }
-                        },
-                        object : KakaoMapReadyCallback() {
-                            override fun getPosition(): LatLng = initCenter
-                            override fun getZoomLevel(): Int = if (records.isEmpty()) 15 else 14
-                            override fun onMapReady(map: KakaoMap) {
-                                kakaoMapRef.value = map
-                            }
-                        }
-                    )
+                        )
+                    }
                 }
-            }
-        )
+            )
+        }
 
         // Map authentication / init failure — surfaced so the cause (보통
         // 카카오 네이티브 앱 키 또는 키 해시 미등록)이 화면에 바로 보인다.
@@ -488,6 +498,26 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                         color = TextTertiary,
                         fontSize = 11.sp,
                         textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        "다시 시도",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable {
+                                // Drop the stale map/refs and force a fresh
+                                // MapView so a transient failure can recover.
+                                kakaoMapRef.value = null
+                                markerLayerRef.value = null
+                                liveLayerRef.value = null
+                                liveLabelRef.value = null
+                                mapError = null
+                                mapRetryKey++
+                            }
+                            .padding(horizontal = 20.dp, vertical = 8.dp)
                     )
                 }
             }
