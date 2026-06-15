@@ -313,6 +313,10 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
     val liveLayerRef = remember { mutableStateOf<LabelLayer?>(null) }
     val liveLabelRef = remember { mutableStateOf<Label?>(null) }
     val points = remember(records) { records.map { LatLng.from(it.latitude, it.longitude) } }
+    // Kakao 지도 초기화/인증 실패 사유. 기존엔 Logcat에만 찍혀 사용자는 빈
+    // 지도만 보고 원인을 알 수 없었다. 화면에 띄워 키/키해시 등록 문제를
+    // 바로 진단할 수 있게 한다.
+    var mapError by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -437,6 +441,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                             override fun onMapDestroy() {}
                             override fun onMapError(error: Exception) {
                                 android.util.Log.e("KakaoMap", "Map error: ${error.message}", error)
+                                mapError = error.message ?: error.javaClass.simpleName
                             }
                         },
                         object : KakaoMapReadyCallback() {
@@ -451,8 +456,45 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             }
         )
 
+        // Map authentication / init failure — surfaced so the cause (보통
+        // 카카오 네이티브 앱 키 또는 키 해시 미등록)이 화면에 바로 보인다.
+        mapError?.let { msg ->
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 24.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(DarkSurface.copy(alpha = 0.95f))
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "지도를 불러오지 못했어요",
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        msg,
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "카카오 앱 키·키 해시 등록을 확인해 주세요",
+                        color = TextTertiary,
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+
         // No-records overlay (shown on top of the map)
-        if (records.isEmpty() && currentLocation == null) {
+        if (mapError == null && records.isEmpty() && currentLocation == null) {
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
