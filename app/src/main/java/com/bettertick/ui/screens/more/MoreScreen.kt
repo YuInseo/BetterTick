@@ -3,6 +3,7 @@ package com.bettertick.ui.screens.more
 import android.Manifest
 import android.content.pm.PackageManager
 import android.provider.Settings
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -91,6 +92,30 @@ fun MoreScreen(
         mutableStateOf(prefs.getBoolean("location_tracking", false))
     }
 
+    // 백그라운드 위치('항상 허용')는 Android 11+에서 전경 권한과 같은 다이얼로그로
+    // 요청할 수 없어, 전경 권한이 허용된 뒤 별도로 요청한다. 이게 없으면 앱이
+    // 백그라운드로 가는 순간 위치 업데이트가 끊긴다.
+    val backgroundLocationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(
+                context,
+                "백그라운드 기록은 위치 권한을 '항상 허용'으로 설정해야 합니다",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+    fun requestBackgroundLocationIfNeeded() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+        }
+    }
+
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -100,6 +125,8 @@ fun MoreScreen(
             locationTrackingEnabled = true
             prefs.edit().putBoolean("location_tracking", true).apply()
             LocationTrackingService.start(context)
+            // 전경 권한 확보 직후 백그라운드 권한도 요청.
+            requestBackgroundLocationIfNeeded()
         } else {
             Toast.makeText(context, "위치 권한이 필요합니다", Toast.LENGTH_SHORT).show()
         }
@@ -313,6 +340,9 @@ fun MoreScreen(
                                 locationTrackingEnabled = true
                                 prefs.edit().putBoolean("location_tracking", true).apply()
                                 LocationTrackingService.start(context)
+                                // 전경 권한은 있어도 백그라운드('항상 허용')는
+                                // 따로 받아야 백그라운드 추적이 끊기지 않는다.
+                                requestBackgroundLocationIfNeeded()
                             } else {
                                 locationPermissionLauncher.launch(arrayOf(
                                     Manifest.permission.ACCESS_FINE_LOCATION,
