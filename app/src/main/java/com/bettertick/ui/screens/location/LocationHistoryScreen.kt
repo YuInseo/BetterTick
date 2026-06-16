@@ -36,14 +36,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -69,6 +73,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.bettertick.data.model.FavoritePlace
 import com.bettertick.data.model.LocationRecord
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
@@ -148,6 +153,27 @@ private fun Context.flagBitmap(sizeDp: Float = 28f): Bitmap {
     return bmp
 }
 
+private fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+    val out = FloatArray(1)
+    android.location.Location.distanceBetween(lat1, lng1, lat2, lng2, out)
+    return out[0].toDouble()
+}
+
+/** 주어진 좌표가 어떤 즐겨찾기 반경(60m) 안이면 그 이름을, 아니면 null. */
+private fun favoriteNameFor(
+    favorites: List<FavoritePlace>,
+    lat: Double,
+    lng: Double
+): String? {
+    var best: String? = null
+    var bestDist = 60.0
+    favorites.forEach { f ->
+        val d = distanceMeters(lat, lng, f.latitude, f.longitude)
+        if (d <= bestDist) { bestDist = d; best = f.name }
+    }
+    return best
+}
+
 private val COORD_PATTERN = Regex("^-?\\d+\\.\\d+,\\s*-?\\d+\\.\\d+$")
 
 private suspend fun resolveAddress(context: Context, record: LocationRecord): String {
@@ -208,26 +234,30 @@ private suspend fun resolvePlaceName(context: Context, record: LocationRecord): 
 }
 
 @Composable
-private fun resolvedPlaceName(record: LocationRecord): String {
+private fun resolvedPlaceName(record: LocationRecord, favorites: List<FavoritePlace>): String {
     val context = LocalContext.current
+    val favName = favoriteNameFor(favorites, record.latitude, record.longitude)
     // 깃발(건물 방문)은 기록 시 장소명을 저장해 뒀으니 그대로 사용. 없으면 geocode.
     val seed = record.placeName.takeIf { it.isNotBlank() } ?: "방문한 장소"
     var name by remember(record.id) { mutableStateOf(seed) }
     LaunchedEffect(record.id) {
         if (record.placeName.isBlank()) name = resolvePlaceName(context, record)
     }
-    return name
+    // 즐겨찾기 반경 안이면 그 이름을 최우선으로.
+    return favName ?: name
 }
 
 @Composable
-private fun resolvedAddress(record: LocationRecord): String {
+private fun resolvedAddress(record: LocationRecord, favorites: List<FavoritePlace>): String {
     val context = LocalContext.current
+    val favName = favoriteNameFor(favorites, record.latitude, record.longitude)
     var display by remember(record.id) { mutableStateOf(record.address) }
     LaunchedEffect(record.id) {
         val resolved = resolveAddress(context, record)
         if (resolved != record.address) display = resolved
     }
-    return display
+    // 즐겨찾기로 이름을 붙인 위치면 지번 주소 대신 그 이름을 보여준다.
+    return favName ?: display
 }
 
 @SuppressLint("MissingPermission")
@@ -238,8 +268,10 @@ fun LocationHistoryScreen(
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var showMap by remember { mutableStateOf(true) }
     val records by viewModel.getRecordsForDate(selectedDate.toString()).collectAsState(emptyList())
+    val favorites by viewModel.favorites.collectAsState()
     val context = LocalContext.current
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
+    var showFavoriteDialog by remember { mutableStateOf(false) }
 
     // 현재 위치 점/줌이 동작하려면 런타임 위치 권한이 필요하다. 없으면 화면
     // 진입 시 요청하고, 허용되면 아래 수집 효과가 다시 돌도록 상태로 추적.
@@ -327,9 +359,9 @@ fun LocationHistoryScreen(
         Box(modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
             when {
                 showMap ->
-                    RouteMapView(records = records, currentLocation = currentLocation)
+                    RouteMapView(records = records, currentLocation = currentLocation, favorites = favorites)
                 records.isNotEmpty() ->
-                    RouteListView(records = records)
+                    RouteListView(records = records, favorites = favorites)
                 else -> EmptyState()
             }
 
@@ -352,8 +384,79 @@ fun LocationHistoryScreen(
                     modifier = Modifier.size(20.dp)
                 )
             }
+
+            // 즐겨찾기 버튼 — 우측 하단. 현재 위치에 이름을 붙이면 그 위치 기록의
+            // 지번 주소가 이름으로 대체된다. 현재 위치를 알 때만 활성.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(12.dp)
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(enabled = currentLocation != null) { showFavoriteDialog = true },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Star,
+                    contentDescription = "즐겨찾기 추가",
+                    tint = if (currentLocation != null) Color.White else Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
     }
+
+    if (showFavoriteDialog) {
+        val loc = currentLocation
+        FavoriteNameDialog(
+            onDismiss = { showFavoriteDialog = false },
+            onConfirm = { name ->
+                if (loc != null && name.isNotBlank()) {
+                    viewModel.addFavorite(name.trim(), loc.latitude, loc.longitude)
+                }
+                showFavoriteDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun FavoriteNameDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = DarkSurface,
+        title = { Text("이 위치 이름 짓기", color = Color.White) },
+        text = {
+            Column {
+                Text(
+                    "현재 위치에 이름을 붙이면 지번 주소 대신 그 이름으로 표시됩니다.",
+                    color = TextSecondary,
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    placeholder = { Text("예: 집, 회사, 헬스장") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onConfirm(text) }, enabled = text.isNotBlank()) {
+                Text("저장")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("취소") }
+        }
+    )
 }
 
 @Composable
@@ -395,7 +498,7 @@ private fun TopBar(
 }
 
 @Composable
-private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?) {
+private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?, favorites: List<FavoritePlace>) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
@@ -704,8 +807,8 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                 val time = remember(rec.timestamp) {
                     java.text.SimpleDateFormat("a h:mm", Locale.KOREAN).format(rec.timestamp.toDate())
                 }
-                val address = resolvedAddress(rec)
-                val placeName = resolvedPlaceName(rec)
+                val address = resolvedAddress(rec, favorites)
+                val placeName = resolvedPlaceName(rec, favorites)
 
                 Column(
                     modifier = Modifier
@@ -783,14 +886,14 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
 }
 
 @Composable
-private fun RouteListView(records: List<LocationRecord>) {
+private fun RouteListView(records: List<LocationRecord>, favorites: List<FavoritePlace>) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(records, key = { it.id }) { record ->
             val isLast = record == records.last()
             val time = remember(record.timestamp) {
                 java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(record.timestamp.toDate())
             }
-            val address = resolvedAddress(record)
+            val address = resolvedAddress(record, favorites)
 
             Row(
                 modifier = Modifier
