@@ -90,9 +90,9 @@ class LocationTrackingService : Service() {
 
     @Suppress("MissingPermission")
     private fun startTracking() {
-        // 1분 주기 + 최소거리 0 → 정지해 있어도 업데이트가 와서 dwell(머무름)
-        // 시간을 잴 수 있다. 저장 자체는 콜백에서 이동/머무름 조건으로 거른다.
-        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 60 * 1000L)
+        // 15초 주기 + 최소거리 0 → 정지해 있어도 업데이트가 자주 와서 dwell
+        // (머무름)을 빠르게 감지. 저장 자체는 콜백에서 이동/머무름 조건으로 거른다.
+        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 15 * 1000L)
             .setMinUpdateDistanceMeters(0f)
             .build()
         runCatching {
@@ -227,7 +227,8 @@ class LocationTrackingService : Service() {
         // 이 반경(m) 안에 머물면 같은 장소로 간주.
         private const val DWELL_RADIUS_M = 45.0
         // 같은 장소에 이만큼(ms) 이상 머물면 "건물 진입"으로 보고 깃발.
-        private const val DWELL_MIN_MS = 4 * 60 * 1000L
+        // 거의 실시간에 가깝게 1분으로. (짧으면 신호대기 등 오탐이 늘 수 있음)
+        private const val DWELL_MIN_MS = 60 * 1000L
 
         fun start(context: Context) {
             val intent = Intent(context, LocationTrackingService::class.java)
