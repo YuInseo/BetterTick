@@ -16,7 +16,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://devrepo.kakao.com/nexus/content/groups/public/") }
+        // KakaoMaps SDK v2 — current official Nexus 3 path. The legacy
+        // `nexus/content/groups/public/` URL is deprecated; the docs now point
+        // to `nexus/repository/kakaomap-releases/`.
+        maven { url = uri("https://devrepo.kakao.com/nexus/repository/kakaomap-releases/") }
     }
 }
 

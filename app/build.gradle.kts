@@ -138,5 +138,5 @@ dependencies {
     // with auto-capture + edge detection UI, matching the TickTick UX.
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
     implementation("com.google.android.gms:play-services-location:21.3.0")
-    implementation("com.kakao.maps.open:android:2.11.9")
+    implementation("com.kakao.maps.open:android:2.13.1")
 }
