@@ -1,7 +1,9 @@
 package com.bettertick.ui.screens.location
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -9,6 +11,9 @@ import android.location.Address
 import android.location.Geocoder
 import android.os.Build
 import android.os.Looper
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -203,31 +208,60 @@ fun LocationHistoryScreen(
     val context = LocalContext.current
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
 
-    DisposableEffect(Unit) {
-        val client = LocationServices.getFusedLocationProviderClient(context)
-        val cts = com.google.android.gms.tasks.CancellationTokenSource()
-        // 1) Last known position → dot appears instantly
-        client.lastLocation.addOnSuccessListener { loc ->
-            if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
+    // 현재 위치 점/줌이 동작하려면 런타임 위치 권한이 필요하다. 없으면 화면
+    // 진입 시 요청하고, 허용되면 아래 수집 효과가 다시 돌도록 상태로 추적.
+    fun hasLocationPermission(): Boolean =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+    var locationGranted by remember { mutableStateOf(hasLocationPermission()) }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { result ->
+        locationGranted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+    }
+    LaunchedEffect(Unit) {
+        if (!locationGranted) {
+            permissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
         }
-        // 2) One-shot fresh fix → accurate position within seconds
-        client.getCurrentLocation(Priority.PRIORITY_BALANCED_POWER_ACCURACY, cts.token)
-            .addOnSuccessListener { loc ->
+    }
+
+    DisposableEffect(locationGranted) {
+        if (!locationGranted) {
+            onDispose { }
+        } else {
+            val client = LocationServices.getFusedLocationProviderClient(context)
+            val cts = com.google.android.gms.tasks.CancellationTokenSource()
+            // 1) Last known position → dot appears instantly
+            client.lastLocation.addOnSuccessListener { loc ->
                 if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
             }
-        // 3) Ongoing updates every 5 s
-        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 5_000L)
-            .setMinUpdateDistanceMeters(0f)
-            .build()
-        val callback = object : LocationCallback() {
-            override fun onLocationResult(result: LocationResult) {
-                result.lastLocation?.let { currentLocation = LatLng.from(it.latitude, it.longitude) }
+            // 2) One-shot fresh fix → accurate position within seconds
+            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
+                .addOnSuccessListener { loc ->
+                    if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
+                }
+            // 3) Ongoing updates every 2 s → 실시간으로 빨간 점 이동
+            val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2_000L)
+                .setMinUpdateDistanceMeters(0f)
+                .build()
+            val callback = object : LocationCallback() {
+                override fun onLocationResult(result: LocationResult) {
+                    result.lastLocation?.let { currentLocation = LatLng.from(it.latitude, it.longitude) }
+                }
             }
-        }
-        runCatching { client.requestLocationUpdates(request, callback, Looper.getMainLooper()) }
-        onDispose {
-            cts.cancel()
-            runCatching { client.removeLocationUpdates(callback) }
+            runCatching { client.requestLocationUpdates(request, callback, Looper.getMainLooper()) }
+            onDispose {
+                cts.cancel()
+                runCatching { client.removeLocationUpdates(callback) }
+            }
         }
     }
 
@@ -238,10 +272,8 @@ fun LocationHistoryScreen(
     ) {
         TopBar(
             date = selectedDate,
-            showMap = showMap,
             onPrev = { selectedDate = selectedDate.minusDays(1) },
-            onNext = { if (selectedDate < LocalDate.now()) selectedDate = selectedDate.plusDays(1) },
-            onToggleView = { showMap = !showMap }
+            onNext = { if (selectedDate < LocalDate.now()) selectedDate = selectedDate.plusDays(1) }
         )
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
@@ -252,6 +284,26 @@ fun LocationHistoryScreen(
                     RouteListView(records = records)
                 else -> EmptyState()
             }
+
+            // 지도/목록 전환 버튼 — 우측 상단에서 좌측 하단으로 이동. 지도·목록
+            // 어느 화면에서든 누를 수 있게 콘텐츠 위에 오버레이.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(12.dp)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(DarkSurface.copy(alpha = 0.9f))
+                    .clickable { showMap = !showMap },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (showMap) Icons.Outlined.List else Icons.Outlined.Map,
+                    contentDescription = if (showMap) "목록 보기" else "지도 보기",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
@@ -259,10 +311,8 @@ fun LocationHistoryScreen(
 @Composable
 private fun TopBar(
     date: LocalDate,
-    showMap: Boolean,
     onPrev: () -> Unit,
-    onNext: () -> Unit,
-    onToggleView: () -> Unit
+    onNext: () -> Unit
 ) {
     val today = LocalDate.now()
     val label = when (date) {
@@ -291,13 +341,6 @@ private fun TopBar(
             Icon(
                 Icons.Outlined.ChevronRight, contentDescription = "다음",
                 tint = if (date < today) TextSecondary else TextTertiary
-            )
-        }
-        IconButton(onClick = onToggleView) {
-            Icon(
-                if (showMap) Icons.Outlined.List else Icons.Outlined.Map,
-                contentDescription = if (showMap) "목록 보기" else "지도 보기",
-                tint = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -426,7 +469,8 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             liveLabelRef.value = layer.addLabel(
                 LabelOptions.from(loc)
                     .setStyles(LabelStyles.from(
-                        LabelStyle.from(context.dotBitmap(0xFF2196F3.toInt(), 24f))
+                        // 현재 위치 = 빨간 점. moveTo로 실시간 이동.
+                        LabelStyle.from(context.dotBitmap(0xFFFF3B30.toInt(), 24f))
                             .setAnchorPoint(0.5f, 0.5f)
                     ))
             )
@@ -559,12 +603,12 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             }
         }
 
-        // "내 위치" button (bottom-left). 줌 +/- 컨트롤은 제거했고(핀치로
-        // 줌), 현재 위치만 있으면 기록이 없어도 표시한다.
+        // "내 위치" button (bottom-right). 좌측 하단은 지도/목록 토글이
+        // 차지하므로 우측 하단에 둔다. 현재 위치만 있으면 표시.
         if (currentLocation != null) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomStart)
+                    .align(Alignment.BottomEnd)
                     .padding(12.dp)
                     .size(36.dp)
                     .clip(RoundedCornerShape(8.dp))
