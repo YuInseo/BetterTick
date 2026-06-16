@@ -385,23 +385,25 @@ fun LocationHistoryScreen(
                 )
             }
 
-            // 즐겨찾기 버튼 — 우측 하단. 현재 위치에 이름을 붙이면 그 위치 기록의
-            // 지번 주소가 이름으로 대체된다. 현재 위치를 알 때만 활성.
+            // 즐겨찾기 버튼 — 우측 하단. '내 위치' 버튼과 겹치지 않게 그 위로
+            // 올리고, 다른 오버레이 버튼들과 동일한 스타일(어두운 라운드 사각형).
+            // 현재 위치를 알 때만 활성.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(12.dp)
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary)
+                    .padding(end = 12.dp, bottom = 60.dp)
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(DarkSurface.copy(alpha = 0.9f))
                     .clickable(enabled = currentLocation != null) { showFavoriteDialog = true },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Filled.Star,
                     contentDescription = "즐겨찾기 추가",
-                    tint = if (currentLocation != null) Color.White else Color.White.copy(alpha = 0.4f),
-                    modifier = Modifier.size(22.dp)
+                    tint = if (currentLocation != null) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -774,8 +776,8 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(12.dp)
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(DarkSurface.copy(alpha = 0.9f))
                     .clickable {
                         currentLocation?.let { loc ->
@@ -788,7 +790,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                     Icons.Filled.LocationOn,
                     contentDescription = "내 위치로",
                     tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
