@@ -266,33 +266,48 @@ fun LocationHistoryScreen(
         }
     }
 
-    DisposableEffect(locationGranted) {
+    // 전경에서만 1초·고정확도로 빨간 점을 갱신한다. 화면이 가려지면(ON_PAUSE)
+    // 즉시 업데이트를 멈춰 배터리를 아끼고, 다시 보이면(ON_RESUME) 재개한다.
+    // 지속적인 백그라운드 기록은 LocationTrackingService가 저전력으로 담당.
+    val locationLifecycle = LocalLifecycleOwner.current
+    DisposableEffect(locationGranted, locationLifecycle) {
         if (!locationGranted) {
             onDispose { }
         } else {
             val client = LocationServices.getFusedLocationProviderClient(context)
             val cts = com.google.android.gms.tasks.CancellationTokenSource()
-            // 1) Last known position → dot appears instantly
-            client.lastLocation.addOnSuccessListener { loc ->
-                if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
-            }
-            // 2) One-shot fresh fix → accurate position within seconds
-            client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
-                .addOnSuccessListener { loc ->
-                    if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
-                }
-            // 3) Ongoing updates every 1 s → 실시간으로 빨간 점 이동
             val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1_000L)
                 .setMinUpdateDistanceMeters(0f)
+                .setWaitForAccurateLocation(false)
                 .build()
             val callback = object : LocationCallback() {
                 override fun onLocationResult(result: LocationResult) {
                     result.lastLocation?.let { currentLocation = LatLng.from(it.latitude, it.longitude) }
                 }
             }
-            runCatching { client.requestLocationUpdates(request, callback, Looper.getMainLooper()) }
+            @SuppressLint("MissingPermission")
+            fun startUpdates() {
+                // Last known + one-shot fresh fix → dot appears instantly.
+                client.lastLocation.addOnSuccessListener { loc ->
+                    if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
+                }
+                client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cts.token)
+                    .addOnSuccessListener { loc ->
+                        if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
+                    }
+                runCatching { client.requestLocationUpdates(request, callback, Looper.getMainLooper()) }
+            }
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_RESUME -> startUpdates()
+                    Lifecycle.Event.ON_PAUSE -> runCatching { client.removeLocationUpdates(callback) }
+                    else -> {}
+                }
+            }
+            locationLifecycle.lifecycle.addObserver(observer)
             onDispose {
                 cts.cancel()
+                locationLifecycle.lifecycle.removeObserver(observer)
                 runCatching { client.removeLocationUpdates(callback) }
             }
         }

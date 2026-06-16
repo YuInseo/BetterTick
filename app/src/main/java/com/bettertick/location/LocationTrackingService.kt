@@ -90,11 +90,18 @@ class LocationTrackingService : Service() {
 
     @Suppress("MissingPermission")
     private fun startTracking() {
-        // 1초 주기 + 최소거리 0 → 거의 실시간으로 위치를 받아 dwell(머무름)을
-        // 즉시 감지. 저장 자체는 콜백에서 이동/머무름 조건으로 거른다.
-        // (1초 GPS는 배터리 소모가 큼 — 실시간 우선 요구에 따른 설정)
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+        // 백그라운드 상시 추적은 저전력으로. 화면을 보고 있을 때의 1초 실시간
+        // 빨간 점은 LocationHistoryScreen이 따로 담당하므로, 서비스는 배터리를
+        // 아끼면서 dwell(머무름·건물 진입)만 감지하면 된다.
+        //  - BALANCED 정확도(셀/Wi-Fi 위주, GPS 상시 X)
+        //  - 15초 주기지만 setMaxUpdateDelayMillis로 배치 허용 → OS가 묶어서
+        //    깨우므로 wakeup/전류 소모 대폭 감소
+        //  - dwell 기준이 60초라 이 주기로도 건물 진입을 ~1분 내 감지
+        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 15_000L)
             .setMinUpdateDistanceMeters(0f)
+            .setMinUpdateIntervalMillis(10_000L)
+            .setMaxUpdateDelayMillis(30_000L)
+            .setWaitForAccurateLocation(false)
             .build()
         runCatching {
             fusedClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
