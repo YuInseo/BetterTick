@@ -16,10 +16,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        // KakaoMaps SDK v2 — current official Nexus 3 path. The legacy
-        // `nexus/content/groups/public/` URL is deprecated; the docs now point
-        // to `nexus/repository/kakaomap-releases/`.
+        // KakaoMaps SDK v2 — keep both the current Nexus 3 path and the
+        // legacy public group as a fallback so artifact resolution succeeds
+        // regardless of which host serves the pinned version.
         maven { url = uri("https://devrepo.kakao.com/nexus/repository/kakaomap-releases/") }
+        maven { url = uri("https://devrepo.kakao.com/nexus/content/groups/public/") }
     }
 }
 
