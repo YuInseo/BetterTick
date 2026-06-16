@@ -559,39 +559,12 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             }
         }
 
-        // Zoom controls (bottom-left)
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(12.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(DarkSurface.copy(alpha = 0.9f)),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+        // "내 위치" button (bottom-left). 줌 +/- 컨트롤은 제거했고(핀치로
+        // 줌), 현재 위치만 있으면 기록이 없어도 표시한다.
+        if (currentLocation != null) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clickable { kakaoMapRef.value?.moveCamera(CameraUpdateFactory.zoomIn()) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("+", color = MaterialTheme.colorScheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.12f)))
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clickable { kakaoMapRef.value?.moveCamera(CameraUpdateFactory.zoomOut()) },
-                contentAlignment = Alignment.Center
-            ) {
-                Text("−", color = MaterialTheme.colorScheme.onBackground, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-
-        // "내 위치" button (bottom-right)
-        if (records.isNotEmpty() && currentLocation != null) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
+                    .align(Alignment.BottomStart)
                     .padding(12.dp)
                     .size(36.dp)
                     .clip(RoundedCornerShape(8.dp))
