@@ -281,8 +281,8 @@ fun LocationHistoryScreen(
                 .addOnSuccessListener { loc ->
                     if (loc != null) currentLocation = LatLng.from(loc.latitude, loc.longitude)
                 }
-            // 3) Ongoing updates every 2 s → 실시간으로 빨간 점 이동
-            val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 2_000L)
+            // 3) Ongoing updates every 1 s → 실시간으로 빨간 점 이동
+            val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1_000L)
                 .setMinUpdateDistanceMeters(0f)
                 .build()
             val callback = object : LocationCallback() {
