@@ -561,7 +561,8 @@ private fun MainContent(
                 }
             }
 
-            if (isTabRoute && currentRoute != "location") {
+            // 설정(more)·동선(location) 화면에선 할일 추가 + 버튼을 띄우지 않는다.
+            if (isTabRoute && currentRoute != "location" && currentRoute != "more") {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
