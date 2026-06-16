@@ -119,6 +119,35 @@ private fun Context.dotBitmap(colorInt: Int = 0xFFFF8C00.toInt(), sizeDp: Float 
     return bmp
 }
 
+/**
+ * 깃발 아이콘 — 건물 방문(dwell) 지점 표시용. 세로 깃대 + 위쪽 삼각 깃발.
+ * 앵커를 (0.5, 1.0)으로 두면 깃대 밑동이 실제 좌표에 닿는다.
+ */
+private fun Context.flagBitmap(sizeDp: Float = 28f): Bitmap {
+    val h = (sizeDp * resources.displayMetrics.density + 0.5f).toInt()
+    val w = (h * 0.8f).toInt()
+    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val cv = Canvas(bmp)
+    val poleX = w * 0.22f
+    val poleTop = h * 0.06f
+    val poleW = h * 0.07f
+    // 깃대
+    cv.drawRect(poleX - poleW / 2, poleTop, poleX + poleW / 2, h.toFloat(),
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF455A64.toInt(); style = Paint.Style.FILL })
+    // 깃발(삼각형)
+    val flag = android.graphics.Path().apply {
+        moveTo(poleX + poleW / 2, poleTop)
+        lineTo(w * 0.92f, h * 0.22f)
+        lineTo(poleX + poleW / 2, h * 0.40f)
+        close()
+    }
+    cv.drawPath(flag, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFF44336.toInt(); style = Paint.Style.FILL })
+    // 밑동 점
+    cv.drawCircle(poleX, h * 0.97f, poleW * 1.1f,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF455A64.toInt(); style = Paint.Style.FILL })
+    return bmp
+}
+
 private val COORD_PATTERN = Regex("^-?\\d+\\.\\d+,\\s*-?\\d+\\.\\d+$")
 
 private suspend fun resolveAddress(context: Context, record: LocationRecord): String {
@@ -181,8 +210,12 @@ private suspend fun resolvePlaceName(context: Context, record: LocationRecord): 
 @Composable
 private fun resolvedPlaceName(record: LocationRecord): String {
     val context = LocalContext.current
-    var name by remember(record.id) { mutableStateOf("방문한 장소") }
-    LaunchedEffect(record.id) { name = resolvePlaceName(context, record) }
+    // 깃발(건물 방문)은 기록 시 장소명을 저장해 뒀으니 그대로 사용. 없으면 geocode.
+    val seed = record.placeName.takeIf { it.isNotBlank() } ?: "방문한 장소"
+    var name by remember(record.id) { mutableStateOf(seed) }
+    LaunchedEffect(record.id) {
+        if (record.placeName.isBlank()) name = resolvePlaceName(context, record)
+    }
     return name
 }
 
@@ -427,19 +460,32 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             records.forEachIndexed { i, record ->
                 val isFirst = i == 0
                 val isLast = i == records.lastIndex
-                val color = when {
-                    isFirst -> 0xFF4CAF50.toInt()
-                    isLast -> 0xFFF44336.toInt()
-                    else -> 0xFFFF8C00.toInt()
+                if (record.isPlace) {
+                    // 건물 진입 지점 → 깃발. 깃대 밑동이 좌표에 닿도록 앵커를
+                    // 하단 중앙(0.5, 1.0)으로.
+                    layer.addLabel(
+                        LabelOptions.from(LatLng.from(record.latitude, record.longitude))
+                            .setStyles(LabelStyles.from(
+                                LabelStyle.from(context.flagBitmap(28f))
+                                    .setAnchorPoint(0.22f, 1.0f)
+                            ))
+                            .setTag(record)
+                    )
+                } else {
+                    val color = when {
+                        isFirst -> 0xFF4CAF50.toInt()
+                        isLast -> 0xFFF44336.toInt()
+                        else -> 0xFFFF8C00.toInt()
+                    }
+                    layer.addLabel(
+                        LabelOptions.from(LatLng.from(record.latitude, record.longitude))
+                            .setStyles(LabelStyles.from(
+                                LabelStyle.from(context.dotBitmap(color, if (isFirst || isLast) 22f else 14f))
+                                    .setAnchorPoint(0.5f, 0.5f)
+                            ))
+                            .setTag(record)
+                    )
                 }
-                layer.addLabel(
-                    LabelOptions.from(LatLng.from(record.latitude, record.longitude))
-                        .setStyles(LabelStyles.from(
-                            LabelStyle.from(context.dotBitmap(color, if (isFirst || isLast) 22f else 14f))
-                                .setAnchorPoint(0.5f, 0.5f)
-                        ))
-                        .setTag(record)
-                )
             }
 
             map.setOnLabelClickListener { _, _, label ->

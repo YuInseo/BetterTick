@@ -47,14 +47,37 @@ class LocationTrackingService : Service() {
     private var lastLat = 0.0
     private var lastLng = 0.0
 
+    // Dwell(머무름) 추적 — 같은 지점 근처에 오래 있으면 "건물 진입"으로 보고
+    // 깃발을 한 번 꽂는다.
+    private var dwellLat = 0.0
+    private var dwellLng = 0.0
+    private var dwellStartMs = 0L
+    private var dwellFlagged = false
+
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             val loc = result.lastLocation ?: return
             val lat = loc.latitude
             val lng = loc.longitude
-            if (isSamePlace(lat, lng)) return
-            lastLat = lat; lastLng = lng
-            scope.launch { saveLocation(lat, lng) }
+            val now = System.currentTimeMillis()
+
+            // 1) 경로 waypoint — 충분히 이동했을 때만 기록(선 그리기용).
+            if (!isSamePlace(lat, lng)) {
+                lastLat = lat; lastLng = lng
+                scope.launch { saveLocation(lat, lng, isPlace = false) }
+            }
+
+            // 2) 건물 진입(dwell) 감지 — 같은 지점에 일정 시간 머물면 깃발 1개.
+            if (dwellStartMs == 0L || distanceMeters(lat, lng, dwellLat, dwellLng) > DWELL_RADIUS_M) {
+                // 새 지점으로 이동 → dwell 앵커 재설정.
+                dwellLat = lat; dwellLng = lng
+                dwellStartMs = now
+                dwellFlagged = false
+            } else if (!dwellFlagged && now - dwellStartMs >= DWELL_MIN_MS) {
+                dwellFlagged = true
+                val placeLat = dwellLat; val placeLng = dwellLng
+                scope.launch { saveLocation(placeLat, placeLng, isPlace = true) }
+            }
         }
     }
 
@@ -67,12 +90,20 @@ class LocationTrackingService : Service() {
 
     @Suppress("MissingPermission")
     private fun startTracking() {
-        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 10 * 60 * 1000L)
-            .setMinUpdateDistanceMeters(200f)
+        // 1분 주기 + 최소거리 0 → 정지해 있어도 업데이트가 와서 dwell(머무름)
+        // 시간을 잴 수 있다. 저장 자체는 콜백에서 이동/머무름 조건으로 거른다.
+        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 60 * 1000L)
+            .setMinUpdateDistanceMeters(0f)
             .build()
         runCatching {
             fusedClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
         }
+    }
+
+    private fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+        val out = FloatArray(1)
+        android.location.Location.distanceBetween(lat1, lng1, lat2, lng2, out)
+        return out[0].toDouble()
     }
 
     private fun isSamePlace(lat: Double, lng: Double): Boolean {
@@ -80,8 +111,9 @@ class LocationTrackingService : Service() {
         return abs(lat - lastLat) < 0.002 && abs(lng - lastLng) < 0.002
     }
 
-    private suspend fun saveLocation(lat: Double, lng: Double) {
+    private suspend fun saveLocation(lat: Double, lng: Double, isPlace: Boolean) {
         val address = reverseGeocode(lat, lng)
+        val placeName = if (isPlace) reverseGeocodePlaceName(lat, lng) else ""
         val today = LocalDate.now().toString()
         locationRepository.addRecord(
             LocationRecord(
@@ -89,9 +121,41 @@ class LocationTrackingService : Service() {
                 timestamp = Timestamp(Date()),
                 latitude = lat,
                 longitude = lng,
-                address = address
+                address = address,
+                isPlace = isPlace,
+                placeName = placeName
             )
         )
+    }
+
+    /** 건물/POI 이름(featureName) 우선으로 장소명을 해석. 깃발 라벨용. */
+    private suspend fun reverseGeocodePlaceName(lat: Double, lng: Double): String {
+        if (!Geocoder.isPresent()) return "방문한 장소"
+        val geocoder = Geocoder(applicationContext, Locale.KOREAN)
+        val addr: Address? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            suspendCancellableCoroutine { cont ->
+                try {
+                    geocoder.getFromLocation(lat, lng, 1, object : Geocoder.GeocodeListener {
+                        override fun onGeocode(addresses: MutableList<Address>) {
+                            cont.resume(addresses.firstOrNull())
+                        }
+                        override fun onError(errorMessage: String?) { cont.resume(null) }
+                    })
+                } catch (e: Exception) { cont.resume(null) }
+            }
+        } else {
+            withContext(Dispatchers.IO) {
+                @Suppress("DEPRECATION")
+                runCatching { geocoder.getFromLocation(lat, lng, 1)?.firstOrNull() }.getOrNull()
+            }
+        }
+        val feature = addr?.featureName
+        return when {
+            feature != null && feature.isNotBlank() && !feature.all { it.isDigit() } -> feature
+            addr?.thoroughfare != null -> addr.thoroughfare!!
+            addr?.subLocality != null -> addr.subLocality!!
+            else -> "방문한 장소"
+        }
     }
 
     private suspend fun reverseGeocode(lat: Double, lng: Double): String {
@@ -160,6 +224,11 @@ class LocationTrackingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        // 이 반경(m) 안에 머물면 같은 장소로 간주.
+        private const val DWELL_RADIUS_M = 45.0
+        // 같은 장소에 이만큼(ms) 이상 머물면 "건물 진입"으로 보고 깃발.
+        private const val DWELL_MIN_MS = 4 * 60 * 1000L
+
         fun start(context: Context) {
             val intent = Intent(context, LocationTrackingService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) context.startForegroundService(intent)
