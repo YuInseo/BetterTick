@@ -1,6 +1,7 @@
 package com.bettertick.data.repository
 
 import com.bettertick.data.firebase.FirestoreProvider
+import com.bettertick.data.model.FavoritePlace
 import com.bettertick.data.model.LocationRecord
 import com.google.firebase.firestore.ListenSource
 import com.google.firebase.firestore.SnapshotListenOptions
@@ -37,6 +38,24 @@ class LocationRepository @Inject constructor(
         if (!firestoreProvider.isAuthenticated) return
         val ref = firestoreProvider.locationRecordsCollection().document()
         ref.set(record.copy(id = ref.id)).await()
+    }
+
+    fun observeFavorites(): Flow<List<FavoritePlace>> = callbackFlow {
+        if (!firestoreProvider.isAuthenticated) { trySend(emptyList()); awaitClose { }; return@callbackFlow }
+        val reg = firestoreProvider.favoritePlacesCollection()
+            .addSnapshotListener(cacheOptions) { snap, err ->
+                if (err != null) { close(err); return@addSnapshotListener }
+                trySend(snap?.documents?.mapNotNull { doc ->
+                    doc.toObject(FavoritePlace::class.java)?.copy(id = doc.id)
+                } ?: emptyList())
+            }
+        awaitClose { reg.remove() }
+    }
+
+    suspend fun addFavorite(name: String, lat: Double, lng: Double) {
+        if (!firestoreProvider.isAuthenticated) return
+        val ref = firestoreProvider.favoritePlacesCollection().document()
+        ref.set(FavoritePlace(id = ref.id, name = name, latitude = lat, longitude = lng)).await()
     }
 
     suspend fun getLastRecord(): LocationRecord? {
