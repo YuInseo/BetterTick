@@ -90,9 +90,10 @@ class LocationTrackingService : Service() {
 
     @Suppress("MissingPermission")
     private fun startTracking() {
-        // 15초 주기 + 최소거리 0 → 정지해 있어도 업데이트가 자주 와서 dwell
-        // (머무름)을 빠르게 감지. 저장 자체는 콜백에서 이동/머무름 조건으로 거른다.
-        val request = LocationRequest.Builder(Priority.PRIORITY_BALANCED_POWER_ACCURACY, 15 * 1000L)
+        // 1초 주기 + 최소거리 0 → 거의 실시간으로 위치를 받아 dwell(머무름)을
+        // 즉시 감지. 저장 자체는 콜백에서 이동/머무름 조건으로 거른다.
+        // (1초 GPS는 배터리 소모가 큼 — 실시간 우선 요구에 따른 설정)
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
             .setMinUpdateDistanceMeters(0f)
             .build()
         runCatching {
