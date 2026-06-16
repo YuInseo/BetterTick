@@ -1,10 +1,11 @@
 name: CI
 
+# main push 시엔 build-apk.yml이 이미 assembleDebug + 배포까지 수행하므로
+# 여기서 다시 빌드하지 않는다(중복 제거). 검증/lint는 PR에서만.
 on:
-  push:
-    branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
 
 # PR에 새 커밋 오면 이전 빌드 자동 취소
 concurrency:

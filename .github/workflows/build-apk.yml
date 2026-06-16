@@ -16,6 +16,11 @@ on:
       - '**/*.md'
   workflow_dispatch:
 
+# 연속으로 push하면 진행 중이던 이전 빌드를 취소하고 최신만 빌드한다.
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
   issues: write
