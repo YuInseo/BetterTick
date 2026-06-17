@@ -692,9 +692,18 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                     runs.add(transit to mutableListOf(pa, pb))
                 }
             }
-            // 걷기 구간만 스냅(네트워크). 결과를 모아 한 번에 다시 그린다.
+            // 걷기 구간은 도로망에 스냅, 지하철/이동수단 구간은 지하철 노선으로
+            // 라우팅(역들을 따라). 둘 다 실패 시 직선으로 폴백.
             val drawn = runs.map { (transit, pts) ->
-                if (transit) pts else (RouteSnapper.snapWalking(pts) ?: pts)
+                if (transit) {
+                    val sub = SubwayRouter.route(
+                        pts.first().latitude, pts.first().longitude,
+                        pts.last().latitude, pts.last().longitude
+                    )
+                    if (sub != null) listOf(pts.first()) + sub + listOf(pts.last()) else pts
+                } else {
+                    RouteSnapper.snapWalking(pts) ?: pts
+                }
             }
             map.routeLineManager?.layer?.removeAll()
             runs.forEachIndexed { idx, (transit, _) ->
