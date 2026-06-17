@@ -153,6 +153,31 @@ private fun Context.flagBitmap(sizeDp: Float = 28f): Bitmap {
     return bmp
 }
 
+/** 별 아이콘 — 즐겨찾기 위치 표시용(금색 5각 별 + 흰 테두리). */
+private fun Context.starBitmap(sizeDp: Float = 26f, colorInt: Int = 0xFFFFC107.toInt()): Bitmap {
+    val px = (sizeDp * resources.displayMetrics.density + 0.5f).toInt()
+    val bmp = Bitmap.createBitmap(px, px, Bitmap.Config.ARGB_8888)
+    val cv = Canvas(bmp)
+    val cx = px / 2f
+    val cy = px / 2f
+    val outer = px * 0.46f
+    val inner = outer * 0.5f
+    val path = android.graphics.Path()
+    for (i in 0 until 10) {
+        val r = if (i % 2 == 0) outer else inner
+        val ang = Math.toRadians((-90 + i * 36).toDouble())
+        val x = cx + (r * Math.cos(ang)).toFloat()
+        val y = cy + (r * Math.sin(ang)).toFloat()
+        if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+    }
+    path.close()
+    cv.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colorInt; style = Paint.Style.FILL })
+    cv.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFFFFF.toInt(); style = Paint.Style.STROKE; strokeWidth = px * 0.06f
+    })
+    return bmp
+}
+
 private fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
     val out = FloatArray(1)
     android.location.Location.distanceBetween(lat1, lng1, lat2, lng2, out)
@@ -314,7 +339,11 @@ fun LocationHistoryScreen(
                 .build()
             val callback = object : LocationCallback() {
                 override fun onLocationResult(result: LocationResult) {
-                    result.lastLocation?.let { currentLocation = LatLng.from(it.latitude, it.longitude) }
+                    result.lastLocation?.let {
+                        currentLocation = LatLng.from(it.latitude, it.longitude)
+                        // 화면을 보는 동안 이동을 바로 기록 → 경로가 실시간으로 쌓임.
+                        viewModel.recordWaypointIfMoved(it.latitude, it.longitude)
+                    }
                 }
             }
             @SuppressLint("MissingPermission")
@@ -539,8 +568,8 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
         mapViewRef.value?.resume()
     }
 
-    // Rebuild route overlays when records change
-    LaunchedEffect(points, kakaoMapRef.value) {
+    // Rebuild route overlays when records (or favorites) change
+    LaunchedEffect(points, kakaoMapRef.value, favorites) {
         val map = kakaoMapRef.value ?: return@LaunchedEffect
 
         // Camera for route
@@ -572,6 +601,22 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             )
         }
 
+        // 깃발(건물 방문) + 즐겨찾기 같은 "의미 있는 정류장"들을 방문 순서대로
+        // 잇는 경로. GPS 트레일(주황)과 구분되게 보라색으로, 정류장 사이를 직접
+        // 연결해 "깃발 사이사이 경로"를 분명히 보여준다.
+        val stopPoints = records
+            .filter { it.isPlace || favoriteNameFor(favorites, it.latitude, it.longitude) != null }
+            .map { LatLng.from(it.latitude, it.longitude) }
+        if (stopPoints.size >= 2) {
+            val stopSet = RouteLineStylesSet.from(
+                "stops",
+                RouteLineStyles.from(RouteLineStyle.from(7f, 0xFF7C4DFF.toInt()))
+            )
+            map.routeLineManager?.layer?.addRouteLine(
+                RouteLineOptions.from(listOf(RouteLineSegment.from(stopPoints).setStyles(stopSet.getStyles(0))))
+            )
+        }
+
         if (records.isNotEmpty()) {
             val layer = map.labelManager?.addLayer(LabelLayerOptions.from("markers"))
                 ?: return@LaunchedEffect
@@ -580,31 +625,45 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             records.forEachIndexed { i, record ->
                 val isFirst = i == 0
                 val isLast = i == records.lastIndex
-                if (record.isPlace) {
-                    // 건물 진입 지점 → 깃발. 깃대 밑동이 좌표에 닿도록 앵커를
-                    // 하단 중앙(0.5, 1.0)으로.
-                    layer.addLabel(
-                        LabelOptions.from(LatLng.from(record.latitude, record.longitude))
-                            .setStyles(LabelStyles.from(
-                                LabelStyle.from(context.flagBitmap(28f))
-                                    .setAnchorPoint(0.22f, 1.0f)
-                            ))
-                            .setTag(record)
-                    )
-                } else {
-                    val color = when {
-                        isFirst -> 0xFF4CAF50.toInt()
-                        isLast -> 0xFFF44336.toInt()
-                        else -> 0xFFFF8C00.toInt()
+                val isFavorite = favoriteNameFor(favorites, record.latitude, record.longitude) != null
+                when {
+                    isFavorite -> {
+                        // 즐겨찾기 위치 → 별(중앙 앵커).
+                        layer.addLabel(
+                            LabelOptions.from(LatLng.from(record.latitude, record.longitude))
+                                .setStyles(LabelStyles.from(
+                                    LabelStyle.from(context.starBitmap(26f))
+                                        .setAnchorPoint(0.5f, 0.5f)
+                                ))
+                                .setTag(record)
+                        )
                     }
-                    layer.addLabel(
-                        LabelOptions.from(LatLng.from(record.latitude, record.longitude))
-                            .setStyles(LabelStyles.from(
-                                LabelStyle.from(context.dotBitmap(color, if (isFirst || isLast) 22f else 14f))
-                                    .setAnchorPoint(0.5f, 0.5f)
-                            ))
-                            .setTag(record)
-                    )
+                    record.isPlace -> {
+                        // 건물 진입 지점 → 깃발. 깃대 밑동이 좌표에 닿도록.
+                        layer.addLabel(
+                            LabelOptions.from(LatLng.from(record.latitude, record.longitude))
+                                .setStyles(LabelStyles.from(
+                                    LabelStyle.from(context.flagBitmap(28f))
+                                        .setAnchorPoint(0.22f, 1.0f)
+                                ))
+                                .setTag(record)
+                        )
+                    }
+                    else -> {
+                        val color = when {
+                            isFirst -> 0xFF4CAF50.toInt()
+                            isLast -> 0xFFF44336.toInt()
+                            else -> 0xFFFF8C00.toInt()
+                        }
+                        layer.addLabel(
+                            LabelOptions.from(LatLng.from(record.latitude, record.longitude))
+                                .setStyles(LabelStyles.from(
+                                    LabelStyle.from(context.dotBitmap(color, if (isFirst || isLast) 22f else 14f))
+                                        .setAnchorPoint(0.5f, 0.5f)
+                                ))
+                                .setTag(record)
+                        )
+                    }
                 }
             }
 
