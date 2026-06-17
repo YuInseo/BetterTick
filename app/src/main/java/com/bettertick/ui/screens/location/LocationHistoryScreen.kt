@@ -617,9 +617,10 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                 ?: return@LaunchedEffect
             markerLayerRef.value = layer
 
-            records.forEachIndexed { i, record ->
-                val isFirst = i == 0
-                val isLast = i == records.lastIndex
+            // 건물(머무른 장소)·즐겨찾기만 마커로 표시한다. 도보 경로상의 일반
+            // waypoint 점들은 지도를 지저분하게 만들어서 숨기고, 경로는 선으로만
+            // 보여준다.
+            records.forEach { record ->
                 val isFavorite = favoriteNameFor(favorites, record.latitude, record.longitude) != null
                 when {
                     isFavorite -> {
@@ -644,21 +645,7 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                                 .setTag(record)
                         )
                     }
-                    else -> {
-                        val color = when {
-                            isFirst -> 0xFF4CAF50.toInt()
-                            isLast -> 0xFFF44336.toInt()
-                            else -> 0xFFFF8C00.toInt()
-                        }
-                        layer.addLabel(
-                            LabelOptions.from(LatLng.from(record.latitude, record.longitude))
-                                .setStyles(LabelStyles.from(
-                                    LabelStyle.from(context.dotBitmap(color, if (isFirst || isLast) 22f else 14f))
-                                        .setAnchorPoint(0.5f, 0.5f)
-                                ))
-                                .setTag(record)
-                        )
-                    }
+                    // 일반 waypoint(도로 위 점)는 마커를 찍지 않는다.
                 }
             }
 
