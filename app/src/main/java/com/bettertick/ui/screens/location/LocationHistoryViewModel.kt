@@ -31,14 +31,15 @@ class LocationHistoryViewModel @Inject constructor(
     }
 
     // 동선 화면을 보는 동안 이동을 즉시 기록 — 백그라운드 서비스의 200m 기준을
-    // 기다리지 않고 화면에서 경로가 실시간으로 쌓이도록. ~40m 이동마다 한 점.
+    // 기다리지 않고 화면에서 경로가 실시간으로 쌓이도록. ~20m 이동마다 한 점
+    // (걸은 길을 촘촘히 남겨 직선이 아니라 실제 경로처럼 보이게).
     private var lastLat = 0.0
     private var lastLng = 0.0
     fun recordWaypointIfMoved(lat: Double, lng: Double) {
         if (lastLat != 0.0 || lastLng != 0.0) {
             val out = FloatArray(1)
             android.location.Location.distanceBetween(lastLat, lastLng, lat, lng, out)
-            if (out[0] < 40f) return
+            if (out[0] < 20f) return
         }
         lastLat = lat; lastLng = lng
         viewModelScope.launch {

@@ -584,37 +584,31 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
         markerLayerRef.value?.removeAll()
         map.routeLineManager?.layer?.removeAll()
 
-        if (points.size >= 2) {
-            val glowSet = RouteLineStylesSet.from(
-                "glow",
-                RouteLineStyles.from(RouteLineStyle.from(28f, 0x55FF8C00.toInt()))
-            )
-            val coreSet = RouteLineStylesSet.from(
-                "core",
-                RouteLineStyles.from(RouteLineStyle.from(10f, 0xFFFF8C00.toInt()))
-            )
-            map.routeLineManager?.layer?.addRouteLine(
-                RouteLineOptions.from(listOf(RouteLineSegment.from(points).setStyles(glowSet.getStyles(0))))
-            )
-            map.routeLineManager?.layer?.addRouteLine(
-                RouteLineOptions.from(listOf(RouteLineSegment.from(points).setStyles(coreSet.getStyles(0))))
-            )
-        }
-
-        // 깃발(건물 방문) + 즐겨찾기 같은 "의미 있는 정류장"들을 방문 순서대로
-        // 잇는 경로. GPS 트레일(주황)과 구분되게 보라색으로, 정류장 사이를 직접
-        // 연결해 "깃발 사이사이 경로"를 분명히 보여준다.
-        val stopPoints = records
-            .filter { it.isPlace || favoriteNameFor(favorites, it.latitude, it.longitude) != null }
-            .map { LatLng.from(it.latitude, it.longitude) }
-        if (stopPoints.size >= 2) {
-            val stopSet = RouteLineStylesSet.from(
-                "stops",
-                RouteLineStyles.from(RouteLineStyle.from(7f, 0xFF7C4DFF.toInt()))
-            )
-            map.routeLineManager?.layer?.addRouteLine(
-                RouteLineOptions.from(listOf(RouteLineSegment.from(stopPoints).setStyles(stopSet.getStyles(0))))
-            )
+        // 구간별 속도로 색을 다르게 칠한다. 걷기로 불가능한 속도이거나 두 점이
+        // 멀리 떨어진 점프(지하철은 지하라 GPS가 끊겨 직선 점프가 됨)는
+        // 지하철/이동수단으로 보고 파란색, 실제 걸은 구간은 주황색.
+        if (records.size >= 2) {
+            for (i in 1 until records.size) {
+                val a = records[i - 1]
+                val b = records[i]
+                val seg = listOf(
+                    LatLng.from(a.latitude, a.longitude),
+                    LatLng.from(b.latitude, b.longitude)
+                )
+                val dist = distanceMeters(a.latitude, a.longitude, b.latitude, b.longitude)
+                val dt = (b.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
+                val speedKmh = dist / dt * 3.6
+                val transit = speedKmh > 25.0 || dist > 700.0
+                val color = if (transit) 0xFF2196F3.toInt() else 0xFFFF8C00.toInt()
+                val width = if (transit) 9f else 11f
+                val styles = RouteLineStylesSet.from(
+                    "seg$i",
+                    RouteLineStyles.from(RouteLineStyle.from(width, color))
+                )
+                map.routeLineManager?.layer?.addRouteLine(
+                    RouteLineOptions.from(listOf(RouteLineSegment.from(seg).setStyles(styles.getStyles(0))))
+                )
+            }
         }
 
         if (records.isNotEmpty()) {
