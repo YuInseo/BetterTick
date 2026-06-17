@@ -102,6 +102,7 @@ import com.kakao.vectormap.route.RouteLineStyle
 import com.kakao.vectormap.route.RouteLineStyles
 import com.kakao.vectormap.route.RouteLineStylesSet
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -664,6 +665,48 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
             map.setOnLabelClickListener { _, _, label ->
                 (label.tag as? LocationRecord)?.let { selectedRecord = it }
                 true
+            }
+        }
+
+        // 걷는 구간을 도로망에 스냅해 '진짜 걸어다닌 경로'처럼 보이게 한다.
+        // 위에서 직선으로 먼저 그려 즉시 피드백을 주고, 잠깐의 디바운스 후
+        // (잦은 기록 갱신은 LaunchedEffect 취소로 자연 디바운스됨) 걷기 구간만
+        // OSRM에 스냅해 다시 그린다. 지하철/이동수단 구간은 직선 파랑 유지.
+        // 스냅이 실패하면 직선으로 폴백하므로 회귀가 없다.
+        if (records.size >= 2) {
+            delay(700)
+            val runs = ArrayList<Pair<Boolean, MutableList<LatLng>>>()
+            for (i in 1 until records.size) {
+                val a = records[i - 1]
+                val b = records[i]
+                val dist = distanceMeters(a.latitude, a.longitude, b.latitude, b.longitude)
+                val dt = (b.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
+                val transit = dist / dt * 3.6 > 25.0 || dist > 700.0
+                val pa = LatLng.from(a.latitude, a.longitude)
+                val pb = LatLng.from(b.latitude, b.longitude)
+                if (runs.isNotEmpty() && runs.last().first == transit) {
+                    runs.last().second.add(pb)
+                } else {
+                    runs.add(transit to mutableListOf(pa, pb))
+                }
+            }
+            // 걷기 구간만 스냅(네트워크). 결과를 모아 한 번에 다시 그린다.
+            val drawn = runs.map { (transit, pts) ->
+                if (transit) pts else (RouteSnapper.snapWalking(pts) ?: pts)
+            }
+            map.routeLineManager?.layer?.removeAll()
+            runs.forEachIndexed { idx, (transit, _) ->
+                val pts = drawn[idx]
+                if (pts.size < 2) return@forEachIndexed
+                val color = if (transit) 0xFF2196F3.toInt() else 0xFFFF8C00.toInt()
+                val width = if (transit) 9f else 11f
+                val styles = RouteLineStylesSet.from(
+                    "r$idx",
+                    RouteLineStyles.from(RouteLineStyle.from(width, color))
+                )
+                map.routeLineManager?.layer?.addRouteLine(
+                    RouteLineOptions.from(listOf(RouteLineSegment.from(pts).setStyles(styles.getStyles(0))))
+                )
             }
         }
     }
