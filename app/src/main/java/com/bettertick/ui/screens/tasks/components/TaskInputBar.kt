@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import com.bettertick.ui.components.AppActionButton
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.TextSecondary
@@ -72,21 +73,17 @@ fun TaskInputBar(
             modifier = Modifier.weight(1f)
         )
 
-        FloatingActionButton(
+        AppActionButton(
+            icon = Icons.Default.Add,
+            contentDescription = "Add task",
             onClick = {
                 if (text.isNotBlank()) {
                     onAddTask(text.trim())
                     text = ""
                 }
             },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = Color.White,
-            shape = CircleShape,
-            modifier = Modifier
-                .padding(start = 12.dp)
-                .size(48.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add task")
-        }
+            size = 48.dp,
+            modifier = Modifier.padding(start = 12.dp)
+        )
     }
 }

@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.data.model.Habit
+import com.bettertick.ui.components.AppActionButton
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.TextSecondary
@@ -173,13 +174,11 @@ fun HabitsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showGallery = true },
-                containerColor = HabitBlue,
-                contentColor = Color.White
-            ) {
-                Icon(Icons.Default.Add, contentDescription = "습관 추가")
-            }
+            AppActionButton(
+                icon = Icons.Default.Add,
+                contentDescription = "습관 추가",
+                onClick = { showGallery = true }
+            )
         }
     ) { paddingValues ->
         Column(

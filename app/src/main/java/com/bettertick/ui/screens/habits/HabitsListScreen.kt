@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Habit
+import com.bettertick.ui.components.AppActionButton
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.TextSecondary
@@ -123,16 +124,14 @@ fun HabitsListScreen(
             }
 
             if (selectedTab == 0) {
-                FloatingActionButton(
+                AppActionButton(
+                    icon = Icons.Default.Add,
+                    contentDescription = "습관 추가",
                     onClick = onBack, // go back to main screen to add
-                    containerColor = HabitBlue,
-                    contentColor = Color.White,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(16.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = "습관 추가")
-                }
+                )
             }
         }
     }
