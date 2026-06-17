@@ -64,6 +64,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.bettertick.ui.components.AppActionButton
 import com.bettertick.ui.screens.auth.AuthViewModel
 import com.bettertick.ui.screens.auth.LoginScreen
 import com.bettertick.ui.screens.auth.RegisterScreen
@@ -570,23 +571,11 @@ private fun MainContent(
                         .padding(end = 16.dp, top = 8.dp),
                     contentAlignment = Alignment.TopEnd
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .background(accent, CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showTaskInput = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Add,
-                            contentDescription = "추가",
-                            tint = Color.White,
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
+                    AppActionButton(
+                        icon = Icons.Default.Add,
+                        contentDescription = "추가",
+                        onClick = { showTaskInput = true }
+                    )
                 }
             }
             }
