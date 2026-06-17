@@ -17,7 +17,9 @@ import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -286,6 +288,7 @@ private fun resolvedAddress(record: LocationRecord, favorites: List<FavoritePlac
     return favName ?: display
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @SuppressLint("MissingPermission")
 @Composable
 fun LocationHistoryScreen(
@@ -298,6 +301,13 @@ fun LocationHistoryScreen(
     val context = LocalContext.current
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
     var showFavoriteDialog by remember { mutableStateOf(false) }
+    // 즐겨찾기 필터 — 켜면 즐겨찾기된 위치 기록만 보여준다.
+    var favoritesOnly by remember { mutableStateOf(false) }
+    val displayedRecords = remember(records, favorites, favoritesOnly) {
+        if (favoritesOnly) {
+            records.filter { favoriteNameFor(favorites, it.latitude, it.longitude) != null }
+        } else records
+    }
 
     // 현재 위치 점/줌이 동작하려면 런타임 위치 권한이 필요하다. 없으면 화면
     // 진입 시 요청하고, 허용되면 아래 수집 효과가 다시 돌도록 상태로 추적.
@@ -389,9 +399,9 @@ fun LocationHistoryScreen(
         Box(modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
             when {
                 showMap ->
-                    RouteMapView(records = records, currentLocation = currentLocation, favorites = favorites)
-                records.isNotEmpty() ->
-                    RouteListView(records = records, favorites = favorites)
+                    RouteMapView(records = displayedRecords, currentLocation = currentLocation, favorites = favorites)
+                displayedRecords.isNotEmpty() ->
+                    RouteListView(records = displayedRecords, favorites = favorites)
                 else -> EmptyState()
             }
 
@@ -415,24 +425,29 @@ fun LocationHistoryScreen(
                 )
             }
 
-            // 즐겨찾기 버튼 — 우측 하단. '내 위치' 버튼과 겹치지 않게 그 위로
-            // 올리고, 다른 오버레이 버튼들과 동일한 스타일(어두운 라운드 사각형).
-            // 현재 위치를 알 때만 활성.
+            // 즐겨찾기 버튼 — 우측 하단. 탭하면 즐겨찾기 필터 on/off(켜면 즐겨찾기
+            // 위치만 표시), 길게 누르면 현재 위치에 이름 짓기(즐겨찾기 추가).
+            // 지도 보기에선 '내 위치' 버튼 위로 올리고, 목록 보기에선 맨 아래로.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 12.dp, bottom = 60.dp)
+                    .padding(end = 12.dp, bottom = if (showMap) 60.dp else 12.dp)
                     .size(40.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(DarkSurface.copy(alpha = 0.9f))
-                    .clickable(enabled = currentLocation != null) { showFavoriteDialog = true },
+                    .background(
+                        if (favoritesOnly) MaterialTheme.colorScheme.primary
+                        else DarkSurface.copy(alpha = 0.9f)
+                    )
+                    .combinedClickable(
+                        onClick = { favoritesOnly = !favoritesOnly },
+                        onLongClick = { if (currentLocation != null) showFavoriteDialog = true }
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     Icons.Filled.Star,
-                    contentDescription = "즐겨찾기 추가",
-                    tint = if (currentLocation != null) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                    contentDescription = "즐겨찾기 필터(길게: 추가)",
+                    tint = if (favoritesOnly) Color.White else MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
             }
