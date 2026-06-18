@@ -734,7 +734,10 @@ private fun RouteMapView(
                         KakaoRouter.routeRoad(viaStations) ?: viaStations
                     } else pts
                 } else {
-                    RouteSnapper.snapWalking(pts) ?: pts
+                    // 걷는 구간도 Kakao 길찾기로 도로망에 맞춰(GPS 점들을 경유지로)
+                    // 더 정확하게 그린다. Kakao 실패 시 OSRM 맵매칭, 그것도 실패하면
+                    // 직선으로 폴백 → 정확도 회귀 없음.
+                    KakaoRouter.routeRoad(pts) ?: RouteSnapper.snapWalking(pts) ?: pts
                 }
             }
             map.routeLineManager?.layer?.removeAll()

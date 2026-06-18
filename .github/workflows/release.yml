@@ -47,6 +47,8 @@ jobs:
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # Kakao 길찾기 REST API 키 → BuildConfig. 없으면 빈 값(빌드 정상, 직선 폴백).
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
         run: ./gradlew assembleRelease
 
       # 태그명에서 버전 추출 (v1.0.0 → 1.0.0)

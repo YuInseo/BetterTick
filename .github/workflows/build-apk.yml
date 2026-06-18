@@ -104,6 +104,8 @@ jobs:
           # version.json이 항상 일치 → AppUpdater의 versionCode 비교 정확.
           CI_VERSION_CODE: ${{ steps.meta.outputs.code }}
           CI_VERSION_NAME: ${{ steps.meta.outputs.name }}
+          # Kakao 길찾기 REST API 키 → BuildConfig. 없으면 빈 값(빌드 정상, 직선 폴백).
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
         run: |
           set -o pipefail
           chmod +x ./gradlew
