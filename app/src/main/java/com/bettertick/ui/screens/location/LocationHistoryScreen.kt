@@ -727,11 +727,11 @@ private fun RouteMapView(
                     )
                     if (sub != null) {
                         // 역 좌표열을 그대로 직선으로 이으면 블록을 가로질러 노선을
-                        // 벗어난다. 역들을 경유지로 도로망에 라우팅하면(지하철은
+                        // 벗어난다. 역들을 경유지로 Kakao 길찾기에 라우팅하면(지하철은
                         // 간선도로 아래를 지남) 실제 노선에 훨씬 가깝게 그려진다.
                         // 라우팅 실패 시 역 좌표 직선으로 폴백.
                         val viaStations = listOf(pts.first()) + sub + listOf(pts.last())
-                        RouteSnapper.routeRoad(viaStations) ?: viaStations
+                        KakaoRouter.routeRoad(viaStations) ?: viaStations
                     } else pts
                 } else {
                     RouteSnapper.snapWalking(pts) ?: pts
