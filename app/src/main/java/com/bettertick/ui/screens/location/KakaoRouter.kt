@@ -24,9 +24,9 @@ import java.net.URLEncoder
 object KakaoRouter {
     private const val TAG = "KakaoRouter"
 
-    // TODO: 카카오 디벨로퍼스에서 발급한 REST API 키로 교체. 미설정이면 라우팅을
-    // 건너뛰고 호출부가 직선으로 폴백한다.
-    private const val REST_API_KEY = "<KAKAO_REST_API_KEY>"
+    // 카카오 디벨로퍼스 REST API 키(지도 SDK 네이티브 앱 키와 다름).
+    // 미설정이면 라우팅을 건너뛰고 호출부가 직선으로 폴백한다.
+    private const val REST_API_KEY = "1b06baf1d1cddc028d1bc1edcdffaf23"
 
     // 다중 경유지 길찾기(GET)의 경유지 상한. origin/destination을 제외한 중간점 기준.
     private const val MAX_WAYPOINTS = 28
