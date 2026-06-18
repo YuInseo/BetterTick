@@ -1,6 +1,7 @@
 package com.bettertick.ui.screens.location
 
 import android.util.Log
+import com.bettertick.BuildConfig
 import com.kakao.vectormap.LatLng
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,15 +26,16 @@ object KakaoRouter {
     private const val TAG = "KakaoRouter"
 
     // 카카오 디벨로퍼스 REST API 키(지도 SDK 네이티브 앱 키와 다름).
-    // 미설정이면 라우팅을 건너뛰고 호출부가 직선으로 폴백한다.
-    private const val REST_API_KEY = "1b06baf1d1cddc028d1bc1edcdffaf23"
+    // local.properties(KAKAO_REST_API_KEY) 또는 환경변수로 주입 → BuildConfig.
+    // 미설정(빈 값)이면 라우팅을 건너뛰고 호출부가 직선으로 폴백한다.
+    private val REST_API_KEY = BuildConfig.KAKAO_REST_API_KEY
 
     // 다중 경유지 길찾기(GET)의 경유지 상한. origin/destination을 제외한 중간점 기준.
     private const val MAX_WAYPOINTS = 28
 
     suspend fun routeRoad(waypoints: List<LatLng>): List<LatLng>? = withContext(Dispatchers.IO) {
         if (waypoints.size < 2) return@withContext null
-        if (REST_API_KEY.startsWith("<")) return@withContext null  // 키 미설정 → 폴백
+        if (REST_API_KEY.isBlank()) return@withContext null  // 키 미설정 → 폴백
 
         try {
             // 경유지가 너무 많으면 처음/끝은 유지하며 균등 다운샘플.
