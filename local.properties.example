@@ -1,0 +1,8 @@
+# local.properties 예시 — 실제 파일은 .gitignore 대상이라 커밋되지 않는다.
+# Android SDK 경로는 Android Studio가 자동으로 채운다(sdk.dir=...).
+
+# Kakao Mobility 길찾기 REST API 키.
+# 카카오 디벨로퍼스 > 내 애플리케이션 > 앱 키 > REST API 키.
+# 동선 화면의 지하철 구간을 실제 도로 노선으로 그리는 데 쓰인다.
+# 미설정 시 앱은 정상 동작하되 해당 구간을 직선으로 폴백한다.
+KAKAO_REST_API_KEY=여기에_REST_API_키

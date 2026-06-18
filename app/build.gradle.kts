@@ -16,6 +16,18 @@ private val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) load(keystorePropertiesFile.inputStream())
 }
 
+// Kakao 길찾기 REST API 키. 로컬: local.properties(KAKAO_REST_API_KEY=...),
+// CI: 환경변수 KAKAO_REST_API_KEY. 둘 다 없으면 빈 값 → 런타임에 직선 폴백.
+// 키를 소스에 박지 않아 공개 저장소에 노출되지 않는다.
+private val localPropertiesFile = rootProject.file("local.properties")
+private val localProperties = Properties().apply {
+    if (localPropertiesFile.exists()) load(localPropertiesFile.inputStream())
+}
+private val kakaoRestApiKey: String =
+    (localProperties["KAKAO_REST_API_KEY"] as String?)
+        ?: System.getenv("KAKAO_REST_API_KEY")
+        ?: ""
+
 android {
     namespace = "com.bettertick"
     compileSdk = 34
@@ -31,6 +43,8 @@ android {
         versionName = System.getenv("CI_VERSION_NAME") ?: "0.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "KAKAO_REST_API_KEY", "\"$kakaoRestApiKey\"")
     }
 
     signingConfigs {
@@ -81,6 +95,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
