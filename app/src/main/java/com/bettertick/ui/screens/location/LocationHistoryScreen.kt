@@ -299,6 +299,9 @@ fun LocationHistoryScreen(
 ) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var showMap by remember { mutableStateOf(true) }
+    // 목록에서 항목을 탭하면 지도로 전환하며 그 위치로 카메라를 옮기고 정보를
+    // 띄운다. 지도가 준비된 뒤 소비되면 RouteMapView가 다시 null로 비운다.
+    var focusedRecord by remember { mutableStateOf<LocationRecord?>(null) }
     val records by viewModel.getRecordsForDate(selectedDate.toString()).collectAsState(emptyList())
     val favorites by viewModel.favorites.collectAsState()
     val context = LocalContext.current
@@ -402,9 +405,22 @@ fun LocationHistoryScreen(
         Box(modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
             when {
                 showMap ->
-                    RouteMapView(records = displayedRecords, currentLocation = currentLocation, favorites = favorites)
+                    RouteMapView(
+                        records = displayedRecords,
+                        currentLocation = currentLocation,
+                        favorites = favorites,
+                        focusRecord = focusedRecord,
+                        onFocusConsumed = { focusedRecord = null }
+                    )
                 displayedRecords.isNotEmpty() ->
-                    RouteListView(records = displayedRecords, favorites = favorites)
+                    RouteListView(
+                        records = displayedRecords,
+                        favorites = favorites,
+                        onRecordClick = { record ->
+                            focusedRecord = record
+                            showMap = true
+                        }
+                    )
                 else -> EmptyState()
             }
 
@@ -548,7 +564,13 @@ private fun TopBar(
 }
 
 @Composable
-private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?, favorites: List<FavoritePlace>) {
+private fun RouteMapView(
+    records: List<LocationRecord>,
+    currentLocation: LatLng?,
+    favorites: List<FavoritePlace>,
+    focusRecord: LocationRecord? = null,
+    onFocusConsumed: () -> Unit = {}
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
@@ -703,7 +725,14 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                         pts.first().latitude, pts.first().longitude,
                         pts.last().latitude, pts.last().longitude
                     )
-                    if (sub != null) listOf(pts.first()) + sub + listOf(pts.last()) else pts
+                    if (sub != null) {
+                        // 역 좌표열을 그대로 직선으로 이으면 블록을 가로질러 노선을
+                        // 벗어난다. 역들을 경유지로 도로망에 라우팅하면(지하철은
+                        // 간선도로 아래를 지남) 실제 노선에 훨씬 가깝게 그려진다.
+                        // 라우팅 실패 시 역 좌표 직선으로 폴백.
+                        val viaStations = listOf(pts.first()) + sub + listOf(pts.last())
+                        RouteSnapper.routeRoad(viaStations) ?: viaStations
+                    } else pts
                 } else {
                     RouteSnapper.snapWalking(pts) ?: pts
                 }
@@ -723,6 +752,18 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
                 )
             }
         }
+    }
+
+    // 목록에서 탭해 넘어온 위치로 카메라를 옮기고 정보 시트를 띄운다.
+    // 지도(KakaoMap)가 준비된 뒤에만 동작하며, 처리 후 상위 상태를 비운다.
+    LaunchedEffect(focusRecord, kakaoMapRef.value) {
+        val map = kakaoMapRef.value ?: return@LaunchedEffect
+        val rec = focusRecord ?: return@LaunchedEffect
+        map.moveCamera(
+            CameraUpdateFactory.newCenterPosition(LatLng.from(rec.latitude, rec.longitude), 16)
+        )
+        selectedRecord = rec
+        onFocusConsumed()
     }
 
     // Live location dot — repositioned independently, no overlay rebuild
@@ -998,7 +1039,11 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
 }
 
 @Composable
-private fun RouteListView(records: List<LocationRecord>, favorites: List<FavoritePlace>) {
+private fun RouteListView(
+    records: List<LocationRecord>,
+    favorites: List<FavoritePlace>,
+    onRecordClick: (LocationRecord) -> Unit = {}
+) {
     // 구간 거리/걸음수 계산. 걸음수는 보폭 0.7m 기준 추정, 빠른 점프(지하철/
     // 이동수단)는 걸음에서 제외하고 거리만 보여준다.
     val totalWalkM = remember(records) {
@@ -1046,6 +1091,7 @@ private fun RouteListView(records: List<LocationRecord>, favorites: List<Favorit
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .clickable { onRecordClick(record) }
                     .padding(start = 24.dp, end = 20.dp),
                 verticalAlignment = Alignment.Top
             ) {
