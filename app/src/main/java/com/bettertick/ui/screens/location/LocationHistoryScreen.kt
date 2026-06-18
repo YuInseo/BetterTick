@@ -21,6 +21,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -111,6 +113,7 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.coroutines.resume
+import kotlin.math.roundToInt
 
 private fun Context.dotBitmap(colorInt: Int = 0xFFFF8C00.toInt(), sizeDp: Float = 18f): Bitmap {
     val px = (sizeDp * resources.displayMetrics.density + 0.5f).toInt()
@@ -996,13 +999,49 @@ private fun RouteMapView(records: List<LocationRecord>, currentLocation: LatLng?
 
 @Composable
 private fun RouteListView(records: List<LocationRecord>, favorites: List<FavoritePlace>) {
+    // 구간 거리/걸음수 계산. 걸음수는 보폭 0.7m 기준 추정, 빠른 점프(지하철/
+    // 이동수단)는 걸음에서 제외하고 거리만 보여준다.
+    val totalWalkM = remember(records) {
+        var w = 0.0
+        for (i in 1 until records.size) {
+            val a = records[i - 1]; val b = records[i]
+            val d = distanceMeters(a.latitude, a.longitude, b.latitude, b.longitude)
+            val dt = (b.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
+            if (!(d / dt * 3.6 > 25.0 || d > 700.0)) w += d
+        }
+        w
+    }
+    val totalSteps = (totalWalkM / 0.7).roundToInt()
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(records, key = { it.id }) { record ->
-            val isLast = record == records.last()
+        item {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                ListStat(label = "걸음수", value = "약 ${"%,d".format(totalSteps)}")
+                ListStat(label = "걸은 거리", value = formatDistance(totalWalkM))
+            }
+        }
+        itemsIndexed(records, key = { _, it -> it.id }) { index, record ->
+            val isLast = index == records.lastIndex
             val time = remember(record.timestamp) {
                 java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(record.timestamp.toDate())
             }
             val address = resolvedAddress(record, favorites)
+            // 이전 지점에서 여기까지의 거리/걸음수.
+            val legText = remember(records, index) {
+                if (index == 0) null else {
+                    val a = records[index - 1]
+                    val d = distanceMeters(a.latitude, a.longitude, record.latitude, record.longitude)
+                    val dt = (record.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
+                    val transit = d / dt * 3.6 > 25.0 || d > 700.0
+                    if (transit) "🚇 ${formatDistance(d)} 이동"
+                    else "🚶 ${formatDistance(d)} · 약 ${"%,d".format((d / 0.7).roundToInt())}걸음"
+                }
+            }
 
             Row(
                 modifier = Modifier
@@ -1020,7 +1059,7 @@ private fun RouteListView(records: List<LocationRecord>, favorites: List<Favorit
                         Box(
                             modifier = Modifier
                                 .width(2.dp)
-                                .height(56.dp)
+                                .height(64.dp)
                                 .background(Color.White.copy(alpha = 0.12f))
                         )
                     }
@@ -1043,10 +1082,26 @@ private fun RouteListView(records: List<LocationRecord>, favorites: List<Favorit
                             lineHeight = 20.sp
                         )
                     }
+                    if (legText != null) {
+                        Spacer(Modifier.height(3.dp))
+                        Text(legText, color = TextSecondary, fontSize = 12.sp)
+                    }
                     Spacer(Modifier.height(14.dp))
                 }
             }
         }
+    }
+}
+
+private fun formatDistance(m: Double): String =
+    if (m >= 1000) "%.1fkm".format(m / 1000) else "${m.roundToInt()}m"
+
+@Composable
+private fun ListStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = MaterialTheme.colorScheme.primary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(2.dp))
+        Text(label, color = TextTertiary, fontSize = 12.sp)
     }
 }
 
