@@ -39,13 +39,19 @@ class LocationHistoryViewModel @Inject constructor(
     // (걸은 길을 촘촘히 남겨 직선이 아니라 실제 경로처럼 보이게).
     private var lastLat = 0.0
     private var lastLng = 0.0
+    private var lastWriteMs = 0L
     fun recordWaypointIfMoved(lat: Double, lng: Double) {
+        // 최소 시간 간격(4초) 스로틀 — 빠른 이동/GPS 튐으로 쓰기가 폭주해 무료
+        // 한도를 갉아먹는 것을 막는다(걷기 20m는 보통 이 간격 안에 안 넘음).
+        val now = System.currentTimeMillis()
+        if (lastWriteMs != 0L && now - lastWriteMs < 4_000L) return
         if (lastLat != 0.0 || lastLng != 0.0) {
             val out = FloatArray(1)
             android.location.Location.distanceBetween(lastLat, lastLng, lat, lng, out)
             if (out[0] < 20f) return
         }
         lastLat = lat; lastLng = lng
+        lastWriteMs = now
         viewModelScope.launch {
             locationRepository.addRecord(
                 LocationRecord(
