@@ -24,6 +24,9 @@ object SubwayRouter {
     private const val DATA_URL =
         "https://gist.githubusercontent.com/yoon-gu/902efb6d5bd345e3837e035a3c0642b8/raw/station_latlen.csv"
     private const val MAX_SNAP_M = 1300.0  // 역과 이 거리 이내여야 지하철로 간주
+    // 보간/노이즈로 안 간 역까지 경로가 뻗는 걸 막기 위해, 양 끝은 '실제 GPS가
+    // 이 거리 안에 있는 역'까지만 남긴다(역 좌표점은 보통 역 중심이라 다소 넉넉히).
+    private const val NEAR_VISIT_M = 300.0
     // 환승(같은 이름 역) 간선 가중치. 너무 작으면(예: 1m) 환승이 거의 공짜라
     // 그래프상 최단거리만 좇아 실제로 안 탄 노선으로 갈아타며 엉뚱하게 돌아간다.
     // 환승에 ~500m 상당 패널티를 줘 한 노선을 유지하는 경로를 선호하게 한다.
@@ -186,13 +189,30 @@ object SubwayRouter {
             }
         }
         if (seq.size < 2) return null
-        // 연속한 스냅 역들 사이를 최단경로로 이어 붙인다.
+        // 연속한 스냅 역들 사이를 최단경로로 이어 붙이되, 직전 진행 방향으로 곧장
+        // 되돌아가는(역주행) 경유지는 잘못 스냅된 점으로 보고 건너뛴다 → 안 간
+        // 역까지 길이 뻗는 것을 막는다.
         val merged = ArrayList<Int>()
-        for (i in 1 until seq.size) {
-            val leg = shortestPath(seq[i - 1], seq[i]) ?: continue
-            if (merged.isEmpty()) merged.addAll(leg) else merged.addAll(leg.drop(1))
+        for (st in seq) {
+            if (merged.isEmpty()) { merged.add(st); continue }
+            val leg = shortestPath(merged.last(), st) ?: continue
+            if (leg.size < 2) continue
+            if (merged.size >= 2 && leg[1] == merged[merged.size - 2]) continue
+            merged.addAll(leg.drop(1))
         }
-        val result = merged.map { LatLng.from(stations[it].lat, stations[it].lng) }
+        // 보간으로 실제 위치보다 멀리 뻗었거나 노이즈로 스냅된 '끝 역'을 잘라낸다.
+        // 양 끝에서 근처(NEAR_VISIT_M)에 실제 GPS 점이 있는 역까지만 남기고,
+        // 그 사이의 보간된 역(두 실측 역 사이)은 그대로 둔다.
+        fun reallyVisited(stIdx: Int): Boolean {
+            val s = stations[stIdx]
+            return points.any { dist(it.latitude, it.longitude, s.lat, s.lng) <= NEAR_VISIT_M }
+        }
+        var lo = 0
+        while (lo < merged.size - 1 && !reallyVisited(merged[lo])) lo++
+        var hi = merged.size - 1
+        while (hi > lo && !reallyVisited(merged[hi])) hi--
+        val clipped = if (lo < hi) merged.subList(lo, hi + 1) else merged
+        val result = clipped.map { LatLng.from(stations[it].lat, stations[it].lng) }
         return if (result.size >= 2) result else null
     }
 }
