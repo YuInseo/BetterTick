@@ -23,12 +23,12 @@ object SubwayRouter {
     private const val TAG = "SubwayRouter"
     private const val DATA_URL =
         "https://gist.githubusercontent.com/yoon-gu/902efb6d5bd345e3837e035a3c0642b8/raw/station_latlen.csv"
-    // 역과 이 거리 이내여야 '그 역'으로 간주. 너무 크면(예: 1.3km) 지하철을 안
-    // 탄 구간도 가까운 역에 스냅돼 엉뚱한 노선을 그린다. 출입구 기준 보수적으로.
+    // 역과 이 거리 이내여야 '그 역'으로 간주(route()/일반 스냅 기본값).
     private const val MAX_SNAP_M = 700.0
-    // 보간/노이즈로 안 간 역까지 경로가 뻗는 걸 막기 위해, 양 끝은 '실제 GPS가
-    // 이 거리 안에 있는 역'까지만 남긴다(역 좌표점은 보통 역 중심이라 다소 넉넉히).
-    private const val NEAR_VISIT_M = 300.0
+    // 출발역·도착역: 양 끝 점은 출입구에서 다소 떨어져도 잡히도록 넉넉히.
+    private const val ENDPOINT_SNAP_M = 1200.0
+    // 중간 경유역: 확실히 그 역 근처를 지난 점만 채택(노이즈 배제)하도록 타이트하게.
+    private const val MID_SNAP_M = 500.0
     // 환승(같은 이름 역) 간선 가중치. 너무 작으면(예: 1m) 환승이 거의 공짜라
     // 그래프상 최단거리만 좇아 실제로 안 탄 노선으로 갈아타며 엉뚱하게 돌아간다.
     // 환승에 ~500m 상당 패널티를 줘 한 노선을 유지하는 경로를 선호하게 한다.
@@ -104,15 +104,18 @@ object SubwayRouter {
         adj = a
     }
 
-    private fun nearest(lat: Double, lng: Double): Int? {
+    /** lat,lng에서 maxM 이내 가장 가까운 역 인덱스. 없으면 null. */
+    private fun nearestWithin(lat: Double, lng: Double, maxM: Double): Int? {
         var best = -1
-        var bestD = MAX_SNAP_M
+        var bestD = maxM
         stations.forEachIndexed { i, s ->
             val d = dist(lat, lng, s.lat, s.lng)
             if (d <= bestD) { bestD = d; best = i }
         }
         return if (best >= 0) best else null
     }
+
+    private fun nearest(lat: Double, lng: Double): Int? = nearestWithin(lat, lng, MAX_SNAP_M)
 
     /** 두 역 인덱스 사이 최단 역경로(인덱스열). 없으면 null. */
     private fun shortestPath(s: Int, e: Int): List<Int>? {
@@ -156,87 +159,51 @@ object SubwayRouter {
     }
 
     /**
-     * 이동 중 기록된 GPS 점들을 '경유지'로 삼아 실제로 지나간 역들을 따라가는
-     * 지하철 경로를 만든다. 시작·끝 두 점만 보면 그래프상 최단경로(엉뚱한 노선/
-     * 환승)를 골라 실제 탄 노선과 달라지므로, 중간 점들을 각각 가까운 역에 스냅한
-     * 뒤 연속한 역들끼리 최단경로를 이어 붙인다. 점이 끝점뿐이면 route()와 동일.
+     * 출발역·도착역과, 이동 중 '확실히 지난' 중간 역들을 토대로 지하철 경로의
+     * 위치값을 역 좌표로 다시 잡는다(노이즈 GPS를 그대로 그리지 않음).
+     *
+     *  - 출발/도착역: 양 끝 점에서 가장 가까운 역(넉넉한 반경). 못 찾으면 비대상.
+     *  - 중간 경유역: 각 중간 점에서 '타이트한 반경' 안의 역만 채택 → 노이즈로
+     *    멀리 튄 점은 무시되어 '안 간 역'으로 새지 않는다.
+     *  - 출발 → 중간역들 → 도착을 노선 최단경로로 잇고, 곧장 되돌아가는(역주행)
+     *    경유지는 건너뛴다.
      *
      * 실패/비대상이면 null → 호출부에서 직선으로 폴백.
      */
     suspend fun routeVia(points: List<LatLng>): List<LatLng>? {
         ensureLoaded()
         if (!loaded || points.size < 2) return null
-        // GPS 튐(스파이크) 제거: 앞뒤 점과 모두 멀지만 앞뒤끼리는 가까운 글리치
-        // 점은 버린다 → 엉뚱한 먼 역에 스냅돼 '안 간 역'으로 뚝 떨어지는 것 방지.
-        val pts = if (points.size >= 3) {
-            val out = ArrayList<LatLng>(points.size)
-            out.add(points.first())
-            for (i in 1 until points.size - 1) {
-                val a = points[i - 1]; val p = points[i]; val b = points[i + 1]
-                val dpa = dist(a.latitude, a.longitude, p.latitude, p.longitude)
-                val dpb = dist(p.latitude, p.longitude, b.latitude, b.longitude)
-                val dab = dist(a.latitude, a.longitude, b.latitude, b.longitude)
-                if (dpa > 1000.0 && dpb > 1000.0 && dab < (dpa + dpb) * 0.5) continue
-                out.add(p)
-            }
-            out.add(points.last())
-            out
-        } else points
 
-        // 각 GPS 점을 가장 가까운 역에 스냅하고, 연속 중복은 합치며 점 개수를 센다.
+        // 출발역·도착역(넉넉히).
+        val dep = nearestWithin(points.first().latitude, points.first().longitude, ENDPOINT_SNAP_M)
+            ?: return null
+        val arr = nearestWithin(points.last().latitude, points.last().longitude, ENDPOINT_SNAP_M)
+            ?: return null
+        if (dep == arr) return null
+
+        // 경유역: 출발 → (확실히 지난 중간 역) → 도착. 중간점은 타이트 스냅으로
+        // 노이즈 배제, 연속 중복 제거.
         val seq = ArrayList<Int>()
-        val cnt = ArrayList<Int>()
-        pts.forEach { p ->
-            val st = nearest(p.latitude, p.longitude) ?: return@forEach
-            if (seq.isEmpty() || seq.last() != st) { seq.add(st); cnt.add(1) }
-            else cnt[cnt.lastIndex]++
+        seq.add(dep)
+        for (k in 1 until points.size - 1) {
+            val st = nearestWithin(points[k].latitude, points[k].longitude, MID_SNAP_M) ?: continue
+            if (seq.last() != st) seq.add(st)
         }
-        // 한 점만 받쳐주는(노이즈) 경유지가 앞뒤 역 대비 크게 우회하면 — 즉 잘못
-        // 스냅돼 '안 간 역'으로 뻗었다 돌아오면 — 제거한다. (A-B-A 되돌아오기 포함)
-        var changed = true
-        while (changed && seq.size > 2) {
-            changed = false
-            var i = 1
-            while (i < seq.size - 1) {
-                val a = stations[seq[i - 1]]; val b = stations[seq[i]]; val c = stations[seq[i + 1]]
-                val viaB = dist(a.lat, a.lng, b.lat, b.lng) + dist(b.lat, b.lng, c.lat, c.lng)
-                val direct = dist(a.lat, a.lng, c.lat, c.lng)
-                if (cnt[i] <= 1 && viaB > direct + 1500.0) {
-                    cnt[i - 1] += cnt[i]
-                    seq.removeAt(i); cnt.removeAt(i)
-                    // 제거 후 양옆이 같은 역이 되면(A-B-A) 중복도 합쳐 없앤다.
-                    if (i < seq.size && seq[i - 1] == seq[i]) {
-                        cnt[i - 1] += cnt[i]; seq.removeAt(i); cnt.removeAt(i)
-                    }
-                    changed = true
-                } else i++
-            }
-        }
+        if (seq.last() != arr) seq.add(arr)
         if (seq.size < 2) return null
-        // 연속한 스냅 역들 사이를 최단경로로 이어 붙이되, 직전 진행 방향으로 곧장
-        // 되돌아가는(역주행) 경유지는 잘못 스냅된 점으로 보고 건너뛴다 → 안 간
-        // 역까지 길이 뻗는 것을 막는다.
+
+        // 경유역들을 노선 최단경로로 이어 붙이되, 직전 진행 방향으로 곧장 되돌아가는
+        // (역주행) 경유지는 잘못 스냅된 점으로 보고 건너뛴다 → '안 간 역'으로 새는 것 방지.
         val merged = ArrayList<Int>()
         for (st in seq) {
             if (merged.isEmpty()) { merged.add(st); continue }
+            if (st == merged.last()) continue
             val leg = shortestPath(merged.last(), st) ?: continue
             if (leg.size < 2) continue
             if (merged.size >= 2 && leg[1] == merged[merged.size - 2]) continue
             merged.addAll(leg.drop(1))
         }
-        // 보간으로 실제 위치보다 멀리 뻗었거나 노이즈로 스냅된 '끝 역'을 잘라낸다.
-        // 양 끝에서 근처(NEAR_VISIT_M)에 실제 GPS 점이 있는 역까지만 남기고,
-        // 그 사이의 보간된 역(두 실측 역 사이)은 그대로 둔다.
-        fun reallyVisited(stIdx: Int): Boolean {
-            val s = stations[stIdx]
-            return pts.any { dist(it.latitude, it.longitude, s.lat, s.lng) <= NEAR_VISIT_M }
-        }
-        var lo = 0
-        while (lo < merged.size - 1 && !reallyVisited(merged[lo])) lo++
-        var hi = merged.size - 1
-        while (hi > lo && !reallyVisited(merged[hi])) hi--
-        val clipped = if (lo < hi) merged.subList(lo, hi + 1) else merged
-        val result = clipped.map { LatLng.from(stations[it].lat, stations[it].lng) }
+        val result = merged.map { LatLng.from(stations[it].lat, stations[it].lng) }
         return if (result.size >= 2) result else null
     }
 }
