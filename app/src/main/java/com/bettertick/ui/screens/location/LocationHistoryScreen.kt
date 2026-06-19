@@ -784,6 +784,23 @@ private fun RouteMapView(
             }
         }
 
+        // 지도에 기본으로 떠 있는 POI(가게/건물 이름)를 탭하면 그 장소 정보를
+        // 시트로 띄운다. 빈 지도를 탭하면 열려 있던 시트를 닫는다.
+        map.setOnMapClickListener { _, position, _, poi ->
+            if (poi != null) {
+                val name = poi.name?.takeIf { it.isNotBlank() } ?: "선택한 장소"
+                selectedRecord = LocationRecord(
+                    id = "poi-${position.latitude},${position.longitude}",
+                    latitude = position.latitude,
+                    longitude = position.longitude,
+                    isPlace = true,
+                    placeName = name
+                )
+            } else {
+                selectedRecord = null
+            }
+        }
+
         // 걷는 구간을 도로망에 스냅해 '진짜 걸어다닌 경로'처럼 보이게 한다.
         // 위에서 직선으로 먼저 그려 즉시 피드백을 주고, 잠깐의 디바운스 후
         // (잦은 기록 갱신은 LaunchedEffect 취소로 자연 디바운스됨) 걷기 구간만
@@ -1052,6 +1069,8 @@ private fun RouteMapView(
                 }
                 val address = resolvedAddress(rec, favorites)
                 val placeName = resolvedPlaceName(rec, favorites)
+                // 지도에서 직접 탭한 POI(실제 방문 기록이 아님)면 방문 시각/횟수는 숨긴다.
+                val isPoi = rec.id.startsWith("poi-")
                 // 이 지점(반경 60m) 방문 횟수 — 오늘 기록 중 같은 장소를 몇 번 들렀는지.
                 val visitCount = remember(rec, records) {
                     records.count {
@@ -1127,30 +1146,32 @@ private fun RouteMapView(
                         }
                     }
 
-                    Spacer(Modifier.height(14.dp))
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 20.dp)
-                            .height(1.dp)
-                            .background(Color.White.copy(alpha = 0.08f))
-                    )
-                    Spacer(Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Filled.LocationOn,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
+                    if (!isPoi) {
+                        Spacer(Modifier.height(14.dp))
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp)
+                                .height(1.dp)
+                                .background(Color.White.copy(alpha = 0.08f))
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Text("$time 방문", color = TextTertiary, fontSize = 13.sp)
-                        Spacer(Modifier.width(8.dp))
-                        Text("· 오늘 ${visitCount}번", color = TextTertiary, fontSize = 13.sp)
+                        Spacer(Modifier.height(14.dp))
+
+                        Row(
+                            modifier = Modifier.padding(horizontal = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Filled.LocationOn,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("$time 방문", color = TextTertiary, fontSize = 13.sp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("· 오늘 ${visitCount}번", color = TextTertiary, fontSize = 13.sp)
+                        }
                     }
                 }
             }
