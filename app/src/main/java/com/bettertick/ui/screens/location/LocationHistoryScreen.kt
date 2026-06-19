@@ -19,6 +19,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +30,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -67,10 +69,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -611,6 +615,8 @@ private fun RouteMapView(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
+    // 바텀시트를 아래로 끌어내린 양(px). 임계값 넘기면 닫고, 아니면 0으로 복귀.
+    var sheetDragY by remember { mutableStateOf(0f) }
     val kakaoMapRef = remember { mutableStateOf<KakaoMap?>(null) }
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val markerLayerRef = remember { mutableStateOf<LabelLayer?>(null) }
@@ -1034,6 +1040,20 @@ private fun RouteMapView(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .offset { IntOffset(0, sheetDragY.roundToInt()) }
+                        // 아래로 끌어내려 닫기 — 일정 거리 이상 내리면 닫고,
+                        // 아니면 원위치. 손잡이뿐 아니라 시트 전체에서 동작.
+                        .pointerInput(rec.id) {
+                            detectVerticalDragGestures(
+                                onDragEnd = {
+                                    if (sheetDragY > 140f) selectedRecord = null
+                                    sheetDragY = 0f
+                                },
+                                onDragCancel = { sheetDragY = 0f }
+                            ) { _, dragAmount ->
+                                sheetDragY = (sheetDragY + dragAmount).coerceAtLeast(0f)
+                            }
+                        }
                         .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                         .background(DarkSurface)
                         .padding(bottom = 24.dp)
