@@ -164,27 +164,49 @@ object SubwayRouter {
     suspend fun routeVia(points: List<LatLng>): List<LatLng>? {
         ensureLoaded()
         if (!loaded || points.size < 2) return null
+        // GPS 튐(스파이크) 제거: 앞뒤 점과 모두 멀지만 앞뒤끼리는 가까운 글리치
+        // 점은 버린다 → 엉뚱한 먼 역에 스냅돼 '안 간 역'으로 뚝 떨어지는 것 방지.
+        val pts = if (points.size >= 3) {
+            val out = ArrayList<LatLng>(points.size)
+            out.add(points.first())
+            for (i in 1 until points.size - 1) {
+                val a = points[i - 1]; val p = points[i]; val b = points[i + 1]
+                val dpa = dist(a.latitude, a.longitude, p.latitude, p.longitude)
+                val dpb = dist(p.latitude, p.longitude, b.latitude, b.longitude)
+                val dab = dist(a.latitude, a.longitude, b.latitude, b.longitude)
+                if (dpa > 1000.0 && dpb > 1000.0 && dab < (dpa + dpb) * 0.5) continue
+                out.add(p)
+            }
+            out.add(points.last())
+            out
+        } else points
+
         // 각 GPS 점을 가장 가까운 역에 스냅하고, 연속 중복은 합치며 점 개수를 센다.
         val seq = ArrayList<Int>()
         val cnt = ArrayList<Int>()
-        points.forEach { p ->
+        pts.forEach { p ->
             val st = nearest(p.latitude, p.longitude) ?: return@forEach
             if (seq.isEmpty() || seq.last() != st) { seq.add(st); cnt.add(1) }
             else cnt[cnt.lastIndex]++
         }
-        // 노이즈로 점 하나만 찍혀 '안 간 역'까지 갔다가 곧장 되돌아오는(A-B-A)
-        // 스퍼를 제거한다. 중간 역(B)을 받쳐주는 점이 1개뿐일 때만 노이즈로 보고
-        // 지워, 실제로 갔다 온 왕복(점이 여러 개)은 보존한다.
-        var collapsed = true
-        while (collapsed) {
-            collapsed = false
+        // 한 점만 받쳐주는(노이즈) 경유지가 앞뒤 역 대비 크게 우회하면 — 즉 잘못
+        // 스냅돼 '안 간 역'으로 뻗었다 돌아오면 — 제거한다. (A-B-A 되돌아오기 포함)
+        var changed = true
+        while (changed && seq.size > 2) {
+            changed = false
             var i = 1
             while (i < seq.size - 1) {
-                if (seq[i - 1] == seq[i + 1] && cnt[i] <= 1) {
-                    cnt[i - 1] += cnt[i + 1]
-                    seq.removeAt(i + 1); cnt.removeAt(i + 1)
+                val a = stations[seq[i - 1]]; val b = stations[seq[i]]; val c = stations[seq[i + 1]]
+                val viaB = dist(a.lat, a.lng, b.lat, b.lng) + dist(b.lat, b.lng, c.lat, c.lng)
+                val direct = dist(a.lat, a.lng, c.lat, c.lng)
+                if (cnt[i] <= 1 && viaB > direct + 1500.0) {
+                    cnt[i - 1] += cnt[i]
                     seq.removeAt(i); cnt.removeAt(i)
-                    collapsed = true
+                    // 제거 후 양옆이 같은 역이 되면(A-B-A) 중복도 합쳐 없앤다.
+                    if (i < seq.size && seq[i - 1] == seq[i]) {
+                        cnt[i - 1] += cnt[i]; seq.removeAt(i); cnt.removeAt(i)
+                    }
+                    changed = true
                 } else i++
             }
         }
@@ -205,7 +227,7 @@ object SubwayRouter {
         // 그 사이의 보간된 역(두 실측 역 사이)은 그대로 둔다.
         fun reallyVisited(stIdx: Int): Boolean {
             val s = stations[stIdx]
-            return points.any { dist(it.latitude, it.longitude, s.lat, s.lng) <= NEAR_VISIT_M }
+            return pts.any { dist(it.latitude, it.longitude, s.lat, s.lng) <= NEAR_VISIT_M }
         }
         var lo = 0
         while (lo < merged.size - 1 && !reallyVisited(merged[lo])) lo++
