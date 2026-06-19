@@ -1052,6 +1052,12 @@ private fun RouteMapView(
                 }
                 val address = resolvedAddress(rec, favorites)
                 val placeName = resolvedPlaceName(rec, favorites)
+                // 이 지점(반경 60m) 방문 횟수 — 오늘 기록 중 같은 장소를 몇 번 들렀는지.
+                val visitCount = remember(rec, records) {
+                    records.count {
+                        distanceMeters(it.latitude, it.longitude, rec.latitude, rec.longitude) <= 60.0
+                    }.coerceAtLeast(1)
+                }
                 // 아래로 끌어내려 닫기 — 손잡이뿐 아니라 시트 전체에서 동작.
                 val sheetDrag = rememberDraggableState { delta ->
                     sheetDragY = (sheetDragY + delta).coerceAtLeast(0f)
@@ -1143,6 +1149,8 @@ private fun RouteMapView(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text("$time 방문", color = TextTertiary, fontSize = 13.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("· 오늘 ${visitCount}번", color = TextTertiary, fontSize = 13.sp)
                     }
                 }
             }
