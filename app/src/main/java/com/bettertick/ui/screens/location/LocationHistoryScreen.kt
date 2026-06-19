@@ -739,33 +739,43 @@ private fun RouteMapView(
             // 건물(머무른 장소)·즐겨찾기만 마커로 표시한다. 도보 경로상의 일반
             // waypoint 점들은 지도를 지저분하게 만들어서 숨기고, 경로는 선으로만
             // 보여준다.
+            //
+            // 즐겨찾기는 '장소당 별 하나'만 찍는다. (한 즐겨찾기 반경 안에 오늘
+            // 기록이 여러 개여도 별이 겹쳐 찍히지 않도록, 즐겨찾기별 대표 기록만
+            // 사용해 즐겨찾기 좌표에 한 번만 표시.)
+            val favRepresentative = HashMap<String, LocationRecord>()
+            records.forEach { record ->
+                val fav = favorites.firstOrNull {
+                    distanceMeters(it.latitude, it.longitude, record.latitude, record.longitude) <= 60.0
+                }
+                if (fav != null) favRepresentative.putIfAbsent(fav.id, record)
+            }
+            favorites.forEach { fav ->
+                val rep = favRepresentative[fav.id] ?: return@forEach
+                layer.addLabel(
+                    LabelOptions.from(LatLng.from(fav.latitude, fav.longitude))
+                        .setStyles(LabelStyles.from(
+                            LabelStyle.from(context.starBitmap(26f))
+                                .setAnchorPoint(0.5f, 0.5f)
+                        ))
+                        .setTag(rep)
+                )
+            }
+            // 즐겨찾기에 속하지 않은 '건물 방문' 지점만 깃발로 표시.
             records.forEach { record ->
                 val isFavorite = favoriteNameFor(favorites, record.latitude, record.longitude) != null
-                when {
-                    isFavorite -> {
-                        // 즐겨찾기 위치 → 별(중앙 앵커).
-                        layer.addLabel(
-                            LabelOptions.from(LatLng.from(record.latitude, record.longitude))
-                                .setStyles(LabelStyles.from(
-                                    LabelStyle.from(context.starBitmap(26f))
-                                        .setAnchorPoint(0.5f, 0.5f)
-                                ))
-                                .setTag(record)
-                        )
-                    }
-                    record.isPlace -> {
-                        // 건물 진입 지점 → 깃발. 깃대 밑동이 좌표에 닿도록.
-                        layer.addLabel(
-                            LabelOptions.from(LatLng.from(record.latitude, record.longitude))
-                                .setStyles(LabelStyles.from(
-                                    LabelStyle.from(context.flagBitmap(28f))
-                                        .setAnchorPoint(0.22f, 1.0f)
-                                ))
-                                .setTag(record)
-                        )
-                    }
-                    // 일반 waypoint(도로 위 점)는 마커를 찍지 않는다.
+                if (!isFavorite && record.isPlace) {
+                    // 건물 진입 지점 → 깃발. 깃대 밑동이 좌표에 닿도록.
+                    layer.addLabel(
+                        LabelOptions.from(LatLng.from(record.latitude, record.longitude))
+                            .setStyles(LabelStyles.from(
+                                LabelStyle.from(context.flagBitmap(28f))
+                                    .setAnchorPoint(0.22f, 1.0f)
+                            ))
+                            .setTag(record)
+                    )
                 }
+                // 일반 waypoint(도로 위 점)는 마커를 찍지 않는다.
             }
 
             map.setOnLabelClickListener { _, _, label ->
