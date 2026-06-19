@@ -788,12 +788,11 @@ private fun RouteMapView(
                     // 실제로 지나간 역(노선)을 따라가게 한다.
                     val sub = SubwayRouter.routeVia(pts)
                     val line = if (sub != null) {
-                        // 역 좌표열을 그대로 직선으로 이으면 블록을 가로질러 노선을
-                        // 벗어난다. 역들을 경유지로 Kakao 길찾기에 라우팅하면(지하철은
-                        // 간선도로 아래를 지남) 실제 노선에 훨씬 가깝게 그려진다.
-                        // 라우팅 실패 시 역 좌표 직선으로 폴백.
-                        val viaStations = listOf(pts.first()) + sub + listOf(pts.last())
-                        KakaoRouter.routeRoad(viaStations) ?: viaStations
+                        // 역 좌표열을 경유지로 Kakao 길찾기에 라우팅하면(지하철은 간선
+                        // 도로 아래를 지남) 직선보다 실제 노선에 훨씬 가깝게 그려진다.
+                        // 라우팅 실패 시 역 좌표 직선으로 폴백. 원시 GPS 끝점은 붙이지
+                        // 않는다 — 노이즈 끝점이 잘라낸 구간을 되살릴 수 있어서다.
+                        KakaoRouter.routeRoad(sub) ?: sub
                     } else pts
                     // 교차로마다 직각으로 꺾인 도로 경로를 선로처럼 완만한 곡선으로.
                     smoothCorners(line)
