@@ -788,9 +788,14 @@ private fun RouteMapView(
         // 시트로 띄운다. 빈 지도를 탭하면 열려 있던 시트를 닫는다.
         map.setOnMapClickListener { _, position, _, poi ->
             if (poi != null) {
-                val name = poi.name?.takeIf { it.isNotBlank() } ?: "선택한 장소"
+                // Kakao 기본 POI는 이름을 앱에 주지 않는 경우가 많다(poi.name이 빈 값).
+                // 이름이 있으면 쓰고, 없으면 placeName을 비워 Geocoder가 featureName/
+                // 도로명으로 채우게 한다. address는 좌표 문자열로 둬야 resolveAddress가
+                // 역지오코딩한다(COORD_PATTERN 매칭).
+                val name = poi.name?.takeIf { it.isNotBlank() } ?: ""
                 selectedRecord = LocationRecord(
                     id = "poi-${position.latitude},${position.longitude}",
+                    address = "%.6f, %.6f".format(position.latitude, position.longitude),
                     latitude = position.latitude,
                     longitude = position.longitude,
                     isPlace = true,
