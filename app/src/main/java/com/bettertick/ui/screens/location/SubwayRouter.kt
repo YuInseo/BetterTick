@@ -24,7 +24,10 @@ object SubwayRouter {
     private const val DATA_URL =
         "https://gist.githubusercontent.com/yoon-gu/902efb6d5bd345e3837e035a3c0642b8/raw/station_latlen.csv"
     private const val MAX_SNAP_M = 1300.0  // 역과 이 거리 이내여야 지하철로 간주
-    private const val TRANSFER_W = 1.0      // 환승(같은 이름) 간선 가중치
+    // 환승(같은 이름 역) 간선 가중치. 너무 작으면(예: 1m) 환승이 거의 공짜라
+    // 그래프상 최단거리만 좇아 실제로 안 탄 노선으로 갈아타며 엉뚱하게 돌아간다.
+    // 환승에 ~500m 상당 패널티를 줘 한 노선을 유지하는 경로를 선호하게 한다.
+    private const val TRANSFER_W = 500.0
 
     private class Station(val name: String, val line: String, val lat: Double, val lng: Double)
 
@@ -106,17 +109,9 @@ object SubwayRouter {
         return if (best >= 0) best else null
     }
 
-    /** 두 점을 잇는 지하철 노선 경로(역 좌표열). 실패/비대상이면 null. */
-    suspend fun route(
-        startLat: Double, startLng: Double,
-        endLat: Double, endLng: Double
-    ): List<LatLng>? {
-        ensureLoaded()
-        if (!loaded) return null
-        val s = nearest(startLat, startLng) ?: return null
-        val e = nearest(endLat, endLng) ?: return null
-        if (s == e) return null
-
+    /** 두 역 인덱스 사이 최단 역경로(인덱스열). 없으면 null. */
+    private fun shortestPath(s: Int, e: Int): List<Int>? {
+        if (s == e) return listOf(s)
         val n = stations.size
         val best = DoubleArray(n) { Double.MAX_VALUE }
         val prev = IntArray(n) { -1 }
@@ -137,7 +132,49 @@ object SubwayRouter {
         var cur = e
         while (cur != -1) { path.add(cur); cur = prev[cur] }
         path.reverse()
+        return path
+    }
+
+    /** 두 점을 잇는 지하철 노선 경로(역 좌표열). 실패/비대상이면 null. */
+    suspend fun route(
+        startLat: Double, startLng: Double,
+        endLat: Double, endLng: Double
+    ): List<LatLng>? {
+        ensureLoaded()
+        if (!loaded) return null
+        val s = nearest(startLat, startLng) ?: return null
+        val e = nearest(endLat, endLng) ?: return null
+        if (s == e) return null
+        val path = shortestPath(s, e) ?: return null
         val result = path.map { LatLng.from(stations[it].lat, stations[it].lng) }
+        return if (result.size >= 2) result else null
+    }
+
+    /**
+     * 이동 중 기록된 GPS 점들을 '경유지'로 삼아 실제로 지나간 역들을 따라가는
+     * 지하철 경로를 만든다. 시작·끝 두 점만 보면 그래프상 최단경로(엉뚱한 노선/
+     * 환승)를 골라 실제 탄 노선과 달라지므로, 중간 점들을 각각 가까운 역에 스냅한
+     * 뒤 연속한 역들끼리 최단경로를 이어 붙인다. 점이 끝점뿐이면 route()와 동일.
+     *
+     * 실패/비대상이면 null → 호출부에서 직선으로 폴백.
+     */
+    suspend fun routeVia(points: List<LatLng>): List<LatLng>? {
+        ensureLoaded()
+        if (!loaded || points.size < 2) return null
+        // 각 GPS 점을 가장 가까운 역에 스냅하고 연속 중복은 제거.
+        val seq = ArrayList<Int>()
+        points.forEach { p ->
+            val st = nearest(p.latitude, p.longitude) ?: return@forEach
+            if (seq.isEmpty() || seq.last() != st) seq.add(st)
+        }
+        if (seq.size < 2) return null
+        // 연속한 스냅 역들 사이를 최단경로로 이어 붙인다.
+        val merged = ArrayList<Int>()
+        for (i in 1 until seq.size) {
+            val leg = shortestPath(seq[i - 1], seq[i]) ?: continue
+            if (merged.isEmpty()) merged.addAll(leg) else merged.addAll(leg.drop(1))
+        }
+        val result = merged.map { LatLng.from(stations[it].lat, stations[it].lng) }
         return if (result.size >= 2) result else null
     }
 }
