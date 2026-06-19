@@ -321,14 +321,14 @@ private fun resolvedPlaceName(record: LocationRecord, favorites: List<FavoritePl
 @Composable
 private fun resolvedAddress(record: LocationRecord, favorites: List<FavoritePlace>): String {
     val context = LocalContext.current
-    val favName = favoriteNameFor(favorites, record.latitude, record.longitude)
     var display by remember(record.id) { mutableStateOf(record.address) }
     LaunchedEffect(record.id) {
         val resolved = resolveAddress(context, record)
         if (resolved != record.address) display = resolved
     }
-    // 즐겨찾기로 이름을 붙인 위치면 지번 주소 대신 그 이름을 보여준다.
-    return favName ?: display
+    // 즐겨찾기여도 여기선 실제 주소를 그대로 반환한다. 즐겨찾기 이름은 호출부에서
+    // '집 (주소)'처럼 함께 보여 준다.
+    return display
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -1230,6 +1230,9 @@ private fun RouteListView(
                 java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(record.timestamp.toDate())
             }
             val address = resolvedAddress(record, favorites)
+            // 즐겨찾기면 '집 (실제 주소)'처럼 이름과 주소를 함께 보여 준다.
+            val favName = favoriteNameFor(favorites, record.latitude, record.longitude)
+            val primaryLabel = if (favName != null) "$favName ($address)" else address
             // 이전 지점에서 여기까지의 거리/걸음수.
             val legText = remember(records, index) {
                 if (index == 0) null else {
@@ -1281,10 +1284,12 @@ private fun RouteListView(
                         )
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            address,
+                            primaryLabel,
                             color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 14.sp,
-                            lineHeight = 20.sp
+                            lineHeight = 20.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                     if (legText != null) {
