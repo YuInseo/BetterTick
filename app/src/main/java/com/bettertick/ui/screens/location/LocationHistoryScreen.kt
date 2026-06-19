@@ -19,7 +19,9 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -69,7 +71,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -1036,24 +1037,24 @@ private fun RouteMapView(
                 }
                 val address = resolvedAddress(rec, favorites)
                 val placeName = resolvedPlaceName(rec, favorites)
+                // 아래로 끌어내려 닫기 — 손잡이뿐 아니라 시트 전체에서 동작.
+                val sheetDrag = rememberDraggableState { delta ->
+                    sheetDragY = (sheetDragY + delta).coerceAtLeast(0f)
+                }
 
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .offset { IntOffset(0, sheetDragY.roundToInt()) }
-                        // 아래로 끌어내려 닫기 — 일정 거리 이상 내리면 닫고,
-                        // 아니면 원위치. 손잡이뿐 아니라 시트 전체에서 동작.
-                        .pointerInput(rec.id) {
-                            detectVerticalDragGestures(
-                                onDragEnd = {
-                                    if (sheetDragY > 140f) selectedRecord = null
-                                    sheetDragY = 0f
-                                },
-                                onDragCancel = { sheetDragY = 0f }
-                            ) { _, dragAmount ->
-                                sheetDragY = (sheetDragY + dragAmount).coerceAtLeast(0f)
+                        .draggable(
+                            state = sheetDrag,
+                            orientation = Orientation.Vertical,
+                            onDragStopped = { velocity ->
+                                // 충분히 내렸거나 빠르게 튕기면 닫고, 아니면 원위치.
+                                if (sheetDragY > 120f || velocity > 700f) selectedRecord = null
+                                sheetDragY = 0f
                             }
-                        }
+                        )
                         .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                         .background(DarkSurface)
                         .padding(bottom = 24.dp)
