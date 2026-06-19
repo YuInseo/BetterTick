@@ -424,12 +424,6 @@ fun LocationHistoryScreen(
             .fillMaxSize()
             .background(DarkBackground)
     ) {
-        TopBar(
-            date = selectedDate,
-            onPrev = { selectedDate = selectedDate.minusDays(1) },
-            onNext = { if (selectedDate < LocalDate.now()) selectedDate = selectedDate.plusDays(1) }
-        )
-
         Box(modifier = Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
             when {
                 showMap ->
@@ -506,6 +500,52 @@ fun LocationHistoryScreen(
                     modifier = Modifier.size(20.dp)
                 )
             }
+
+            // 날짜 네비게이션 — 상단 바 대신 하단 중앙 플로팅. 좌(이전)·우(다음)
+            // 화살표 사이에 날짜 라벨을 넣고, 양옆 플로팅 버튼 사이에 둔다.
+            val today = LocalDate.now()
+            val dateLabel = when (selectedDate) {
+                today -> "오늘"
+                today.minusDays(1) -> "어제"
+                else -> selectedDate.format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN))
+            }
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 12.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(DarkSurface.copy(alpha = 0.92f))
+                    .padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = { selectedDate = selectedDate.minusDays(1) },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.ChevronLeft, contentDescription = "이전",
+                        tint = TextSecondary, modifier = Modifier.size(20.dp)
+                    )
+                }
+                Text(
+                    dateLabel,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 6.dp)
+                )
+                IconButton(
+                    onClick = { if (selectedDate < today) selectedDate = selectedDate.plusDays(1) },
+                    enabled = selectedDate < today,
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.ChevronRight, contentDescription = "다음",
+                        tint = if (selectedDate < today) TextSecondary else TextTertiary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
         }
     }
 
@@ -558,44 +598,6 @@ private fun FavoriteNameDialog(
             TextButton(onClick = onDismiss) { Text("취소") }
         }
     )
-}
-
-@Composable
-private fun TopBar(
-    date: LocalDate,
-    onPrev: () -> Unit,
-    onNext: () -> Unit
-) {
-    val today = LocalDate.now()
-    val label = when (date) {
-        today -> "오늘"
-        today.minusDays(1) -> "어제"
-        else -> date.format(DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN))
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 4.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButton(onClick = onPrev) {
-            Icon(Icons.Outlined.ChevronLeft, contentDescription = "이전", tint = TextSecondary)
-        }
-        Text(
-            text = label,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f),
-            textAlign = TextAlign.Center
-        )
-        IconButton(onClick = { if (date < today) onNext() }, enabled = date < today) {
-            Icon(
-                Icons.Outlined.ChevronRight, contentDescription = "다음",
-                tint = if (date < today) TextSecondary else TextTertiary
-            )
-        }
-    }
 }
 
 @Composable
@@ -1125,6 +1127,39 @@ private fun RouteListView(
     }
     val totalSteps = (totalWalkM / 0.7).roundToInt()
 
+    // 지도와 동일하게 '가는 길/돌아오는 길 × 지하철/도보'를 색으로 구분한다.
+    // 출발지(첫 기록)에서 가장 먼 지점을 반환점으로 보고, 그 뒤 다시 출발지
+    // 근처(500m)로 돌아오면 반환점 이후 구간을 '돌아오는 길'로 칠한다.
+    val origin = records.firstOrNull()
+    var turnIdx = 0
+    if (origin != null) {
+        var maxD = -1.0
+        records.forEachIndexed { i, r ->
+            val d = distanceMeters(r.latitude, r.longitude, origin.latitude, origin.longitude)
+            if (d > maxD) { maxD = d; turnIdx = i }
+        }
+    }
+    val returnsHome = origin != null && records.drop(turnIdx + 1).any {
+        distanceMeters(it.latitude, it.longitude, origin.latitude, origin.longitude) < 500.0
+    }
+    // leg i: records[i-1] → records[i]
+    fun isTransitLeg(i: Int): Boolean {
+        val a = records[i - 1]; val b = records[i]
+        val d = distanceMeters(a.latitude, a.longitude, b.latitude, b.longitude)
+        val dt = (b.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
+        return d / dt * 3.6 > 25.0 || d > 700.0
+    }
+    fun legColor(i: Int): Color {
+        val transit = isTransitLeg(i)
+        val ret = returnsHome && i > turnIdx
+        return when {
+            transit && ret -> Color(0xFF9C27B0) // 돌아오는 지하철 — 보라
+            transit        -> Color(0xFF2196F3) // 가는 지하철 — 파랑
+            ret            -> Color(0xFF4CAF50) // 돌아오는 도보 — 초록
+            else           -> Color(0xFFFF8C00) // 가는 도보 — 주황
+        }
+    }
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item {
             Row(
@@ -1169,11 +1204,12 @@ private fun RouteListView(
                             .background(MaterialTheme.colorScheme.primary, CircleShape)
                     )
                     if (!isLast) {
+                        // 이 지점→다음 지점 이동(leg index+1)을 색으로 구분.
                         Box(
                             modifier = Modifier
-                                .width(2.dp)
+                                .width(3.dp)
                                 .height(64.dp)
-                                .background(Color.White.copy(alpha = 0.12f))
+                                .background(legColor(index + 1))
                         )
                     }
                 }
@@ -1201,7 +1237,8 @@ private fun RouteListView(
                     }
                     if (legText != null) {
                         Spacer(Modifier.height(3.dp))
-                        Text(legText, color = TextSecondary, fontSize = 12.sp)
+                        // 이전 지점→여기까지 이동(leg index)을 색으로 구분.
+                        Text(legText, color = legColor(index), fontSize = 12.sp)
                     }
                     Spacer(Modifier.height(14.dp))
                 }
