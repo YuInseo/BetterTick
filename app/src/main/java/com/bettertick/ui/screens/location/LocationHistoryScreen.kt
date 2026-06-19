@@ -804,23 +804,17 @@ private fun RouteMapView(
             // 라우팅(역들을 따라). 둘 다 실패 시 직선으로 폴백.
             val drawn = runs.map { (transit, _, pts) ->
                 if (transit) {
-                    // 끝점만이 아니라 이동 중 기록된 모든 GPS 점을 경유지로 넘겨
-                    // 실제로 지나간 역(노선)을 따라가게 한다.
+                    // 지하철: 실제 지나간 역들을 잇고 코너만 살짝 둥글게.
+                    // 자동차 길찾기(KakaoRouter)는 안 다닌 길로 우회·커브를 만들어
+                    // '안 간 곳'으로 선이 새므로 쓰지 않는다. 인접 역끼리는 직선이
+                    // 실제 선로와 거의 같다. 라우팅 실패 시 직선으로 폴백.
                     val sub = SubwayRouter.routeVia(pts)
-                    val line = if (sub != null) {
-                        // 역 좌표열을 경유지로 Kakao 길찾기에 라우팅하면(지하철은 간선
-                        // 도로 아래를 지남) 직선보다 실제 노선에 훨씬 가깝게 그려진다.
-                        // 라우팅 실패 시 역 좌표 직선으로 폴백. 원시 GPS 끝점은 붙이지
-                        // 않는다 — 노이즈 끝점이 잘라낸 구간을 되살릴 수 있어서다.
-                        KakaoRouter.routeRoad(sub) ?: sub
-                    } else pts
-                    // 교차로마다 직각으로 꺾인 도로 경로를 선로처럼 완만한 곡선으로.
-                    smoothCorners(line)
+                    smoothCorners(sub ?: pts)
                 } else {
-                    // 걷는 구간도 Kakao 길찾기로 도로망에 맞춰(GPS 점들을 경유지로)
-                    // 더 정확하게 그린다. Kakao 실패 시 OSRM 맵매칭, 그것도 실패하면
-                    // 직선으로 폴백 → 정확도 회귀 없음.
-                    KakaoRouter.routeRoad(pts) ?: RouteSnapper.snapWalking(pts) ?: pts
+                    // 도보: 기록된 GPS 점을 도로망에 맵매칭(OSRM)해 실제 걸은 길에
+                    // 맞춘다. 자동차 길찾기는 보행 불가 도로로 우회해 안 간 곳으로
+                    // 커브가 생겨 쓰지 않는다. 실패 시 기록 점 그대로(직선) 폴백.
+                    RouteSnapper.snapWalking(pts) ?: pts
                 }
             }
             map.routeLineManager?.layer?.removeAll()
