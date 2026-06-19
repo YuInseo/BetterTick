@@ -23,7 +23,9 @@ object SubwayRouter {
     private const val TAG = "SubwayRouter"
     private const val DATA_URL =
         "https://gist.githubusercontent.com/yoon-gu/902efb6d5bd345e3837e035a3c0642b8/raw/station_latlen.csv"
-    private const val MAX_SNAP_M = 1300.0  // 역과 이 거리 이내여야 지하철로 간주
+    // 역과 이 거리 이내여야 '그 역'으로 간주. 너무 크면(예: 1.3km) 지하철을 안
+    // 탄 구간도 가까운 역에 스냅돼 엉뚱한 노선을 그린다. 출입구 기준 보수적으로.
+    private const val MAX_SNAP_M = 700.0
     // 보간/노이즈로 안 간 역까지 경로가 뻗는 걸 막기 위해, 양 끝은 '실제 GPS가
     // 이 거리 안에 있는 역'까지만 남긴다(역 좌표점은 보통 역 중심이라 다소 넉넉히).
     private const val NEAR_VISIT_M = 300.0
