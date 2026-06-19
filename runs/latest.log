@@ -17,15 +17,15 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
 > Task :app:generateDebugBuildConfig
 > Task :app:generateDebugResValues
-> Task :app:checkDebugAarMetadata
 > Task :app:processDebugGoogleServices
+> Task :app:checkDebugAarMetadata
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
-> Task :app:mergeDebugResources
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
 > Task :app:parseDebugLocalResources
+> Task :app:mergeDebugResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:javaPreCompileDebug
@@ -33,24 +33,24 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets
-> Task :app:desugarDebugFileDependencies
+> Task :app:processDebugManifestForPackage
 > Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:processDebugResources
+> Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugStartupProfile
 > Task :app:mergeDebugJniLibFolders
-> Task :app:checkDebugDuplicateClasses
-> Task :app:mergeDebugNativeLibs
-> Task :app:processDebugManifestForPackage
 > Task :app:mergeLibDexDebug
 > Task :app:validateSigningDebug
 > Task :app:writeDebugAppMetadata
 > Task :app:writeDebugSigningConfigVersions
+> Task :app:mergeDebugNativeLibs
 
 > Task :app:stripDebugDebugSymbols
 Unable to strip the following libraries, packaging them as they are: libK3fAndroid.so.
 
-> Task :app:processDebugResources
-> Task :app:mergeExtDexDebug
 > Task :app:kspDebugKotlin
+> Task :app:mergeExtDexDebug
 > Task :app:compileDebugKotlin
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:206:44 '@Deprecated(...) static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:383:20 '@Deprecated(...) @UiThread() static fun setImportantForAccessibility(@NonNull() p0: View, p1: Int): Unit' is deprecated. Deprecated in Java.
@@ -90,8 +90,8 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitsScreen.kt:267:56 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/lists/AddListScreen.kt:121:39 Condition is always 'true'.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/LocationHistoryScreen.kt:440:49 '@property:Deprecated(...) val Icons.Outlined.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.List.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/SubwayRouter.kt:127:18 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.Pair<kotlin.Int, kotlin.Double>?'.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/SubwayRouter.kt:127:21 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.Pair<kotlin.Int, kotlin.Double>?'.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/SubwayRouter.kt:122:18 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.Pair<kotlin.Int, kotlin.Double>?'.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/SubwayRouter.kt:122:21 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.Pair<kotlin.Int, kotlin.Double>?'.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/matrix/MatrixScreen.kt:211:52 '@property:Deprecated(...) val Icons.Outlined.HelpOutline: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.HelpOutline.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tags/AddTagScreen.kt:169:49 '@property:Deprecated(...) val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tags/TagManagementScreen.kt:116:45 '@property:Deprecated(...) val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
@@ -113,5 +113,5 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 3m 23s
+BUILD SUCCESSFUL in 3m 9s
 43 actionable tasks: 43 executed
