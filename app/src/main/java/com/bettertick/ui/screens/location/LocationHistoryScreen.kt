@@ -721,10 +721,9 @@ private fun RouteMapView(
             // 라우팅(역들을 따라). 둘 다 실패 시 직선으로 폴백.
             val drawn = runs.map { (transit, pts) ->
                 if (transit) {
-                    val sub = SubwayRouter.route(
-                        pts.first().latitude, pts.first().longitude,
-                        pts.last().latitude, pts.last().longitude
-                    )
+                    // 끝점만이 아니라 이동 중 기록된 모든 GPS 점을 경유지로 넘겨
+                    // 실제로 지나간 역(노선)을 따라가게 한다.
+                    val sub = SubwayRouter.routeVia(pts)
                     if (sub != null) {
                         // 역 좌표열을 그대로 직선으로 이으면 블록을 가로질러 노선을
                         // 벗어난다. 역들을 경유지로 Kakao 길찾기에 라우팅하면(지하철은
