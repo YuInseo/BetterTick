@@ -197,12 +197,13 @@ private fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Doubl
 }
 
 /**
- * Chaikin 코너 컷팅으로 꺾인 폴리라인을 부드럽게 만든다. 지하철 선로는 역과
- * 역 사이를 완만한 곡선으로 잇는데, 도로망 라우팅 결과는 교차로마다 직각으로
- * 꺾여 선로처럼 보이지 않는다. 양 끝점은 고정하고 각 모서리를 반복적으로 잘라
- * 곡선화한다(반복할수록 더 둥글어짐). 점이 2개 이하면 그대로 둔다.
+ * Chaikin 코너 컷팅으로 꺾인 폴리라인을 부드럽게 만들되, 원래 선에서 최대
+ * [maxCutM] 미터까지만 벗어나도록 컷 비율을 제한한다. 이렇게 하면 긴 직선
+ * 구간(예: 도로 라우팅 실패 시 역-역 직선)은 거의 직선으로 유지되고, 코너
+ * 부근만 둥글어진다 → '안 간 곳으로 커브가 부풀어 오르는' 문제를 막는다.
+ * 점이 2개 이하면 그대로 둔다.
  */
-private fun smoothCorners(points: List<LatLng>, iterations: Int = 2): List<LatLng> {
+private fun smoothCorners(points: List<LatLng>, iterations: Int = 2, maxCutM: Double = 50.0): List<LatLng> {
     if (points.size < 3) return points
     var pts = points
     repeat(iterations) {
@@ -211,9 +212,17 @@ private fun smoothCorners(points: List<LatLng>, iterations: Int = 2): List<LatLn
         for (i in 0 until pts.size - 1) {
             val p = pts[i]
             val q = pts[i + 1]
-            // 각 변의 1/4, 3/4 지점으로 모서리를 잘라낸다.
-            out.add(LatLng.from(p.latitude * 0.75 + q.latitude * 0.25, p.longitude * 0.75 + q.longitude * 0.25))
-            out.add(LatLng.from(p.latitude * 0.25 + q.latitude * 0.75, p.longitude * 0.25 + q.longitude * 0.75))
+            val segM = distanceMeters(p.latitude, p.longitude, q.latitude, q.longitude)
+            // 기본 1/4 컷이되, 절대 거리로 maxCutM을 넘지 않게 비율을 줄인다.
+            val t = if (segM > 1.0) minOf(0.25, maxCutM / segM) else 0.25
+            out.add(LatLng.from(
+                p.latitude + (q.latitude - p.latitude) * t,
+                p.longitude + (q.longitude - p.longitude) * t
+            ))
+            out.add(LatLng.from(
+                p.latitude + (q.latitude - p.latitude) * (1 - t),
+                p.longitude + (q.longitude - p.longitude) * (1 - t)
+            ))
         }
         out.add(pts.last())   // 끝점 고정
         pts = out
@@ -617,7 +626,9 @@ private fun RouteMapView(
     val lifecycleOwner = LocalLifecycleOwner.current
     var selectedRecord by remember { mutableStateOf<LocationRecord?>(null) }
     // 바텀시트를 아래로 끌어내린 양(px). 임계값 넘기면 닫고, 아니면 0으로 복귀.
+    // 닫을 땐 오프셋을 유지하므로, 다시 열릴 때 0으로 초기화해 깔끔히 올라오게 한다.
     var sheetDragY by remember { mutableStateOf(0f) }
+    LaunchedEffect(selectedRecord) { if (selectedRecord != null) sheetDragY = 0f }
     val kakaoMapRef = remember { mutableStateOf<KakaoMap?>(null) }
     val mapViewRef = remember { mutableStateOf<MapView?>(null) }
     val markerLayerRef = remember { mutableStateOf<LabelLayer?>(null) }
@@ -1050,14 +1061,22 @@ private fun RouteMapView(
                             state = sheetDrag,
                             orientation = Orientation.Vertical,
                             onDragStopped = { velocity ->
-                                // 충분히 내렸거나 빠르게 튕기면 닫고, 아니면 원위치.
-                                if (sheetDragY > 120f || velocity > 700f) selectedRecord = null
-                                sheetDragY = 0f
+                                // 충분히 내렸거나 빠르게 튕기면 닫는다. 이때 오프셋을
+                                // 0으로 되돌리면 위로 튀었다가 퇴장 애니메이션이 다시
+                                // 내려가 '두 번 내려가는' 현상이 생기므로, 닫을 땐
+                                // 오프셋을 유지하고 다음에 열 때 초기화한다.
+                                if (sheetDragY > 120f || velocity > 700f) {
+                                    selectedRecord = null
+                                } else {
+                                    sheetDragY = 0f
+                                }
                             }
                         )
                         .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
                         .background(DarkSurface)
-                        .padding(bottom = 24.dp)
+                        // 하단 플로팅 컨트롤(날짜 알약 등) 위로 콘텐츠를 올리기 위해
+                        // 바닥 여백을 넉넉히 둔다.
+                        .padding(bottom = 64.dp)
                 ) {
                     Box(
                         modifier = Modifier
