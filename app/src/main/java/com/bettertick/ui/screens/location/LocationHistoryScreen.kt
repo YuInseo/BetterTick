@@ -650,6 +650,30 @@ private fun RouteMapView(
         markerLayerRef.value?.removeAll()
         map.routeLineManager?.layer?.removeAll()
 
+        // 왕복(출발지/집으로 돌아오는) 구간을 다른 색으로 구분한다. 출발지(첫 기록)
+        // 에서 가장 먼 지점을 '반환점'으로 보고, 그 뒤 다시 출발지 근처(500m)로
+        // 돌아오면 왕복으로 간주 → 반환점 이후 구간을 '돌아오는 길' 색으로 칠한다.
+        val origin = records.firstOrNull()
+        var turnIdx = 0
+        var maxFromOrigin = -1.0
+        if (origin != null) {
+            records.forEachIndexed { i, r ->
+                val d = distanceMeters(r.latitude, r.longitude, origin.latitude, origin.longitude)
+                if (d > maxFromOrigin) { maxFromOrigin = d; turnIdx = i }
+            }
+        }
+        val returnsHome = origin != null && records.drop(turnIdx + 1).any {
+            distanceMeters(it.latitude, it.longitude, origin.latitude, origin.longitude) < 500.0
+        }
+        // leg i: records[i-1] → records[i]. 반환점(turnIdx) 이후면 '돌아오는 길'.
+        fun isReturnLeg(i: Int) = returnsHome && i > turnIdx
+        fun legColor(transit: Boolean, ret: Boolean): Int = when {
+            transit && ret -> 0xFF9C27B0.toInt() // 돌아오는 지하철 — 보라
+            transit        -> 0xFF2196F3.toInt() // 가는 지하철 — 파랑
+            ret            -> 0xFF4CAF50.toInt() // 돌아오는 도보 — 초록
+            else           -> 0xFFFF8C00.toInt() // 가는 도보 — 주황
+        }
+
         // 구간별 속도로 색을 다르게 칠한다. 걷기로 불가능한 속도이거나 두 점이
         // 멀리 떨어진 점프(지하철은 지하라 GPS가 끊겨 직선 점프가 됨)는
         // 지하철/이동수단으로 보고 파란색, 실제 걸은 구간은 주황색.
@@ -665,7 +689,7 @@ private fun RouteMapView(
                 val dt = (b.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
                 val speedKmh = dist / dt * 3.6
                 val transit = speedKmh > 25.0 || dist > 700.0
-                val color = if (transit) 0xFF2196F3.toInt() else 0xFFFF8C00.toInt()
+                val color = legColor(transit, isReturnLeg(i))
                 val width = if (transit) 9f else 11f
                 val styles = RouteLineStylesSet.from(
                     "seg$i",
@@ -727,24 +751,28 @@ private fun RouteMapView(
         // 스냅이 실패하면 직선으로 폴백하므로 회귀가 없다.
         if (records.size >= 2) {
             delay(700)
-            val runs = ArrayList<Pair<Boolean, MutableList<LatLng>>>()
+            // 같은 이동수단(transit)이면서 같은 방향(가는 길/돌아오는 길)인 연속
+            // 구간만 하나의 run으로 묶는다 → 반환점에서 색이 바뀌도록.
+            val runs = ArrayList<Triple<Boolean, Boolean, MutableList<LatLng>>>()
             for (i in 1 until records.size) {
                 val a = records[i - 1]
                 val b = records[i]
                 val dist = distanceMeters(a.latitude, a.longitude, b.latitude, b.longitude)
                 val dt = (b.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
                 val transit = dist / dt * 3.6 > 25.0 || dist > 700.0
+                val ret = isReturnLeg(i)
                 val pa = LatLng.from(a.latitude, a.longitude)
                 val pb = LatLng.from(b.latitude, b.longitude)
-                if (runs.isNotEmpty() && runs.last().first == transit) {
-                    runs.last().second.add(pb)
+                val last = runs.lastOrNull()
+                if (last != null && last.first == transit && last.second == ret) {
+                    last.third.add(pb)
                 } else {
-                    runs.add(transit to mutableListOf(pa, pb))
+                    runs.add(Triple(transit, ret, mutableListOf(pa, pb)))
                 }
             }
             // 걷기 구간은 도로망에 스냅, 지하철/이동수단 구간은 지하철 노선으로
             // 라우팅(역들을 따라). 둘 다 실패 시 직선으로 폴백.
-            val drawn = runs.map { (transit, pts) ->
+            val drawn = runs.map { (transit, _, pts) ->
                 if (transit) {
                     // 끝점만이 아니라 이동 중 기록된 모든 GPS 점을 경유지로 넘겨
                     // 실제로 지나간 역(노선)을 따라가게 한다.
@@ -767,10 +795,10 @@ private fun RouteMapView(
                 }
             }
             map.routeLineManager?.layer?.removeAll()
-            runs.forEachIndexed { idx, (transit, _) ->
+            runs.forEachIndexed { idx, (transit, ret, _) ->
                 val pts = drawn[idx]
                 if (pts.size < 2) return@forEachIndexed
-                val color = if (transit) 0xFF2196F3.toInt() else 0xFFFF8C00.toInt()
+                val color = legColor(transit, ret)
                 val width = if (transit) 9f else 11f
                 val styles = RouteLineStylesSet.from(
                     "r$idx",
