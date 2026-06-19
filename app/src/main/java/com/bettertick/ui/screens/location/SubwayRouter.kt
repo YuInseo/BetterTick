@@ -161,11 +161,29 @@ object SubwayRouter {
     suspend fun routeVia(points: List<LatLng>): List<LatLng>? {
         ensureLoaded()
         if (!loaded || points.size < 2) return null
-        // 각 GPS 점을 가장 가까운 역에 스냅하고 연속 중복은 제거.
+        // 각 GPS 점을 가장 가까운 역에 스냅하고, 연속 중복은 합치며 점 개수를 센다.
         val seq = ArrayList<Int>()
+        val cnt = ArrayList<Int>()
         points.forEach { p ->
             val st = nearest(p.latitude, p.longitude) ?: return@forEach
-            if (seq.isEmpty() || seq.last() != st) seq.add(st)
+            if (seq.isEmpty() || seq.last() != st) { seq.add(st); cnt.add(1) }
+            else cnt[cnt.lastIndex]++
+        }
+        // 노이즈로 점 하나만 찍혀 '안 간 역'까지 갔다가 곧장 되돌아오는(A-B-A)
+        // 스퍼를 제거한다. 중간 역(B)을 받쳐주는 점이 1개뿐일 때만 노이즈로 보고
+        // 지워, 실제로 갔다 온 왕복(점이 여러 개)은 보존한다.
+        var collapsed = true
+        while (collapsed) {
+            collapsed = false
+            var i = 1
+            while (i < seq.size - 1) {
+                if (seq[i - 1] == seq[i + 1] && cnt[i] <= 1) {
+                    cnt[i - 1] += cnt[i + 1]
+                    seq.removeAt(i + 1); cnt.removeAt(i + 1)
+                    seq.removeAt(i); cnt.removeAt(i)
+                    collapsed = true
+                } else i++
+            }
         }
         if (seq.size < 2) return null
         // 연속한 스냅 역들 사이를 최단경로로 이어 붙인다.
