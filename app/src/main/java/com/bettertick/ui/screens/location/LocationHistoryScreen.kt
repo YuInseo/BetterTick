@@ -190,6 +190,31 @@ private fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Doubl
     return out[0].toDouble()
 }
 
+/**
+ * Chaikin 코너 컷팅으로 꺾인 폴리라인을 부드럽게 만든다. 지하철 선로는 역과
+ * 역 사이를 완만한 곡선으로 잇는데, 도로망 라우팅 결과는 교차로마다 직각으로
+ * 꺾여 선로처럼 보이지 않는다. 양 끝점은 고정하고 각 모서리를 반복적으로 잘라
+ * 곡선화한다(반복할수록 더 둥글어짐). 점이 2개 이하면 그대로 둔다.
+ */
+private fun smoothCorners(points: List<LatLng>, iterations: Int = 2): List<LatLng> {
+    if (points.size < 3) return points
+    var pts = points
+    repeat(iterations) {
+        val out = ArrayList<LatLng>(pts.size * 2)
+        out.add(pts.first())  // 시작점 고정
+        for (i in 0 until pts.size - 1) {
+            val p = pts[i]
+            val q = pts[i + 1]
+            // 각 변의 1/4, 3/4 지점으로 모서리를 잘라낸다.
+            out.add(LatLng.from(p.latitude * 0.75 + q.latitude * 0.25, p.longitude * 0.75 + q.longitude * 0.25))
+            out.add(LatLng.from(p.latitude * 0.25 + q.latitude * 0.75, p.longitude * 0.25 + q.longitude * 0.75))
+        }
+        out.add(pts.last())   // 끝점 고정
+        pts = out
+    }
+    return pts
+}
+
 /** 주어진 좌표가 어떤 즐겨찾기 반경(60m) 안이면 그 이름을, 아니면 null. */
 private fun favoriteNameFor(
     favorites: List<FavoritePlace>,
@@ -724,7 +749,7 @@ private fun RouteMapView(
                     // 끝점만이 아니라 이동 중 기록된 모든 GPS 점을 경유지로 넘겨
                     // 실제로 지나간 역(노선)을 따라가게 한다.
                     val sub = SubwayRouter.routeVia(pts)
-                    if (sub != null) {
+                    val line = if (sub != null) {
                         // 역 좌표열을 그대로 직선으로 이으면 블록을 가로질러 노선을
                         // 벗어난다. 역들을 경유지로 Kakao 길찾기에 라우팅하면(지하철은
                         // 간선도로 아래를 지남) 실제 노선에 훨씬 가깝게 그려진다.
@@ -732,6 +757,8 @@ private fun RouteMapView(
                         val viaStations = listOf(pts.first()) + sub + listOf(pts.last())
                         KakaoRouter.routeRoad(viaStations) ?: viaStations
                     } else pts
+                    // 교차로마다 직각으로 꺾인 도로 경로를 선로처럼 완만한 곡선으로.
+                    smoothCorners(line)
                 } else {
                     // 걷는 구간도 Kakao 길찾기로 도로망에 맞춰(GPS 점들을 경유지로)
                     // 더 정확하게 그린다. Kakao 실패 시 OSRM 맵매칭, 그것도 실패하면
