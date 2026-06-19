@@ -58,6 +58,11 @@ class LocationRepository @Inject constructor(
         ref.set(FavoritePlace(id = ref.id, name = name, latitude = lat, longitude = lng)).await()
     }
 
+    suspend fun removeFavorite(id: String) {
+        if (!firestoreProvider.isAuthenticated || id.isBlank()) return
+        firestoreProvider.favoritePlacesCollection().document(id).delete().await()
+    }
+
     suspend fun getLastRecord(): LocationRecord? {
         if (!firestoreProvider.isAuthenticated) return null
         return firestoreProvider.locationRecordsCollection()

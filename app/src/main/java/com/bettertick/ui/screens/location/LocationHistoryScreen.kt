@@ -41,6 +41,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.ChevronLeft
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.List
@@ -331,7 +332,9 @@ fun LocationHistoryScreen(
     val favorites by viewModel.favorites.collectAsState()
     val context = LocalContext.current
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
-    var showFavoriteDialog by remember { mutableStateOf(false) }
+    // 즐겨찾기 이름 짓기 대상 좌표. null이 아니면 이름 입력 다이얼로그를 띄운다.
+    // (현재 위치 길게 누르기 또는 목록 항목의 별 버튼에서 설정)
+    var favoriteDialogTarget by remember { mutableStateOf<LatLng?>(null) }
     // 즐겨찾기 필터 — 켜면 즐겨찾기된 위치 기록만 보여준다.
     var favoritesOnly by remember { mutableStateOf(false) }
     val displayedRecords = remember(records, favorites, favoritesOnly) {
@@ -444,6 +447,14 @@ fun LocationHistoryScreen(
                         onRecordClick = { record ->
                             focusedRecord = record
                             showMap = true
+                        },
+                        onToggleFavorite = { record ->
+                            // 이미 즐겨찾기(반경 60m)면 해제, 아니면 이름 짓기 다이얼로그.
+                            val existing = favorites.firstOrNull {
+                                distanceMeters(it.latitude, it.longitude, record.latitude, record.longitude) <= 60.0
+                            }
+                            if (existing != null) viewModel.removeFavorite(existing.id)
+                            else favoriteDialogTarget = LatLng.from(record.latitude, record.longitude)
                         }
                     )
                 else -> EmptyState()
@@ -484,7 +495,7 @@ fun LocationHistoryScreen(
                     )
                     .combinedClickable(
                         onClick = { favoritesOnly = !favoritesOnly },
-                        onLongClick = { if (currentLocation != null) showFavoriteDialog = true }
+                        onLongClick = { favoriteDialogTarget = currentLocation }
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -498,15 +509,14 @@ fun LocationHistoryScreen(
         }
     }
 
-    if (showFavoriteDialog) {
-        val loc = currentLocation
+    favoriteDialogTarget?.let { loc ->
         FavoriteNameDialog(
-            onDismiss = { showFavoriteDialog = false },
+            onDismiss = { favoriteDialogTarget = null },
             onConfirm = { name ->
-                if (loc != null && name.isNotBlank()) {
+                if (name.isNotBlank()) {
                     viewModel.addFavorite(name.trim(), loc.latitude, loc.longitude)
                 }
-                showFavoriteDialog = false
+                favoriteDialogTarget = null
             }
         )
     }
@@ -1099,7 +1109,8 @@ private fun RouteMapView(
 private fun RouteListView(
     records: List<LocationRecord>,
     favorites: List<FavoritePlace>,
-    onRecordClick: (LocationRecord) -> Unit = {}
+    onRecordClick: (LocationRecord) -> Unit = {},
+    onToggleFavorite: (LocationRecord) -> Unit = {}
 ) {
     // 구간 거리/걸음수 계산. 걸음수는 보폭 0.7m 기준 추정, 빠른 점프(지하철/
     // 이동수단)는 걸음에서 제외하고 거리만 보여준다.
@@ -1168,7 +1179,11 @@ private fun RouteListView(
                     }
                 }
                 Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.padding(bottom = if (!isLast) 0.dp else 20.dp)) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(bottom = if (!isLast) 0.dp else 20.dp)
+                ) {
                     Text(time, color = TextTertiary, fontSize = 12.sp)
                     Spacer(Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1190,6 +1205,17 @@ private fun RouteListView(
                         Text(legText, color = TextSecondary, fontSize = 12.sp)
                     }
                     Spacer(Modifier.height(14.dp))
+                }
+                // 항목별 즐겨찾기 토글 — 채워진 별이면 즐겨찾기됨(탭하면 해제),
+                // 빈 별이면 탭해서 이름 짓고 추가.
+                val isFav = favoriteNameFor(favorites, record.latitude, record.longitude) != null
+                IconButton(onClick = { onToggleFavorite(record) }) {
+                    Icon(
+                        if (isFav) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                        contentDescription = if (isFav) "즐겨찾기 해제" else "즐겨찾기 추가",
+                        tint = if (isFav) MaterialTheme.colorScheme.primary else TextTertiary,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }
