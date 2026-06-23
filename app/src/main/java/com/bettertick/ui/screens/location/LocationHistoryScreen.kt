@@ -1037,6 +1037,36 @@ private fun RouteMapView(
             }
         }
 
+        // 걸음수·거리 배지 (top-left). 목록에서 빼고 지도 위로 옮김.
+        if (records.isNotEmpty()) {
+            val totalWalkM = remember(records) {
+                var w = 0.0
+                for (i in 1 until records.size) {
+                    val a = records[i - 1]; val b = records[i]
+                    val d = distanceMeters(a.latitude, a.longitude, b.latitude, b.longitude)
+                    val dt = (b.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
+                    if (!(d / dt * 3.6 > 25.0 || d > 700.0)) w += d
+                }
+                w
+            }
+            val totalSteps = (totalWalkM / 0.7).roundToInt()
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(DarkSurface.copy(alpha = 0.9f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    "🚶 약 ${"%,d".format(totalSteps)}걸음 · ${formatDistance(totalWalkM)}",
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
         // "내 위치" button (bottom-right). 좌측 하단은 지도/목록 토글이
         // 차지하므로 우측 하단에 둔다. 현재 위치만 있으면 표시.
         if (currentLocation != null) {
@@ -1196,20 +1226,6 @@ private fun RouteListView(
     onRecordClick: (LocationRecord) -> Unit = {},
     onToggleFavorite: (LocationRecord) -> Unit = {}
 ) {
-    // 구간 거리/걸음수 계산. 걸음수는 보폭 0.7m 기준 추정, 빠른 점프(지하철/
-    // 이동수단)는 걸음에서 제외하고 거리만 보여준다.
-    val totalWalkM = remember(records) {
-        var w = 0.0
-        for (i in 1 until records.size) {
-            val a = records[i - 1]; val b = records[i]
-            val d = distanceMeters(a.latitude, a.longitude, b.latitude, b.longitude)
-            val dt = (b.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
-            if (!(d / dt * 3.6 > 25.0 || d > 700.0)) w += d
-        }
-        w
-    }
-    val totalSteps = (totalWalkM / 0.7).roundToInt()
-
     // 지도와 동일하게 '가는 길/돌아오는 길 × 지하철/도보'를 색으로 구분한다.
     // 출발지(첫 기록)에서 가장 먼 지점을 반환점으로 보고, 그 뒤 다시 출발지
     // 근처(500m)로 돌아오면 반환점 이후 구간을 '돌아오는 길'로 칠한다.
@@ -1245,14 +1261,23 @@ private fun RouteListView(
 
     // 같은 위치(40m 이내)에 연속으로 찍힌 기록들을 한 묶음으로 접는다 → 머무름/
     // 미세 이동으로 줄이 길어지는 것을 깔끔하게. 각 묶음은 records의 연속 구간.
-    val groups = remember(records) {
+    val groups = remember(records, favorites) {
         val res = ArrayList<IntRange>()
         var i = 0
         while (i < records.size) {
+            val anchor = records[i]
+            val anchorFav = favoriteNameFor(favorites, anchor.latitude, anchor.longitude)
             var j = i + 1
-            while (j < records.size &&
-                distanceMeters(records[j].latitude, records[j].longitude,
-                    records[i].latitude, records[i].longitude) <= 40.0) j++
+            while (j < records.size) {
+                val r = records[j]
+                // 같은 즐겨찾기면 GPS 지터로 주소가 달라도 한 묶음으로(집이 여러 번
+                // 뜨는 것 방지). 아니면 40m 이내 머무름만 묶는다.
+                val near = distanceMeters(r.latitude, r.longitude,
+                    anchor.latitude, anchor.longitude) <= 40.0
+                val sameFav = anchorFav != null &&
+                    favoriteNameFor(favorites, r.latitude, r.longitude) == anchorFav
+                if (near || sameFav) j++ else break
+            }
             res.add(i until j)
             i = j
         }
@@ -1262,17 +1287,6 @@ private fun RouteListView(
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
 
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                ListStat(label = "걸음수", value = "약 ${"%,d".format(totalSteps)}")
-                ListStat(label = "걸은 거리", value = formatDistance(totalWalkM))
-            }
-        }
         itemsIndexed(groups, key = { _, g -> records[g.first].id }) { gi, g ->
             val anchorIndex = g.first
             val record = records[anchorIndex]
