@@ -53,7 +53,17 @@ class LocationRepository @Inject constructor(
         awaitClose { reg.remove() }
     }
 
-    suspend fun addRecord(record: LocationRecord) {
+    /** 위치 기록이 하나라도 있는 날짜(dateStr) 집합. 캐시 기반(서버 읽기 없음). */
+    fun observeRecordedDates(): Flow<Set<String>> = callbackFlow {
+        if (!firestoreProvider.isAuthenticated) { trySend(emptySet()); awaitClose { }; return@callbackFlow }
+        val reg = firestoreProvider.locationRecordsCollection()
+            .addSnapshotListener(cacheOptions) { snap, err ->
+                if (err != null) { close(err); return@addSnapshotListener }
+                trySend(snap?.documents?.mapNotNull { it.getString("dateStr") }?.toSet() ?: emptySet())
+            }
+        awaitClose { reg.remove() }
+    }
+
         if (!firestoreProvider.isAuthenticated) return
         // 고빈도 경로 점은 일일 한도 내에서만 쓴다(무료 쓰기 2만/일 보호).
         // 장소(깃발) 기록은 양이 적고 중요하므로 항상 통과.

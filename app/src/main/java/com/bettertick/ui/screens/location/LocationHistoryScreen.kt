@@ -352,6 +352,7 @@ fun LocationHistoryScreen(
     var focusedRecord by remember { mutableStateOf<LocationRecord?>(null) }
     val records by viewModel.getRecordsForDate(selectedDate.toString()).collectAsState(emptyList())
     val favorites by viewModel.favorites.collectAsState()
+    val recordedDates by viewModel.recordedDates.collectAsState()
     val context = LocalContext.current
     var currentLocation by remember { mutableStateOf<LatLng?>(null) }
     // 즐겨찾기 이름 짓기 대상 좌표. null이 아니면 이름 입력 다이얼로그를 띄운다.
@@ -590,6 +591,7 @@ fun LocationHistoryScreen(
                 ) {
                     MiniMonthCalendar(
                         selectedDate = selectedDate,
+                        recordedDates = recordedDates,
                         onPick = { selectedDate = it; showDatePicker = false }
                     )
                 }
@@ -610,10 +612,14 @@ fun LocationHistoryScreen(
     }
 }
 
-/** 날짜바 위에 뜨는 작은 월 달력. 미래 날짜는 비활성, 선택 날짜는 강조. */
+/**
+ * 날짜바 위에 뜨는 작은 월 달력. 기록이 있는 날만 클릭 가능하며 점으로 표시하고,
+ * 선택 날짜는 강조한다(기록 없는 날·미래는 비활성).
+ */
 @Composable
 private fun MiniMonthCalendar(
     selectedDate: LocalDate,
+    recordedDates: Set<String>,
     onPick: (LocalDate) -> Unit
 ) {
     val today = LocalDate.now()
@@ -671,6 +677,7 @@ private fun MiniMonthCalendar(
             Row(Modifier.fillMaxWidth()) {
                 week.forEach { date ->
                     val isSel = date != null && date == selectedDate
+                    val hasRecord = date != null && recordedDates.contains(date.toString())
                     Box(
                         modifier = Modifier
                             .weight(1f)
@@ -678,21 +685,32 @@ private fun MiniMonthCalendar(
                             .padding(2.dp)
                             .clip(CircleShape)
                             .then(if (isSel) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier)
-                            .clickable(enabled = date != null && !date.isAfter(today)) {
-                                date?.let(onPick)
-                            },
+                            // 기록이 있는 날만 선택 가능.
+                            .clickable(enabled = hasRecord) { date?.let(onPick) },
                         contentAlignment = Alignment.Center
                     ) {
                         if (date != null) {
-                            Text(
-                                "${date.dayOfMonth}",
-                                color = when {
-                                    isSel -> Color.White
-                                    date.isAfter(today) -> TextTertiary
-                                    else -> MaterialTheme.colorScheme.onBackground
-                                },
-                                fontSize = 13.sp
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    "${date.dayOfMonth}",
+                                    color = when {
+                                        isSel -> Color.White
+                                        hasRecord -> MaterialTheme.colorScheme.onBackground
+                                        else -> TextTertiary  // 기록 없음/미래 → 흐리게
+                                    },
+                                    fontSize = 13.sp
+                                )
+                                // 기록 있는 날 표시 점.
+                                if (hasRecord) {
+                                    Spacer(Modifier.height(2.dp))
+                                    Box(
+                                        Modifier
+                                            .size(4.dp)
+                                            .clip(CircleShape)
+                                            .background(if (isSel) Color.White else MaterialTheme.colorScheme.primary)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -1123,8 +1141,8 @@ private fun RouteMapView(
             }
         }
 
-        // No-records overlay (shown on top of the map)
-        if (mapError == null && records.isEmpty() && currentLocation == null) {
+        // No-records overlay — 기록이 없는 날이면 화면 가운데에 표시.
+        if (mapError == null && records.isEmpty()) {
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
@@ -1133,7 +1151,7 @@ private fun RouteMapView(
                     .padding(horizontal = 20.dp, vertical = 14.dp)
             ) {
                 Text(
-                    "이 날의 위치 기록이 없어요",
+                    "기록이 없습니다",
                     color = TextSecondary,
                     fontSize = 13.sp
                 )
@@ -1570,7 +1588,7 @@ private fun EmptyState() {
                 modifier = Modifier.size(48.dp)
             )
             Spacer(Modifier.height(12.dp))
-            Text("이 날의 위치 기록이 없어요", color = TextSecondary, fontSize = 14.sp)
+            Text("기록이 없습니다", color = TextSecondary, fontSize = 14.sp)
             Spacer(Modifier.height(4.dp))
             Text("설정에서 위치 기록을 켜주세요", color = TextTertiary, fontSize = 12.sp)
         }

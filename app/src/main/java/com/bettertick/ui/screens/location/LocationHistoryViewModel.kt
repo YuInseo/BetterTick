@@ -26,6 +26,10 @@ class LocationHistoryViewModel @Inject constructor(
     val favorites = locationRepository.observeFavorites()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // 위치 기록이 있는 날짜 집합 — 달력에서 점 표시/클릭 가능 판단에 사용.
+    val recordedDates = locationRepository.observeRecordedDates()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptySet())
+
     fun addFavorite(name: String, lat: Double, lng: Double) {
         viewModelScope.launch { locationRepository.addFavorite(name, lat, lng) }
     }
