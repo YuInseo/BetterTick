@@ -643,7 +643,12 @@ private fun MiniMonthCalendar(
             Text(
                 month.format(DateTimeFormatter.ofPattern("yyyy년 M월", Locale.KOREAN)),
                 color = MaterialTheme.colorScheme.onBackground,
-                fontSize = 14.sp, fontWeight = FontWeight.Bold
+                fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                // 제목을 누르면 이번 달(오늘)로 돌아온다.
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { month = YearMonth.now() }
+                    .padding(horizontal = 10.dp, vertical = 2.dp)
             )
             IconButton(
                 onClick = { if (canGoNext) month = month.plusMonths(1) },
@@ -702,10 +707,10 @@ private fun MiniMonthCalendar(
                                 )
                                 // 기록 있는 날 표시 점.
                                 if (hasRecord) {
-                                    Spacer(Modifier.height(2.dp))
+                                    Spacer(Modifier.height(3.dp))
                                     Box(
                                         Modifier
-                                            .size(4.dp)
+                                            .size(6.dp)
                                             .clip(CircleShape)
                                             .background(if (isSel) Color.White else MaterialTheme.colorScheme.primary)
                                     )
