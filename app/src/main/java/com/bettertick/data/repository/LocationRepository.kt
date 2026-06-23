@@ -64,6 +64,7 @@ class LocationRepository @Inject constructor(
         awaitClose { reg.remove() }
     }
 
+    suspend fun addRecord(record: LocationRecord) {
         if (!firestoreProvider.isAuthenticated) return
         // 고빈도 경로 점은 일일 한도 내에서만 쓴다(무료 쓰기 2만/일 보호).
         // 장소(깃발) 기록은 양이 적고 중요하므로 항상 통과.
