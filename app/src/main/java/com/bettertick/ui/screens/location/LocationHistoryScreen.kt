@@ -24,7 +24,9 @@ import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -119,6 +121,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.coroutines.resume
@@ -341,6 +344,8 @@ fun LocationHistoryScreen(
     viewModel: LocationHistoryViewModel = hiltViewModel()
 ) {
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    // 날짜바의 '오늘'을 누르면 뜨는 작은 달력(월 단위) 표시 여부.
+    var showDatePicker by remember { mutableStateOf(false) }
     var showMap by remember { mutableStateOf(true) }
     // 목록에서 항목을 탭하면 지도로 전환하며 그 위치로 카메라를 옮기고 정보를
     // 띄운다. 지도가 준비된 뒤 소비되면 RouteMapView가 다시 null로 비운다.
@@ -549,7 +554,10 @@ fun LocationHistoryScreen(
                     color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 6.dp)
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { showDatePicker = !showDatePicker }
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
                 )
                 IconButton(
                     onClick = { if (selectedDate < today) selectedDate = selectedDate.plusDays(1) },
@@ -560,6 +568,29 @@ fun LocationHistoryScreen(
                         Icons.Outlined.ChevronRight, contentDescription = "다음",
                         tint = if (selectedDate < today) TextSecondary else TextTertiary,
                         modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+
+            // '오늘'을 누르면 날짜바 위로 작은 월 달력이 떠 날짜를 고를 수 있다.
+            if (showDatePicker) {
+                // 바깥을 누르면 닫히는 스크림.
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { showDatePicker = false }
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 60.dp)
+                ) {
+                    MiniMonthCalendar(
+                        selectedDate = selectedDate,
+                        onPick = { selectedDate = it; showDatePicker = false }
                     )
                 }
             }
@@ -576,6 +607,97 @@ fun LocationHistoryScreen(
                 favoriteDialogTarget = null
             }
         )
+    }
+}
+
+/** 날짜바 위에 뜨는 작은 월 달력. 미래 날짜는 비활성, 선택 날짜는 강조. */
+@Composable
+private fun MiniMonthCalendar(
+    selectedDate: LocalDate,
+    onPick: (LocalDate) -> Unit
+) {
+    val today = LocalDate.now()
+    var month by remember(selectedDate) { mutableStateOf(YearMonth.from(selectedDate)) }
+    val canGoNext = month < YearMonth.from(today)
+    Column(
+        modifier = Modifier
+            .width(300.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(DarkSurface)
+            .padding(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            IconButton(onClick = { month = month.minusMonths(1) }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Outlined.ChevronLeft, "이전 달", tint = TextSecondary, modifier = Modifier.size(18.dp))
+            }
+            Text(
+                month.format(DateTimeFormatter.ofPattern("yyyy년 M월", Locale.KOREAN)),
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 14.sp, fontWeight = FontWeight.Bold
+            )
+            IconButton(
+                onClick = { if (canGoNext) month = month.plusMonths(1) },
+                enabled = canGoNext,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    Icons.Outlined.ChevronRight, "다음 달",
+                    tint = if (canGoNext) TextSecondary else TextTertiary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth()) {
+            listOf("일", "월", "화", "수", "목", "금", "토").forEach { d ->
+                Text(
+                    d, color = TextTertiary, fontSize = 11.sp,
+                    textAlign = TextAlign.Center, modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        // 일요일 시작(일=0). DayOfWeek.value는 월=1..일=7.
+        val firstDow = month.atDay(1).dayOfWeek.value % 7
+        val cells = ArrayList<LocalDate?>()
+        repeat(firstDow) { cells.add(null) }
+        for (d in 1..month.lengthOfMonth()) cells.add(month.atDay(d))
+        while (cells.size % 7 != 0) cells.add(null)
+        cells.chunked(7).forEach { week ->
+            Row(Modifier.fillMaxWidth()) {
+                week.forEach { date ->
+                    val isSel = date != null && date == selectedDate
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                            .padding(2.dp)
+                            .clip(CircleShape)
+                            .then(if (isSel) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier)
+                            .clickable(enabled = date != null && !date.isAfter(today)) {
+                                date?.let(onPick)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (date != null) {
+                            Text(
+                                "${date.dayOfMonth}",
+                                color = when {
+                                    isSel -> Color.White
+                                    date.isAfter(today) -> TextTertiary
+                                    else -> MaterialTheme.colorScheme.onBackground
+                                },
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
