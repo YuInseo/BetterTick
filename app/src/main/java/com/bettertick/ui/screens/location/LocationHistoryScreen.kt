@@ -43,6 +43,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
@@ -63,6 +65,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -787,6 +790,7 @@ private fun RouteMapView(
         // 지도에 기본으로 떠 있는 POI(가게/건물 이름)를 탭하면 그 장소 정보를
         // 시트로 띄운다. 빈 지도를 탭하면 열려 있던 시트를 닫는다.
         map.setOnMapClickListener { _, position, _, poi ->
+          runCatching {
             if (poi != null) {
                 // Kakao 기본 POI는 이름을 앱에 주지 않는 경우가 많다(poi.name이 빈 값).
                 // 이름이 있으면 쓰고, 없으면 placeName을 비워 Geocoder가 featureName/
@@ -804,6 +808,7 @@ private fun RouteMapView(
             } else {
                 selectedRecord = null
             }
+          }
         }
 
         // 걷는 구간을 도로망에 스냅해 '진짜 걸어다닌 경로'처럼 보이게 한다.
@@ -1238,6 +1243,24 @@ private fun RouteListView(
         }
     }
 
+    // 같은 위치(40m 이내)에 연속으로 찍힌 기록들을 한 묶음으로 접는다 → 머무름/
+    // 미세 이동으로 줄이 길어지는 것을 깔끔하게. 각 묶음은 records의 연속 구간.
+    val groups = remember(records) {
+        val res = ArrayList<IntRange>()
+        var i = 0
+        while (i < records.size) {
+            var j = i + 1
+            while (j < records.size &&
+                distanceMeters(records[j].latitude, records[j].longitude,
+                    records[i].latitude, records[i].longitude) <= 40.0) j++
+            res.add(i until j)
+            i = j
+        }
+        res
+    }
+    // 묶음별 펼침 상태(기본 접힘). 앵커 기록 id로 키.
+    val expanded = remember { mutableStateMapOf<String, Boolean>() }
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         item {
             Row(
@@ -1250,19 +1273,28 @@ private fun RouteListView(
                 ListStat(label = "걸은 거리", value = formatDistance(totalWalkM))
             }
         }
-        itemsIndexed(records, key = { _, it -> it.id }) { index, record ->
-            val isLast = index == records.lastIndex
-            val time = remember(record.timestamp) {
+        itemsIndexed(groups, key = { _, g -> records[g.first].id }) { gi, g ->
+            val anchorIndex = g.first
+            val record = records[anchorIndex]
+            val groupSize = g.last - g.first + 1
+            val isLastGroup = gi == groups.lastIndex
+            val isOpen = expanded[record.id] == true
+
+            val startTime = remember(record.timestamp) {
                 java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(record.timestamp.toDate())
             }
+            val endTime = remember(records[g.last].timestamp) {
+                java.text.SimpleDateFormat("HH:mm", Locale.KOREAN).format(records[g.last].timestamp.toDate())
+            }
+            val timeLabel = if (groupSize > 1 && startTime != endTime) "$startTime~$endTime" else startTime
             val address = resolvedAddress(record, favorites)
             // 즐겨찾기면 '집 (실제 주소)'처럼 이름과 주소를 함께 보여 준다.
             val favName = favoriteNameFor(favorites, record.latitude, record.longitude)
             val primaryLabel = if (favName != null) "$favName ($address)" else address
-            // 이전 지점에서 여기까지의 거리/걸음수.
-            val legText = remember(records, index) {
-                if (index == 0) null else {
-                    val a = records[index - 1]
+            // 이전 묶음에서 이 묶음까지의 이동(앵커로 들어오는 leg).
+            val legText = remember(records, anchorIndex) {
+                if (anchorIndex == 0) null else {
+                    val a = records[anchorIndex - 1]
                     val d = distanceMeters(a.latitude, a.longitude, record.latitude, record.longitude)
                     val dt = (record.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
                     val transit = d / dt * 3.6 > 25.0 || d > 700.0
@@ -1274,7 +1306,10 @@ private fun RouteListView(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onRecordClick(record) }
+                    .clickable {
+                        if (groupSize > 1) expanded[record.id] = !isOpen
+                        else onRecordClick(record)
+                    }
                     .padding(start = 24.dp, end = 20.dp),
                 verticalAlignment = Alignment.Top
             ) {
@@ -1284,13 +1319,13 @@ private fun RouteListView(
                             .size(10.dp)
                             .background(MaterialTheme.colorScheme.primary, CircleShape)
                     )
-                    if (!isLast) {
-                        // 이 지점→다음 지점 이동(leg index+1)을 색으로 구분.
+                    if (!isLastGroup) {
+                        // 이 묶음→다음 묶음 이동(leg g.last+1)을 색으로 구분.
                         Box(
                             modifier = Modifier
                                 .width(3.dp)
                                 .height(64.dp)
-                                .background(legColor(index + 1))
+                                .background(legColor(g.last + 1))
                         )
                     }
                 }
@@ -1298,9 +1333,9 @@ private fun RouteListView(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(bottom = if (!isLast) 0.dp else 20.dp)
+                        .padding(bottom = if (!isLastGroup) 0.dp else 20.dp)
                 ) {
-                    Text(time, color = TextTertiary, fontSize = 12.sp)
+                    Text(timeLabel, color = TextTertiary, fontSize = 12.sp)
                     Spacer(Modifier.height(2.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -1320,13 +1355,49 @@ private fun RouteListView(
                     }
                     if (legText != null) {
                         Spacer(Modifier.height(3.dp))
-                        // 이전 지점→여기까지 이동(leg index)을 색으로 구분.
-                        Text(legText, color = legColor(index), fontSize = 12.sp)
+                        Text(legText, color = legColor(anchorIndex), fontSize = 12.sp)
+                    }
+                    // 같은 위치 묶음이면 펼치기/접기 토글 + (펼치면) 개별 기록 시각.
+                    if (groupSize > 1) {
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable { expanded[record.id] = !isOpen }
+                        ) {
+                            Icon(
+                                if (isOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(2.dp))
+                            Text(
+                                if (isOpen) "접기" else "여기서 ${groupSize}번 기록 · 펼치기",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 12.sp
+                            )
+                        }
+                        if (isOpen) {
+                            g.forEach { idx ->
+                                val r = records[idx]
+                                val t = remember(r.timestamp) {
+                                    java.text.SimpleDateFormat("HH:mm", Locale.KOREAN)
+                                        .format(r.timestamp.toDate())
+                                }
+                                Text(
+                                    "· $t",
+                                    color = TextTertiary,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .clickable { onRecordClick(r) }
+                                )
+                            }
+                        }
                     }
                     Spacer(Modifier.height(14.dp))
                 }
-                // 항목별 즐겨찾기 토글 — 채워진 별이면 즐겨찾기됨(탭하면 해제),
-                // 빈 별이면 탭해서 이름 짓고 추가.
+                // 즐겨찾기 토글(앵커 기준) — 채워진 별이면 해제, 빈 별이면 추가.
                 val isFav = favoriteNameFor(favorites, record.latitude, record.longitude) != null
                 IconButton(onClick = { onToggleFavorite(record) }) {
                     Icon(
