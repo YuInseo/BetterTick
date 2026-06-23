@@ -16,16 +16,16 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
 > Task :app:generateDebugBuildConfig
+> Task :app:checkDebugAarMetadata
 > Task :app:generateDebugResValues
 > Task :app:processDebugGoogleServices
-> Task :app:checkDebugAarMetadata
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
-> Task :app:mergeDebugResources
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
 > Task :app:parseDebugLocalResources
+> Task :app:mergeDebugResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:javaPreCompileDebug
@@ -38,8 +38,8 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:mergeDebugStartupProfile
 > Task :app:mergeDebugJniLibFolders
 > Task :app:checkDebugDuplicateClasses
-> Task :app:mergeDebugNativeLibs
 > Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugNativeLibs
 > Task :app:mergeLibDexDebug
 > Task :app:validateSigningDebug
 > Task :app:writeDebugAppMetadata
@@ -89,8 +89,8 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitsScreen.kt:167:45 '@property:Deprecated(...) val Icons.Outlined.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.List.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitsScreen.kt:267:56 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/lists/AddListScreen.kt:121:39 Condition is always 'true'.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/LocationHistoryScreen.kt:484:49 '@property:Deprecated(...) val Icons.Outlined.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.List.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/LocationHistoryScreen.kt:790:17 Condition is always 'true'.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/LocationHistoryScreen.kt:487:49 '@property:Deprecated(...) val Icons.Outlined.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.List.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/LocationHistoryScreen.kt:794:17 Condition is always 'true'.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/SubwayRouter.kt:130:18 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.Pair<kotlin.Int, kotlin.Double>?'.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/SubwayRouter.kt:130:21 Only safe (?.) or non-null asserted (!!.) calls are allowed on a nullable receiver of type 'kotlin.Pair<kotlin.Int, kotlin.Double>?'.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/matrix/MatrixScreen.kt:211:52 '@property:Deprecated(...) val Icons.Outlined.HelpOutline: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.HelpOutline.
@@ -114,5 +114,5 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 3m 11s
+BUILD SUCCESSFUL in 3m 49s
 43 actionable tasks: 43 executed
