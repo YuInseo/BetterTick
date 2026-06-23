@@ -1,0 +1,163 @@
+Downloading https://services.gradle.org/distributions/gradle-8.7-bin.zip
+............10%.............20%.............30%.............40%............50%.............60%.............70%.............80%.............90%............100%
+
+Welcome to Gradle 8.7!
+
+Here are the highlights of this release:
+ - Compiling and testing with Java 22
+ - Cacheable Groovy script compilation
+ - New methods in lazy collection properties
+
+For more details see https://docs.gradle.org/8.7/release-notes.html
+
+Starting a Gradle Daemon (subsequent builds will be faster)
+> Task :app:preBuild UP-TO-DATE
+> Task :app:preDebugBuild UP-TO-DATE
+> Task :app:mergeDebugNativeDebugMetadata NO-SOURCE
+> Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
+> Task :app:generateDebugBuildConfig
+> Task :app:generateDebugResValues
+> Task :app:processDebugGoogleServices
+> Task :app:checkDebugAarMetadata
+> Task :app:mapDebugSourceSetPaths
+> Task :app:generateDebugResources
+> Task :app:packageDebugResources
+> Task :app:mergeDebugResources
+> Task :app:createDebugCompatibleScreenManifests
+> Task :app:extractDeepLinksDebug
+> Task :app:parseDebugLocalResources
+> Task :app:processDebugMainManifest
+> Task :app:processDebugManifest
+> Task :app:javaPreCompileDebug
+> Task :app:mergeDebugShaders
+> Task :app:compileDebugShaders NO-SOURCE
+> Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:mergeDebugAssets
+> Task :app:processDebugManifestForPackage
+> Task :app:compressDebugAssets
+> Task :app:desugarDebugFileDependencies
+> Task :app:mergeDebugStartupProfile
+> Task :app:mergeDebugJniLibFolders
+> Task :app:processDebugResources
+> Task :app:checkDebugDuplicateClasses
+> Task :app:mergeDebugNativeLibs
+> Task :app:mergeLibDexDebug
+> Task :app:validateSigningDebug
+> Task :app:writeDebugAppMetadata
+> Task :app:writeDebugSigningConfigVersions
+
+> Task :app:stripDebugDebugSymbols
+Unable to strip the following libraries, packaging them as they are: libK3fAndroid.so.
+
+> Task :app:kspDebugKotlin FAILED
+e: [ksp] java.lang.NullPointerException
+	at com.google.devtools.ksp.symbol.impl.kotlin.KSDeclarationImpl$simpleName$2.invoke(KSDeclarationImpl.kt:35)
+	at com.google.devtools.ksp.symbol.impl.kotlin.KSDeclarationImpl$simpleName$2.invoke(KSDeclarationImpl.kt:34)
+	at kotlin.SynchronizedLazyImpl.getValue(LazyJVM.kt:74)
+	at com.google.devtools.ksp.symbol.impl.kotlin.KSDeclarationImpl.getSimpleName(KSDeclarationImpl.kt:34)
+	at com.google.devtools.ksp.common.symbolCollector.visitDeclaration(IncrementalContextBase.kt:41)
+	at com.google.devtools.ksp.common.symbolCollector.visitDeclaration(IncrementalContextBase.kt:34)
+	at com.google.devtools.ksp.visitor.KSDefaultVisitor.visitClassDeclaration(KSDefaultVisitor.kt:79)
+	at com.google.devtools.ksp.symbol.impl.kotlin.KSClassDeclarationImpl.accept(KSClassDeclarationImpl.kt:135)
+	at com.google.devtools.ksp.common.symbolCollector.visitDeclarationContainer(IncrementalContextBase.kt:57)
+	at com.google.devtools.ksp.common.symbolCollector.visitDeclarationContainer(IncrementalContextBase.kt:34)
+	at com.google.devtools.ksp.visitor.KSDefaultVisitor.visitFile(KSDefaultVisitor.kt:32)
+	at com.google.devtools.ksp.symbol.impl.kotlin.KSFileImpl.accept(KSFileImpl.kt:62)
+	at com.google.devtools.ksp.common.IncrementalContextBase.collectDefinedSymbols(IncrementalContextBase.kt:111)
+	at com.google.devtools.ksp.common.IncrementalContextBase.calcDirtyFiles(IncrementalContextBase.kt:218)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension$doAnalysis$2.invoke(KotlinSymbolProcessingExtension.kt:196)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension$doAnalysis$2.invoke(KotlinSymbolProcessingExtension.kt:189)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.handleException(KotlinSymbolProcessingExtension.kt:414)
+	at com.google.devtools.ksp.AbstractKotlinSymbolProcessingExtension.doAnalysis(KotlinSymbolProcessingExtension.kt:189)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(TopDownAnalyzerFacadeForJVM.kt:112)
+	at org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration$default(TopDownAnalyzerFacadeForJVM.kt:75)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze$lambda$12(KotlinToJVMBytecodeCompiler.kt:373)
+	at org.jetbrains.kotlin.cli.common.messages.AnalyzerWithCompilerReport.analyzeAndReport(AnalyzerWithCompilerReport.kt:115)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.analyze(KotlinToJVMBytecodeCompiler.kt:364)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.runFrontendAndGenerateIrUsingClassicFrontend(KotlinToJVMBytecodeCompiler.kt:195)
+	at org.jetbrains.kotlin.cli.jvm.compiler.KotlinToJVMBytecodeCompiler.compileModules$cli(KotlinToJVMBytecodeCompiler.kt:106)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:176)
+	at org.jetbrains.kotlin.cli.jvm.K2JVMCompiler.doExecute(K2JVMCompiler.kt:50)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:104)
+	at org.jetbrains.kotlin.cli.common.CLICompiler.execImpl(CLICompiler.kt:48)
+	at org.jetbrains.kotlin.cli.common.CLITool.exec(CLITool.kt:101)
+	at org.jetbrains.kotlin.daemon.CompileServiceImpl.compile(CompileServiceImpl.kt:1556)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at java.rmi/sun.rmi.server.UnicastServerRef.dispatch(UnicastServerRef.java:360)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:200)
+	at java.rmi/sun.rmi.transport.Transport$1.run(Transport.java:197)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:712)
+	at java.rmi/sun.rmi.transport.Transport.serviceCall(Transport.java:196)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport.handleMessages(TCPTransport.java:587)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run0(TCPTransport.java:828)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.lambda$run$0(TCPTransport.java:705)
+	at java.base/java.security.AccessController.doPrivileged(AccessController.java:399)
+	at java.rmi/sun.rmi.transport.tcp.TCPTransport$ConnectionHandler.run(TCPTransport.java:704)
+	at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1136)
+	at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:635)
+	at java.base/java.lang.Thread.run(Thread.java:840)
+
+e: Error occurred in KSP, check log for detail
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:67:9 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:67:12 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:67:13 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:67:14 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:67:31 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:67:32 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:67:47 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:67:49 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:9 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:12 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:13 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:14 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:20 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:21 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:29 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:32 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:33 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:47 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:48 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:49 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:70:51 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:9 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:12 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:13 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:16 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:17 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:23 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:24 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:28 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:29 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:32 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:34 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:37 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:38 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:40 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:41 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:42 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:43 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:48 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:72:49 Expecting member declaration
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:110:21 Name expected
+e: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/data/repository/LocationRepository.kt:116:1 Expecting a top level declaration
+
+> Task :app:mergeExtDexDebug
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':app:kspDebugKotlin'.
+> A failure occurred while executing org.jetbrains.kotlin.compilerRunner.GradleCompilerRunnerWithWorkers$GradleKotlinCompilerWorkAction
+   > Compilation error. See log for more details
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 1m 43s
+31 actionable tasks: 31 executed
