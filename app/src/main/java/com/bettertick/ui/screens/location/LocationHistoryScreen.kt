@@ -206,7 +206,7 @@ private fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Doubl
  * 부근만 둥글어진다 → '안 간 곳으로 커브가 부풀어 오르는' 문제를 막는다.
  * 점이 2개 이하면 그대로 둔다.
  */
-private fun smoothCorners(points: List<LatLng>, iterations: Int = 2, maxCutM: Double = 50.0): List<LatLng> {
+private fun smoothCorners(points: List<LatLng>, iterations: Int = 3, maxCutM: Double = 140.0): List<LatLng> {
     if (points.size < 3) return points
     var pts = points
     repeat(iterations) {

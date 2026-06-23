@@ -192,6 +192,22 @@ object SubwayRouter {
         if (seq.last() != arr) seq.add(arr)
         if (seq.size < 2) return null
 
+        // 경유역 중 앞뒤 역 대비 크게 우회하는(노선에서 벗어나게 잘못 스냅된)
+        // 중간역은 제거 → 지그재그/스퍼/루프 방지. 출발·도착역은 보존.
+        var pruned = true
+        while (pruned && seq.size > 2) {
+            pruned = false
+            var k = 1
+            while (k < seq.size - 1) {
+                val a = stations[seq[k - 1]]
+                val b = stations[seq[k]]
+                val c = stations[seq[k + 1]]
+                val via = dist(a.lat, a.lng, b.lat, b.lng) + dist(b.lat, b.lng, c.lat, c.lng)
+                val direct = dist(a.lat, a.lng, c.lat, c.lng)
+                if (via > direct + 1200.0) { seq.removeAt(k); pruned = true } else k++
+            }
+        }
+
         // 경유역들을 노선 최단경로로 이어 붙이되, 직전 진행 방향으로 곧장 되돌아가는
         // (역주행) 경유지는 잘못 스냅된 점으로 보고 건너뛴다 → '안 간 역'으로 새는 것 방지.
         val merged = ArrayList<Int>()
