@@ -1431,6 +1431,19 @@ private fun RouteListView(
     // 묶음별 펼침 상태(기본 접힘). 앵커 기록 id로 키.
     val expanded = remember { mutableStateMapOf<String, Boolean>() }
 
+    // 지하철 이동 구간(leg)별 노선·승하차역 요약. leg 인덱스(records[i-1]→records[i])로 키.
+    val subwayLegs = remember(records) { mutableStateMapOf<Int, SubwayRouter.LegInfo>() }
+    LaunchedEffect(records) {
+        for (i in 1 until records.size) {
+            if (!isTransitLeg(i)) continue
+            val info = SubwayRouter.describeLeg(
+                LatLng.from(records[i - 1].latitude, records[i - 1].longitude),
+                LatLng.from(records[i].latitude, records[i].longitude)
+            )
+            if (info != null) subwayLegs[i] = info
+        }
+    }
+
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         itemsIndexed(groups, key = { _, g -> records[g.first].id }) { gi, g ->
             val anchorIndex = g.first
@@ -1450,15 +1463,27 @@ private fun RouteListView(
             // 즐겨찾기면 '집 (실제 주소)'처럼 이름과 주소를 함께 보여 준다.
             val favName = favoriteNameFor(favorites, record.latitude, record.longitude)
             val primaryLabel = if (favName != null) "$favName ($address)" else address
-            // 이전 묶음에서 이 묶음까지의 이동(앵커로 들어오는 leg).
-            val legText = remember(records, anchorIndex) {
+            // 이전 묶음에서 이 묶음까지의 이동(앵커로 들어오는 leg). 거리·시간 계산은
+            // remember로, 지하철 노선 요약은 비동기로 채워지는 subwayLegs에서 덧입힌다.
+            val legBase = remember(records, anchorIndex) {
                 if (anchorIndex == 0) null else {
                     val a = records[anchorIndex - 1]
                     val d = distanceMeters(a.latitude, a.longitude, record.latitude, record.longitude)
                     val dt = (record.timestamp.seconds - a.timestamp.seconds).coerceAtLeast(1L)
                     val transit = d / dt * 3.6 > 25.0 || d > 700.0
-                    if (transit) "🚇 ${formatDistance(d)} 이동"
-                    else "🚶 ${formatDistance(d)} · 약 ${"%,d".format((d / 0.7).roundToInt())}걸음"
+                    val mins = (dt / 60).coerceAtLeast(1L)
+                    Triple(transit, d, mins)
+                }
+            }
+            val legText: String? = legBase?.let { (transit, d, mins) ->
+                val info = subwayLegs[anchorIndex]
+                when {
+                    info != null -> {
+                        val lineLabel = if (info.line.all { it.isDigit() }) "${info.line}호선" else info.line
+                        "🚇 $lineLabel · ${info.from}→${info.to} · ${info.stops}개 역 · ${mins}분"
+                    }
+                    transit -> "🚇 ${formatDistance(d)} 이동 · ${mins}분"
+                    else -> "🚶 도보 ${formatDistance(d)} · ${mins}분"
                 }
             }
 

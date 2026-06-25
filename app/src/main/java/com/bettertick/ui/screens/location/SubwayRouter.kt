@@ -222,4 +222,23 @@ object SubwayRouter {
         val result = merged.map { LatLng.from(stations[it].lat, stations[it].lng) }
         return if (result.size >= 2) result else null
     }
+
+    /** 한 이동 구간(승차 지점~하차 지점)의 지하철 정보: 노선·승차역·하차역·역 수. */
+    data class LegInfo(val line: String, val from: String, val to: String, val stops: Int)
+
+    /** 두 점(승차~하차)을 잇는 지하철 구간 요약. 지하철 구간이 아니면 null. */
+    suspend fun describeLeg(start: LatLng, end: LatLng): LegInfo? {
+        ensureLoaded()
+        if (!loaded) return null
+        val dep = nearestWithin(start.latitude, start.longitude, ENDPOINT_SNAP_M) ?: return null
+        val arr = nearestWithin(end.latitude, end.longitude, ENDPOINT_SNAP_M) ?: return null
+        if (dep == arr) return null
+        val path = shortestPath(dep, arr) ?: return null
+        if (path.size < 2) return null
+        // 경로에서 가장 많이 등장한 노선을 대표 노선으로(환승 시 주 노선).
+        val line = path.map { stations[it].line }
+            .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+            ?: stations[dep].line
+        return LegInfo(line = line, from = stations[dep].name, to = stations[arr].name, stops = path.size - 1)
+    }
 }
