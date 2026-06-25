@@ -1433,14 +1433,18 @@ private fun RouteListView(
 
     // 지하철 이동 구간(leg)별 노선·승하차역 요약. leg 인덱스(records[i-1]→records[i])로 키.
     val subwayLegs = remember(records) { mutableStateMapOf<Int, SubwayRouter.LegInfo>() }
+    // 지하철이 아닌 이동 구간의 추정 버스 번호(OSM 기반, 실험적).
+    val busLegs = remember(records) { mutableStateMapOf<Int, String>() }
     LaunchedEffect(records) {
         for (i in 1 until records.size) {
             if (!isTransitLeg(i)) continue
-            val info = SubwayRouter.describeLeg(
-                LatLng.from(records[i - 1].latitude, records[i - 1].longitude),
-                LatLng.from(records[i].latitude, records[i].longitude)
-            )
-            if (info != null) subwayLegs[i] = info
+            val s = LatLng.from(records[i - 1].latitude, records[i - 1].longitude)
+            val e = LatLng.from(records[i].latitude, records[i].longitude)
+            val info = SubwayRouter.describeLeg(s, e)
+            if (info != null) { subwayLegs[i] = info; continue }
+            // 지하철이 아니면 버스 번호를 추정해 본다.
+            val bus = BusRouter.describeBusLeg(s, e)
+            if (bus != null) busLegs[i] = bus
         }
     }
 
@@ -1477,11 +1481,13 @@ private fun RouteListView(
             }
             val legText: String? = legBase?.let { (transit, d, mins) ->
                 val info = subwayLegs[anchorIndex]
+                val bus = busLegs[anchorIndex]
                 when {
                     info != null -> {
                         val lineLabel = if (info.line.all { it.isDigit() }) "${info.line}호선" else info.line
                         "🚇 $lineLabel · ${info.from}→${info.to} · ${info.stops}개 역 · ${mins}분"
                     }
+                    bus != null -> "🚌 버스 $bus 추정 · ${mins}분"
                     transit -> "🚇 ${formatDistance(d)} 이동 · ${mins}분"
                     else -> "🚶 도보 ${formatDistance(d)} · ${mins}분"
                 }
