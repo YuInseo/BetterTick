@@ -202,25 +202,50 @@ private fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Doubl
     return out[0].toDouble()
 }
 
+// 한 건물의 크기로 보는 반경(m). 가까운 다른 건물을 함께 묶지 않도록 작게 잡는다.
+private const val BUILDING_R = 40.0
+
+/** 건물 단위 체류 한 건: 배지를 띄울 좌표·머문 시간(분)·대표 기록. */
+private class BuildingStay(
+    val lat: Double, val lng: Double, val minutes: Int, val rep: LocationRecord
+)
+
 /**
- * records[startIdx]에 '도착'한 뒤 같은 지점(반경 80m) 안에 연속으로 머문 시간(분).
- *
- * 도착 기록부터 같은 지점 반경 안의 연속 기록을 따라가다, 그 지점을 벗어나는 다음
- * 기록(=이동 시작)의 시각을 머무름의 끝으로 본다. 벗어나는 기록이 없으면(마지막
- * 기록까지 그 지점) 마지막 기록 시각을 끝으로 쓴다.
+ * 연속 기록을 '건물 크기' 반경([BUILDING_R])으로 묶어 건물 단위 체류로 나눈다.
+ * 지역(여러 건물)을 하나로 합치지 않도록 반경을 작게 잡는다. 실제 건물 방문
+ * (isPlace)이나 즐겨찾기를 포함한 묶음만 체류로 본다(이동 중 신호대기 등 제외).
+ * 각 묶음의 (도착~다음 기록=이동 시작) 시간을 분으로 계산한다.
  */
-private fun stayMinutes(records: List<com.bettertick.data.model.LocationRecord>, startIdx: Int): Int {
-    if (startIdx !in records.indices) return 0
-    val a = records[startIdx]
-    var k = startIdx + 1
-    while (k < records.size &&
-        distanceMeters(records[k].latitude, records[k].longitude, a.latitude, a.longitude) <= 80.0) {
-        k++
+private fun buildingStays(
+    records: List<LocationRecord>,
+    favorites: List<FavoritePlace>
+): List<BuildingStay> {
+    val out = ArrayList<BuildingStay>()
+    var i = 0
+    while (i < records.size) {
+        val anchor = records[i]
+        var j = i
+        while (j + 1 < records.size &&
+            distanceMeters(records[j + 1].latitude, records[j + 1].longitude,
+                anchor.latitude, anchor.longitude) <= BUILDING_R) j++
+        // 떠난 시각 = 묶음을 벗어나는 다음 기록(이동 시작), 없으면 묶음 마지막 기록.
+        val endSec = if (j + 1 < records.size) records[j + 1].timestamp.seconds
+        else records[j].timestamp.seconds
+        val mins = ((endSec - anchor.timestamp.seconds) / 60).toInt()
+        val fav = favorites.firstOrNull {
+            distanceMeters(it.latitude, it.longitude, anchor.latitude, anchor.longitude) <= 60.0
+        }
+        val isBuilding = fav != null || (i..j).any { records[it].isPlace }
+        if (isBuilding && mins >= 1) {
+            out.add(BuildingStay(
+                lat = fav?.latitude ?: anchor.latitude,
+                lng = fav?.longitude ?: anchor.longitude,
+                minutes = mins, rep = anchor
+            ))
+        }
+        i = j + 1
     }
-    // k = 지점을 벗어나는 첫 기록(이동 시작) 또는 size. 그 직전까지가 머무름.
-    val endSec = if (k < records.size) records[k].timestamp.seconds
-    else records[k - 1].timestamp.seconds
-    return ((endSec - a.timestamp.seconds) / 60).toInt().coerceAtLeast(0)
+    return out
 }
 
 /** 분을 사람이 읽기 좋게: 90 → "1시간 30분", 45 → "45분". */
@@ -957,20 +982,6 @@ private fun RouteMapView(
                 }
                 if (fav != null) favRepresentative.putIfAbsent(fav.id, record)
             }
-            // 마커 위에 '머문 시간' 배지를 띄운다(>=1분일 때만, 너무 짧은 통과는 생략).
-            fun addDwellBadge(lat: Double, lng: Double, startIdx: Int, tag: LocationRecord) {
-                val mins = stayMinutes(records, startIdx)
-                if (mins < 1) return
-                layer.addLabel(
-                    LabelOptions.from(LatLng.from(lat, lng))
-                        .setStyles(LabelStyles.from(
-                            LabelStyle.from(context.dwellBadgeBitmap(formatDwell(mins)))
-                                .setAnchorPoint(0.5f, 1.0f)
-                        ))
-                        .setTag(tag)
-                )
-            }
-
             favorites.forEach { fav ->
                 val rep = favRepresentative[fav.id] ?: return@forEach
                 layer.addLabel(
@@ -981,10 +992,9 @@ private fun RouteMapView(
                         ))
                         .setTag(rep)
                 )
-                addDwellBadge(fav.latitude, fav.longitude, records.indexOfFirst { it.id == rep.id }, rep)
             }
             // 즐겨찾기에 속하지 않은 '건물 방문' 지점만 깃발로 표시.
-            records.forEachIndexed { idx, record ->
+            records.forEach { record ->
                 val isFavorite = favoriteNameFor(favorites, record.latitude, record.longitude) != null
                 if (!isFavorite && record.isPlace) {
                     // 건물 진입 지점 → 깃발. 깃대 밑동이 좌표에 닿도록.
@@ -996,9 +1006,21 @@ private fun RouteMapView(
                             ))
                             .setTag(record)
                     )
-                    addDwellBadge(record.latitude, record.longitude, idx, record)
                 }
                 // 일반 waypoint(도로 위 점)는 마커를 찍지 않는다.
+            }
+
+            // 머문 시간 배지를 '건물 단위'로 띄운다(지역 단위로 뭉치지 않게).
+            // 가까운 기록을 건물 크기 반경으로만 묶어 건물마다 따로 표시한다.
+            buildingStays(records, favorites).forEach { stay ->
+                layer.addLabel(
+                    LabelOptions.from(LatLng.from(stay.lat, stay.lng))
+                        .setStyles(LabelStyles.from(
+                            LabelStyle.from(context.dwellBadgeBitmap(formatDwell(stay.minutes)))
+                                .setAnchorPoint(0.5f, 1.0f)
+                        ))
+                        .setTag(stay.rep)
+                )
             }
 
             map.setOnLabelClickListener { _, _, label ->
