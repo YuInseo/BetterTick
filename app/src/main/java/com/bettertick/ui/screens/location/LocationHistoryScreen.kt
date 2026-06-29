@@ -203,6 +203,65 @@ private fun distanceMeters(lat1: Double, lng1: Double, lat2: Double, lng2: Doubl
 }
 
 /**
+ * records[startIdx]에 '도착'한 뒤 같은 지점(반경 80m) 안에 연속으로 머문 시간(분).
+ *
+ * 도착 기록부터 같은 지점 반경 안의 연속 기록을 따라가다, 그 지점을 벗어나는 다음
+ * 기록(=이동 시작)의 시각을 머무름의 끝으로 본다. 벗어나는 기록이 없으면(마지막
+ * 기록까지 그 지점) 마지막 기록 시각을 끝으로 쓴다.
+ */
+private fun stayMinutes(records: List<com.bettertick.data.model.LocationRecord>, startIdx: Int): Int {
+    if (startIdx !in records.indices) return 0
+    val a = records[startIdx]
+    var k = startIdx + 1
+    while (k < records.size &&
+        distanceMeters(records[k].latitude, records[k].longitude, a.latitude, a.longitude) <= 80.0) {
+        k++
+    }
+    // k = 지점을 벗어나는 첫 기록(이동 시작) 또는 size. 그 직전까지가 머무름.
+    val endSec = if (k < records.size) records[k].timestamp.seconds
+    else records[k - 1].timestamp.seconds
+    return ((endSec - a.timestamp.seconds) / 60).toInt().coerceAtLeast(0)
+}
+
+/** 분을 사람이 읽기 좋게: 90 → "1시간 30분", 45 → "45분". */
+private fun formatDwell(mins: Int): String {
+    if (mins < 60) return "${mins}분"
+    val h = mins / 60
+    val m = mins % 60
+    return if (m == 0) "${h}시간" else "${h}시간 ${m}분"
+}
+
+/**
+ * 머문 시간 배지(알약) — 마커 위에 떠서 "25분"처럼 표시한다. 아래쪽에 투명 여백
+ * (spacer)을 둬서 앵커(0.5,1.0)를 좌표에 두면 배지가 아이콘 위로 떠오른다.
+ */
+private fun Context.dwellBadgeBitmap(text: String): Bitmap {
+    val d = resources.displayMetrics.density
+    val fontPx = 11f * d
+    val padH = 7f * d
+    val padV = 3f * d
+    val spacer = 34f * d  // 좌표 위로 띄울 투명 여백(깃발/별 아이콘 위에 뜨도록)
+    val tp = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFFFFF.toInt(); textSize = fontPx
+        typeface = android.graphics.Typeface.DEFAULT_BOLD
+        textAlign = Paint.Align.LEFT
+    }
+    val fm = tp.fontMetrics
+    val textW = tp.measureText(text)
+    val pillW = textW + padH * 2
+    val pillH = (fm.descent - fm.ascent) + padV * 2
+    val w = Math.ceil(pillW.toDouble()).toInt().coerceAtLeast(1)
+    val h = Math.ceil((pillH + spacer).toDouble()).toInt().coerceAtLeast(1)
+    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+    val cv = Canvas(bmp)
+    val r = pillH / 2
+    cv.drawRoundRect(0f, 0f, pillW, pillH, r, r,
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xE6121417.toInt() })
+    cv.drawText(text, padH, padV - fm.ascent, tp)
+    return bmp
+}
+
+/**
  * Chaikin 코너 컷팅으로 꺾인 폴리라인을 부드럽게 만들되, 원래 선에서 최대
  * [maxCutM] 미터까지만 벗어나도록 컷 비율을 제한한다. 이렇게 하면 긴 직선
  * 구간(예: 도로 라우팅 실패 시 역-역 직선)은 거의 직선으로 유지되고, 코너
@@ -898,6 +957,20 @@ private fun RouteMapView(
                 }
                 if (fav != null) favRepresentative.putIfAbsent(fav.id, record)
             }
+            // 마커 위에 '머문 시간' 배지를 띄운다(>=1분일 때만, 너무 짧은 통과는 생략).
+            fun addDwellBadge(lat: Double, lng: Double, startIdx: Int, tag: LocationRecord) {
+                val mins = stayMinutes(records, startIdx)
+                if (mins < 1) return
+                layer.addLabel(
+                    LabelOptions.from(LatLng.from(lat, lng))
+                        .setStyles(LabelStyles.from(
+                            LabelStyle.from(context.dwellBadgeBitmap(formatDwell(mins)))
+                                .setAnchorPoint(0.5f, 1.0f)
+                        ))
+                        .setTag(tag)
+                )
+            }
+
             favorites.forEach { fav ->
                 val rep = favRepresentative[fav.id] ?: return@forEach
                 layer.addLabel(
@@ -908,9 +981,10 @@ private fun RouteMapView(
                         ))
                         .setTag(rep)
                 )
+                addDwellBadge(fav.latitude, fav.longitude, records.indexOfFirst { it.id == rep.id }, rep)
             }
             // 즐겨찾기에 속하지 않은 '건물 방문' 지점만 깃발로 표시.
-            records.forEach { record ->
+            records.forEachIndexed { idx, record ->
                 val isFavorite = favoriteNameFor(favorites, record.latitude, record.longitude) != null
                 if (!isFavorite && record.isPlace) {
                     // 건물 진입 지점 → 깃발. 깃대 밑동이 좌표에 닿도록.
@@ -922,6 +996,7 @@ private fun RouteMapView(
                             ))
                             .setTag(record)
                     )
+                    addDwellBadge(record.latitude, record.longitude, idx, record)
                 }
                 // 일반 waypoint(도로 위 점)는 마커를 찍지 않는다.
             }
