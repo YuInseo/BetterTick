@@ -986,12 +986,14 @@ private fun RouteMapView(
             // 라우팅(역들을 따라). 둘 다 실패 시 직선으로 폴백.
             val drawn = runs.map { (transit, _, pts) ->
                 if (transit) {
-                    // 지하철: 실제 지나간 역들을 잇고 코너만 살짝 둥글게.
-                    // 자동차 길찾기(KakaoRouter)는 안 다닌 길로 우회·커브를 만들어
-                    // '안 간 곳'으로 선이 새므로 쓰지 않는다. 인접 역끼리는 직선이
-                    // 실제 선로와 거의 같다. 라우팅 실패 시 직선으로 폴백.
+                    // 지하철: 실제 지나간 역들을 노선 순서로 잇고(routeVia), 그 역
+                    // 좌표열을 OSM 실제 선로 모양에 맞춰 곡선으로 따라가게 한다
+                    // (SubwayTrackRouter). 선로 추종이 되면 이미 선로 곡선이라 그대로
+                    // 쓰고, 실패하면 역 직선을 코너만 살짝 둥글려 폴백한다.
+                    // (자동차 길찾기는 안 다닌 길로 새므로 쓰지 않는다.)
                     val sub = SubwayRouter.routeVia(pts)
-                    smoothCorners(sub ?: pts)
+                    val track = sub?.let { SubwayTrackRouter.follow(it) }
+                    track ?: smoothCorners(sub ?: pts)
                 } else {
                     // 도보: 기록된 GPS 점을 도로망에 맵매칭(OSRM)해 실제 걸은 길에
                     // 맞춘다. 자동차 길찾기는 보행 불가 도로로 우회해 안 간 곳으로
