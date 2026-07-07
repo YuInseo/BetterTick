@@ -335,6 +335,46 @@ private fun favoriteNameFor(
     return best
 }
 
+// GPS 스파이크 판정: 직전 기록에서 이 거리(m) 넘게 벗어났다가
+private const val SPIKE_OUT_M = 150.0
+// 이 거리(m) 안으로 곧장 되돌아오면 실제 이동이 아닌 GPS 점프로 본다.
+private const val SPIKE_RETURN_M = 80.0
+// 스파이크로 볼 최대 연속 점 개수. 이보다 길게 이어지면 실제 이동으로 둔다.
+private const val SPIKE_MAX_POINTS = 3
+
+/**
+ * GPS 튐으로 경로가 삐져나오는 스파이크를 제거한다. 어떤 점(들)이 직전 기록에서
+ * 멀리([SPIKE_OUT_M]) 벗어났다가 곧바로 원위치 근처([SPIKE_RETURN_M])로 되돌아오면
+ * 실제 이동이 아니라 실내·건물 진출입 시 위치 재획득 과정의 점프로 보고 버린다.
+ * 실제 방문(isPlace)이나 즐겨찾기 근처 점은 진짜 들른 곳일 수 있으니 지우지 않는다.
+ */
+private fun removeGpsSpikes(
+    records: List<LocationRecord>,
+    favorites: List<FavoritePlace>
+): List<LocationRecord> {
+    if (records.size < 3) return records
+    val out = ArrayList<LocationRecord>(records.size)
+    var i = 0
+    while (i < records.size) {
+        val base = records[i]
+        out.add(base)
+        // base에서 SPIKE_OUT_M 넘게 벗어난 연속 waypoint 구간의 끝(k)을 찾는다.
+        var k = i + 1
+        while (k < records.size && k - i <= SPIKE_MAX_POINTS &&
+            !records[k].isPlace &&
+            favoriteNameFor(favorites, records[k].latitude, records[k].longitude) == null &&
+            distanceMeters(records[k].latitude, records[k].longitude,
+                base.latitude, base.longitude) > SPIKE_OUT_M
+        ) k++
+        // 1개 이상 벗어났다가 base 근처로 되돌아왔으면 그 사이를 통째로 버린다.
+        i = if (k > i + 1 && k < records.size &&
+            distanceMeters(records[k].latitude, records[k].longitude,
+                base.latitude, base.longitude) <= SPIKE_RETURN_M
+        ) k else i + 1
+    }
+    return out
+}
+
 private val COORD_PATTERN = Regex("^-?\\d+\\.\\d+,\\s*-?\\d+\\.\\d+$")
 
 private suspend fun resolveAddress(context: Context, record: LocationRecord): String {
@@ -445,9 +485,11 @@ fun LocationHistoryScreen(
     // 즐겨찾기 필터 — 켜면 즐겨찾기된 위치 기록만 보여준다.
     var favoritesOnly by remember { mutableStateOf(false) }
     val displayedRecords = remember(records, favorites, favoritesOnly) {
+        // GPS 점프(스파이크)로 경로가 안 간 곳으로 삐져나오는 점을 걸러낸다.
+        val cleaned = removeGpsSpikes(records, favorites)
         if (favoritesOnly) {
-            records.filter { favoriteNameFor(favorites, it.latitude, it.longitude) != null }
-        } else records
+            cleaned.filter { favoriteNameFor(favorites, it.latitude, it.longitude) != null }
+        } else cleaned
     }
 
     // 현재 위치 점/줌이 동작하려면 런타임 위치 권한이 필요하다. 없으면 화면
@@ -494,7 +536,7 @@ fun LocationHistoryScreen(
                     result.lastLocation?.let {
                         currentLocation = LatLng.from(it.latitude, it.longitude)
                         // 화면을 보는 동안 이동을 바로 기록 → 경로가 실시간으로 쌓임.
-                        viewModel.recordWaypointIfMoved(it.latitude, it.longitude)
+                        viewModel.recordWaypointIfMoved(it.latitude, it.longitude, it.accuracy)
                     }
                 }
             }

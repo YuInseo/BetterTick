@@ -44,7 +44,10 @@ class LocationHistoryViewModel @Inject constructor(
     private var lastLat = 0.0
     private var lastLng = 0.0
     private var lastWriteMs = 0L
-    fun recordWaypointIfMoved(lat: Double, lng: Double) {
+    fun recordWaypointIfMoved(lat: Double, lng: Double, accuracyM: Float = 0f) {
+        // 정확도가 낮은 위치(실내 셀/Wi-Fi 추정 등)는 기록하지 않는다 —
+        // 수백 m씩 튀어 경로가 안 간 곳으로 삐져나오는 주범.
+        if (accuracyM > 50f) return
         // 최소 시간 간격(4초) 스로틀 — 빠른 이동/GPS 튐으로 쓰기가 폭주해 무료
         // 한도를 갉아먹는 것을 막는다(걷기 20m는 보통 이 간격 안에 안 넘음).
         val now = System.currentTimeMillis()
@@ -52,7 +55,8 @@ class LocationHistoryViewModel @Inject constructor(
         if (lastLat != 0.0 || lastLng != 0.0) {
             val out = FloatArray(1)
             android.location.Location.distanceBetween(lastLat, lastLng, lat, lng, out)
-            if (out[0] < 20f) return
+            // 이동 거리가 위치 오차 반경보다 작으면 실제 이동으로 볼 수 없다.
+            if (out[0] < 20f || out[0] < accuracyM) return
         }
         lastLat = lat; lastLng = lng
         lastWriteMs = now
