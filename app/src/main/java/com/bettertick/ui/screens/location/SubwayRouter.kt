@@ -223,8 +223,14 @@ object SubwayRouter {
         return if (result.size >= 2) result else null
     }
 
-    /** 한 이동 구간(승차 지점~하차 지점)의 지하철 정보: 노선·승차역·하차역·역 수. */
-    data class LegInfo(val line: String, val from: String, val to: String, val stops: Int)
+    /**
+     * 한 이동 구간(승차 지점~하차 지점)의 지하철 정보: 노선·승차역·하차역·역 수.
+     * [stations]는 기록 좌표로 계산한 '지나간 역' 전체 이름 순서열(승차역~하차역).
+     */
+    data class LegInfo(
+        val line: String, val from: String, val to: String, val stops: Int,
+        val stations: List<String> = emptyList()
+    )
 
     /** 두 점(승차~하차)을 잇는 지하철 구간 요약. 지하철 구간이 아니면 null. */
     suspend fun describeLeg(start: LatLng, end: LatLng): LegInfo? {
@@ -239,6 +245,16 @@ object SubwayRouter {
         val line = path.map { stations[it].line }
             .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
             ?: stations[dep].line
-        return LegInfo(line = line, from = stations[dep].name, to = stations[arr].name, stops = path.size - 1)
+        // 지나간 역 이름 순서열. 환승 간선(같은 이름 역이 연속)은 하나로 접어
+        // 실제 정차/통과한 역만 남긴다 → 역 수도 이 기준으로 센다.
+        val names = ArrayList<String>()
+        path.forEach { idx ->
+            val n = stations[idx].name
+            if (names.lastOrNull() != n) names.add(n)
+        }
+        return LegInfo(
+            line = line, from = stations[dep].name, to = stations[arr].name,
+            stops = names.size - 1, stations = names
+        )
     }
 }

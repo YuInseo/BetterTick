@@ -1123,6 +1123,8 @@ private fun RouteMapView(
             }
             // 걷기 구간은 도로망에 스냅, 지하철/이동수단 구간은 지하철 노선으로
             // 라우팅(역들을 따라). 둘 다 실패 시 직선으로 폴백.
+            // 지하철 run에서 계산된 '지나간 역' 좌표는 모아서 점으로 표시한다.
+            val passedStations = ArrayList<LatLng>()
             val drawn = runs.map { (transit, _, pts) ->
                 if (transit) {
                     // 지하철: 실제 지나간 역들을 노선 순서로 잇고(routeVia), 그 역
@@ -1131,6 +1133,7 @@ private fun RouteMapView(
                     // 쓰고, 실패하면 역 직선을 코너만 살짝 둥글려 폴백한다.
                     // (자동차 길찾기는 안 다닌 길로 새므로 쓰지 않는다.)
                     val sub = SubwayRouter.routeVia(pts)
+                    if (sub != null) passedStations.addAll(sub)
                     val track = sub?.let { SubwayTrackRouter.follow(it) }
                     track ?: smoothCorners(sub ?: pts)
                 } else {
@@ -1153,6 +1156,18 @@ private fun RouteMapView(
                 map.routeLineManager?.layer?.addRouteLine(
                     RouteLineOptions.from(listOf(RouteLineSegment.from(pts).setStyles(styles.getStyles(0))))
                 )
+            }
+            // 지나간 역 통과 지점 표시 — 지하철 선 위에 작은 파란 점.
+            markerLayerRef.value?.let { layer ->
+                passedStations.forEach { st ->
+                    layer.addLabel(
+                        LabelOptions.from(st)
+                            .setStyles(LabelStyles.from(
+                                LabelStyle.from(context.dotBitmap(0xFF2196F3.toInt(), 10f))
+                                    .setAnchorPoint(0.5f, 0.5f)
+                            ))
+                    )
+                }
             }
         }
     }
@@ -1687,6 +1702,18 @@ private fun RouteListView(
                     if (legText != null) {
                         Spacer(Modifier.height(3.dp))
                         Text(legText, color = legColor(anchorIndex), fontSize = 12.sp)
+                    }
+                    // 기록된 좌표로 계산한 '지나간 역' 전체 순서(중간 경유역 포함).
+                    // 중간역이 있을 때(3개 역 이상)만 한 줄 더 보여준다.
+                    val viaStations = subwayLegs[anchorIndex]?.stations?.takeIf { it.size >= 3 }
+                    if (viaStations != null) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            viaStations.joinToString(" → "),
+                            color = TextTertiary,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
                     }
                     // 같은 위치 묶음이면 펼치기/접기 토글 + (펼치면) 개별 기록 시각.
                     if (groupSize > 1) {
