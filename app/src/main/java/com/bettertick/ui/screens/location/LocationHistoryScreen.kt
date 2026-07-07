@@ -335,6 +335,46 @@ private fun favoriteNameFor(
     return best
 }
 
+// GPS 스파이크 판정: 직전 기록에서 이 거리(m) 넘게 벗어났다가
+private const val SPIKE_OUT_M = 150.0
+// 이 거리(m) 안으로 곧장 되돌아오면 실제 이동이 아닌 GPS 점프로 본다.
+private const val SPIKE_RETURN_M = 80.0
+// 스파이크로 볼 최대 연속 점 개수. 이보다 길게 이어지면 실제 이동으로 둔다.
+private const val SPIKE_MAX_POINTS = 3
+
+/**
+ * GPS 튐으로 경로가 삐져나오는 스파이크를 제거한다. 어떤 점(들)이 직전 기록에서
+ * 멀리([SPIKE_OUT_M]) 벗어났다가 곧바로 원위치 근처([SPIKE_RETURN_M])로 되돌아오면
+ * 실제 이동이 아니라 실내·건물 진출입 시 위치 재획득 과정의 점프로 보고 버린다.
+ * 실제 방문(isPlace)이나 즐겨찾기 근처 점은 진짜 들른 곳일 수 있으니 지우지 않는다.
+ */
+private fun removeGpsSpikes(
+    records: List<LocationRecord>,
+    favorites: List<FavoritePlace>
+): List<LocationRecord> {
+    if (records.size < 3) return records
+    val out = ArrayList<LocationRecord>(records.size)
+    var i = 0
+    while (i < records.size) {
+        val base = records[i]
+        out.add(base)
+        // base에서 SPIKE_OUT_M 넘게 벗어난 연속 waypoint 구간의 끝(k)을 찾는다.
+        var k = i + 1
+        while (k < records.size && k - i <= SPIKE_MAX_POINTS &&
+            !records[k].isPlace &&
+            favoriteNameFor(favorites, records[k].latitude, records[k].longitude) == null &&
+            distanceMeters(records[k].latitude, records[k].longitude,
+                base.latitude, base.longitude) > SPIKE_OUT_M
+        ) k++
+        // 1개 이상 벗어났다가 base 근처로 되돌아왔으면 그 사이를 통째로 버린다.
+        i = if (k > i + 1 && k < records.size &&
+            distanceMeters(records[k].latitude, records[k].longitude,
+                base.latitude, base.longitude) <= SPIKE_RETURN_M
+        ) k else i + 1
+    }
+    return out
+}
+
 private val COORD_PATTERN = Regex("^-?\\d+\\.\\d+,\\s*-?\\d+\\.\\d+$")
 
 private suspend fun resolveAddress(context: Context, record: LocationRecord): String {
@@ -445,9 +485,11 @@ fun LocationHistoryScreen(
     // 즐겨찾기 필터 — 켜면 즐겨찾기된 위치 기록만 보여준다.
     var favoritesOnly by remember { mutableStateOf(false) }
     val displayedRecords = remember(records, favorites, favoritesOnly) {
+        // GPS 점프(스파이크)로 경로가 안 간 곳으로 삐져나오는 점을 걸러낸다.
+        val cleaned = removeGpsSpikes(records, favorites)
         if (favoritesOnly) {
-            records.filter { favoriteNameFor(favorites, it.latitude, it.longitude) != null }
-        } else records
+            cleaned.filter { favoriteNameFor(favorites, it.latitude, it.longitude) != null }
+        } else cleaned
     }
 
     // 현재 위치 점/줌이 동작하려면 런타임 위치 권한이 필요하다. 없으면 화면
@@ -494,7 +536,7 @@ fun LocationHistoryScreen(
                     result.lastLocation?.let {
                         currentLocation = LatLng.from(it.latitude, it.longitude)
                         // 화면을 보는 동안 이동을 바로 기록 → 경로가 실시간으로 쌓임.
-                        viewModel.recordWaypointIfMoved(it.latitude, it.longitude)
+                        viewModel.recordWaypointIfMoved(it.latitude, it.longitude, it.accuracy)
                     }
                 }
             }
@@ -1081,6 +1123,8 @@ private fun RouteMapView(
             }
             // 걷기 구간은 도로망에 스냅, 지하철/이동수단 구간은 지하철 노선으로
             // 라우팅(역들을 따라). 둘 다 실패 시 직선으로 폴백.
+            // 지하철 run에서 계산된 '지나간 역' 좌표는 모아서 점으로 표시한다.
+            val passedStations = ArrayList<LatLng>()
             val drawn = runs.map { (transit, _, pts) ->
                 if (transit) {
                     // 지하철: 실제 지나간 역들을 노선 순서로 잇고(routeVia), 그 역
@@ -1089,6 +1133,7 @@ private fun RouteMapView(
                     // 쓰고, 실패하면 역 직선을 코너만 살짝 둥글려 폴백한다.
                     // (자동차 길찾기는 안 다닌 길로 새므로 쓰지 않는다.)
                     val sub = SubwayRouter.routeVia(pts)
+                    if (sub != null) passedStations.addAll(sub)
                     val track = sub?.let { SubwayTrackRouter.follow(it) }
                     track ?: smoothCorners(sub ?: pts)
                 } else {
@@ -1111,6 +1156,18 @@ private fun RouteMapView(
                 map.routeLineManager?.layer?.addRouteLine(
                     RouteLineOptions.from(listOf(RouteLineSegment.from(pts).setStyles(styles.getStyles(0))))
                 )
+            }
+            // 지나간 역 통과 지점 표시 — 지하철 선 위에 작은 파란 점.
+            markerLayerRef.value?.let { layer ->
+                passedStations.forEach { st ->
+                    layer.addLabel(
+                        LabelOptions.from(st)
+                            .setStyles(LabelStyles.from(
+                                LabelStyle.from(context.dotBitmap(0xFF2196F3.toInt(), 10f))
+                                    .setAnchorPoint(0.5f, 0.5f)
+                            ))
+                    )
+                }
             }
         }
     }
@@ -1645,6 +1702,18 @@ private fun RouteListView(
                     if (legText != null) {
                         Spacer(Modifier.height(3.dp))
                         Text(legText, color = legColor(anchorIndex), fontSize = 12.sp)
+                    }
+                    // 기록된 좌표로 계산한 '지나간 역' 전체 순서(중간 경유역 포함).
+                    // 중간역이 있을 때(3개 역 이상)만 한 줄 더 보여준다.
+                    val viaStations = subwayLegs[anchorIndex]?.stations?.takeIf { it.size >= 3 }
+                    if (viaStations != null) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            viaStations.joinToString(" → "),
+                            color = TextTertiary,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
                     }
                     // 같은 위치 묶음이면 펼치기/접기 토글 + (펼치면) 개별 기록 시각.
                     if (groupSize > 1) {

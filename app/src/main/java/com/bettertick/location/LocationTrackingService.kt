@@ -57,6 +57,9 @@ class LocationTrackingService : Service() {
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             val loc = result.lastLocation ?: return
+            // 정확도가 낮은 위치(실내 셀 기지국 추정 등)는 버린다 — 수백 m씩
+            // 튀는 점이 waypoint로 저장돼 경로가 안 간 곳으로 삐져나온다.
+            if (loc.hasAccuracy() && loc.accuracy > MAX_ACCURACY_M) return
             val lat = loc.latitude
             val lng = loc.longitude
             val now = System.currentTimeMillis()
@@ -232,6 +235,9 @@ class LocationTrackingService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
+        // 위치 오차가 이보다 크면(m) 기록에 쓰지 않는다. BALANCED 모드의
+        // Wi-Fi 기반 위치(~50m)는 통과, 셀 기지국 기반(수백 m)은 차단.
+        private const val MAX_ACCURACY_M = 100f
         // 이 반경(m) 안에 머물면 같은 장소로 간주.
         private const val DWELL_RADIUS_M = 45.0
         // 같은 장소에 이만큼(ms) 이상 머물면 "건물 진입"으로 보고 깃발.
