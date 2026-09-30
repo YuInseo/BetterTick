@@ -230,6 +230,18 @@ fun TaskDatePickerSheet(
                         repeatEnd = RepeatEnd.Never
                     },
                     onRepeatEndClear = { repeatEnd = RepeatEnd.Never },
+                    onRepeatUntil = { until ->
+                        if (until != null) {
+                            // Keep a rule the user already chose; otherwise
+                            // repeat the block every day up to [until].
+                            if (repeatChoice is RepeatChoice.None) repeatChoice = RepeatChoice.Daily
+                            repeatEnd = RepeatEnd.ByDate(until)
+                        } else {
+                            // Picked the start day itself → single block.
+                            if (repeatChoice is RepeatChoice.Daily) repeatChoice = RepeatChoice.None
+                            repeatEnd = RepeatEnd.Never
+                        }
+                    },
                     advanced = durationAdvanced,
                     onAdvancedChange = { durationAdvanced = it }
                 )
@@ -368,11 +380,13 @@ fun TaskDatePickerSheet(
 
 /**
  * Calendar-only dialog opened from the 지속 시간 tab's date card. Same
- * month nav + grid as the 날짜 tab, without tabs or option rows.
+ * month nav + grid as the 날짜 tab, without tabs or option rows. Dates
+ * before [minDate] are dimmed and not selectable.
  */
 @Composable
 internal fun DateOnlyCalendarDialog(
     initialDate: LocalDate,
+    minDate: LocalDate? = null,
     onDismiss: () -> Unit,
     onConfirm: (LocalDate) -> Unit
 ) {
@@ -406,7 +420,8 @@ internal fun DateOnlyCalendarDialog(
             DateGrid(
                 month = visibleMonth,
                 selected = selectedDate,
-                onSelect = { selectedDate = it }
+                onSelect = { selectedDate = it },
+                minDate = minDate
             )
 
             Spacer(Modifier.height(16.dp))
@@ -525,7 +540,8 @@ private fun DayOfWeekHeader() {
 private fun DateGrid(
     month: YearMonth,
     selected: LocalDate,
-    onSelect: (LocalDate) -> Unit
+    onSelect: (LocalDate) -> Unit,
+    minDate: LocalDate? = null
 ) {
     val firstDay = month.atDay(1)
     val startOffset = firstDay.dayOfWeek.value % 7 // Sun=0
@@ -547,9 +563,11 @@ private fun DateGrid(
                     ) {
                         if (dayNum in 1..daysInMonth) {
                             val date = month.atDay(dayNum)
+                            val enabled = minDate == null || !date.isBefore(minDate)
                             DateCell(
                                 day = dayNum,
                                 selected = date == selected,
+                                enabled = enabled,
                                 onClick = { onSelect(date) }
                             )
                         }
@@ -564,6 +582,7 @@ private fun DateGrid(
 private fun DateCell(
     day: Int,
     selected: Boolean,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Box(
@@ -573,13 +592,13 @@ private fun DateCell(
             .then(
                 if (selected) Modifier.background(MaterialTheme.colorScheme.primary) else Modifier
             )
-            .clickable { onClick() },
+            .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = day.toString(),
             fontSize = 16.sp,
-            color = Color.White,
+            color = if (enabled) Color.White else TextTertiary,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }
