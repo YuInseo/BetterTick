@@ -97,6 +97,10 @@ fun DurationContent(
     onAlarmClear: () -> Unit,
     onRepeatClear: () -> Unit,
     onRepeatEndClear: () -> Unit,
+    // 날짜 card → calendar: the picked date is the last day the block runs
+    // (start stays put; the block repeats daily through that date). null
+    // means the user picked the start day itself, i.e. no repetition.
+    onRepeatUntil: (LocalDate?) -> Unit,
     // Lifted so the parent sheet can hide its own tab row / footer chrome
     // while the wheel-picker advanced view is open — otherwise 날짜/지속시간
     // tabs bleed through above the 시작/끝 advanced UI.
@@ -145,16 +149,15 @@ fun DurationContent(
     }
 
     if (showDateCalendar) {
-        // Calendar-only picker for the 날짜 card. Moving the start date
-        // shifts start and end together so the span is preserved.
+        // Calendar-only picker for the 날짜 card. The picked date is an
+        // "until" date — the same time block repeats every day through it.
+        val startDate = startDateTime.toLocalDate()
         DateOnlyCalendarDialog(
-            initialDate = startDateTime.toLocalDate(),
+            initialDate = (repeatEnd as? RepeatEnd.ByDate)?.date ?: startDate,
+            minDate = startDate,
             onDismiss = { showDateCalendar = false },
             onConfirm = { date ->
-                val days = java.time.temporal.ChronoUnit.DAYS
-                    .between(startDateTime.toLocalDate(), date)
-                onStartChange(startDateTime.plusDays(days))
-                onEndChange(endDateTime.plusDays(days))
+                onRepeatUntil(if (date.isAfter(startDate)) date else null)
                 showDateCalendar = false
             }
         )
@@ -203,13 +206,13 @@ private fun SimpleDurationView(
         if (isAllDay) {
             AllDayCardsRow(
                 startDate = startDateTime.toLocalDate(),
-                endDate = endDateTime.toLocalDate(),
-                onStartDateClick = onDateCardClick
+                endDate = endDateTime.toLocalDate()
             )
         } else {
             DateTimeCardsRow(
                 startDateTime = startDateTime,
                 endDateTime = endDateTime,
+                repeatUntil = (repeatEnd as? RepeatEnd.ByDate)?.date,
                 onDateCardClick = onDateCardClick,
                 onTimeCardClick = onTimeCardClick
             )
@@ -268,6 +271,7 @@ private fun SimpleDurationView(
 private fun DateTimeCardsRow(
     startDateTime: LocalDateTime,
     endDateTime: LocalDateTime,
+    repeatUntil: LocalDate?,
     onDateCardClick: () -> Unit,
     onTimeCardClick: () -> Unit
 ) {
@@ -276,6 +280,7 @@ private fun DateTimeCardsRow(
     Row(modifier = Modifier.fillMaxWidth()) {
         DurationCard(
             primary = formatKoreanDateWithDay(startDateTime.toLocalDate()),
+            secondary = repeatUntil?.let { "~ ${formatKoreanDateWithDay(it)}까지 반복" },
             onClick = onDateCardClick,
             modifier = Modifier
                 .weight(1f)
@@ -296,14 +301,12 @@ private fun DateTimeCardsRow(
 @Composable
 private fun AllDayCardsRow(
     startDate: LocalDate,
-    endDate: LocalDate,
-    onStartDateClick: () -> Unit
+    endDate: LocalDate
 ) {
     val days = (java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1).coerceAtLeast(1)
     Row(modifier = Modifier.fillMaxWidth()) {
         DurationCard(
             primary = formatKoreanDateWithDay(startDate),
-            onClick = onStartDateClick,
             modifier = Modifier
                 .weight(1f)
                 .height(78.dp)
