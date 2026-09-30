@@ -366,6 +366,80 @@ fun TaskDatePickerSheet(
     }
 }
 
+/**
+ * Calendar-only dialog opened from the 지속 시간 tab's date card. Same
+ * month nav + grid as the 날짜 tab, without tabs or option rows.
+ */
+@Composable
+internal fun DateOnlyCalendarDialog(
+    initialDate: LocalDate,
+    onDismiss: () -> Unit,
+    onConfirm: (LocalDate) -> Unit
+) {
+    var selectedDate by remember { mutableStateOf(initialDate) }
+    var visibleMonth by remember { mutableStateOf(YearMonth.from(initialDate)) }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(DarkSurface)
+                .padding(horizontal = 20.dp, vertical = 20.dp)
+        ) {
+            MonthNav(
+                month = visibleMonth,
+                onPrev = { visibleMonth = visibleMonth.minusMonths(1) },
+                onNext = { visibleMonth = visibleMonth.plusMonths(1) }
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            DayOfWeekHeader()
+
+            Spacer(Modifier.height(4.dp))
+
+            DateGrid(
+                month = visibleMonth,
+                selected = selectedDate,
+                onSelect = { selectedDate = it }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Spacer(Modifier.weight(1f))
+                Text(
+                    text = "취소",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable { onDismiss() }
+                        .padding(vertical = 8.dp, horizontal = 12.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "확인",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .clickable { onConfirm(selectedDate) }
+                        .padding(vertical = 8.dp, horizontal = 12.dp)
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun TabRow(
     selected: DateTab,
