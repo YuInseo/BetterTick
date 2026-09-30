@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.Composable
@@ -563,18 +563,24 @@ private fun MainContent(
             }
 
             // 설정(more)·동선(location) 화면에선 할일 추가 + 버튼을 띄우지 않는다.
-            if (isTabRoute && currentRoute != "location" && currentRoute != "more") {
+            // 습관 탭은 자체 '습관 추가' 플로팅 버튼이 같은 자리에 있어 제외.
+            // 오른쪽 아래, 하단 네비게이션 바 바로 위에 떠 있는 플로팅 버튼.
+            if (isTabRoute && currentRoute != "location" && currentRoute != "more" &&
+                currentRoute != BottomNavItem.Habits.route
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .statusBarsPadding()
-                        .padding(end = 16.dp, top = 8.dp),
-                    contentAlignment = Alignment.TopEnd
+                        .padding(paddingValues)
+                        .padding(end = 16.dp, bottom = 16.dp),
+                    contentAlignment = Alignment.BottomEnd
                 ) {
                     AppActionButton(
                         icon = Icons.Default.Add,
                         contentDescription = "추가",
-                        onClick = { showTaskInput = true }
+                        onClick = { showTaskInput = true },
+                        size = 56.dp,
+                        modifier = Modifier.shadow(6.dp, RoundedCornerShape(12.dp))
                     )
                 }
             }
