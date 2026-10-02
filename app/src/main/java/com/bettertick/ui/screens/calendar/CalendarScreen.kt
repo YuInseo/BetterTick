@@ -36,7 +36,6 @@ import androidx.compose.material.icons.outlined.Label
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.MoreVert
-import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.outlined.MoveToInbox
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
@@ -91,7 +90,6 @@ import com.bettertick.ui.screens.calendar.components.ActiveDrag
 import com.bettertick.ui.screens.calendar.components.ListCalendarView
 import com.bettertick.ui.screens.calendar.components.ScrollableMonthCalendar
 import com.bettertick.ui.screens.calendar.components.SelectedDatePanel
-import com.bettertick.ui.screens.calendar.components.ShiftRotationDialog
 import com.bettertick.ui.screens.calendar.components.TaskDateLookup
 import com.bettertick.ui.screens.calendar.components.WeekRow
 import com.bettertick.ui.screens.calendar.components.WeekTimelineView
@@ -160,7 +158,6 @@ fun CalendarScreen(
     var viewMode by remember { mutableStateOf(CalendarViewMode.MONTH) }
     var showViewModeMenu by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
-    var shiftDetection by remember { mutableStateOf<com.bettertick.data.model.ShiftDetection?>(null) }
 
     var hourHeight by remember { mutableStateOf(52.dp) }
     val minHourHeight = 32.dp
@@ -284,16 +281,6 @@ fun CalendarScreen(
                         expanded = showMoreMenu,
                         onDismissRequest = { showMoreMenu = false }
                     ) {
-                        DropdownMenuItem(
-                            text = { Text("근무 패턴 반복") },
-                            onClick = {
-                                showMoreMenu = false
-                                shiftDetection = viewModel.detectShiftRotation(
-                                    selectedDate ?: java.time.LocalDate.now()
-                                )
-                            },
-                            leadingIcon = { Icon(Icons.Outlined.Repeat, null, modifier = Modifier.size(20.dp)) }
-                        )
                         DropdownMenuItem(
                             text = { Text("필터 보기 범위") },
                             onClick = { showMoreMenu = false },
@@ -573,17 +560,6 @@ fun CalendarScreen(
                 }
             }
         }
-    }
-
-    shiftDetection?.let { detection ->
-        ShiftRotationDialog(
-            detection = detection,
-            onDismiss = { shiftDetection = null },
-            onApply = { start, pattern, end ->
-                viewModel.applyShiftRotation(start, pattern, detection.run, end)
-                shiftDetection = null
-            }
-        )
     }
 
     selectedTask?.let { task ->

@@ -1,4 +1,4 @@
-package com.bettertick.ui.screens.calendar.components
+package com.bettertick.ui.screens.tasks.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
