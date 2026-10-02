@@ -78,7 +78,9 @@ fun TaskDatePickerSheet(
     initialRepeatEnd: RepeatEnd = RepeatEnd.Never,
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
-    onConfirm: (LocalDate, LocalTime?, Int, RepeatChoice, RepeatEnd) -> Unit
+    onConfirm: (LocalDate, LocalTime?, Int, RepeatChoice, RepeatEnd) -> Unit,
+    // 반복 > 근무 패턴 반복. 이 블록의 날짜를 기준으로 근무 패턴 설정을 연다.
+    onShiftPatternRequested: ((LocalDate) -> Unit)? = null
 ) {
     var selectedTab by remember { mutableStateOf(DateTab.Date) }
     var selectedDate by remember { mutableStateOf(initialDate) }
@@ -349,6 +351,12 @@ fun TaskDatePickerSheet(
                 // one of these is visible at a time by design.
                 showRepeatPicker = false
                 showCustomRepeat = true
+            },
+            onShiftPatternRequested = onShiftPatternRequested?.let { request ->
+                {
+                    showRepeatPicker = false
+                    request(if (selectedTab == DateTab.Date) selectedDate else durationStart.toLocalDate())
+                }
             }
         )
     }
