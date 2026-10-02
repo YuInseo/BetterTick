@@ -17,12 +17,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -48,6 +51,10 @@ import androidx.compose.ui.window.DialogProperties
 import com.bettertick.data.model.ShiftDetection
 import com.bettertick.data.model.matchedPrefixLength
 import com.bettertick.data.model.shiftLabelOn
+import com.bettertick.data.repository.ShiftColorStore
+import com.bettertick.ui.components.ShiftColorPalette
+import com.bettertick.ui.components.chipTextColor
+import com.bettertick.ui.components.rememberShiftColors
 import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
@@ -90,6 +97,8 @@ fun ShiftRotationDialog(
     var repeatEnd by remember { mutableStateOf(ShiftRepeatEnd.Forever) }
     var customEnd by remember { mutableStateOf<LocalDate?>(null) }
     var showEndPicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val shiftColors = rememberShiftColors()
 
     val start = detection.start
     val pattern = slots.map { it.trim() }
@@ -160,6 +169,8 @@ fun ShiftRotationDialog(
                         index = index,
                         date = start.plusDays(index.toLong()),
                         value = label,
+                        color = ShiftColorStore.colorFor(shiftColors, label)?.let { Color(it) },
+                        onColorChange = { argb -> ShiftColorStore.setColor(context, label, argb) },
                         canRemove = slots.size > 1,
                         onValueChange = { slots[index] = it },
                         onRemove = { slots.removeAt(index) }
@@ -231,7 +242,7 @@ fun ShiftRotationDialog(
 
                 Spacer(Modifier.height(16.dp))
                 SectionLabel("${from.format(dateFmt)}부터 미리보기")
-                PreviewGrid(start = start, pattern = pattern, from = from, accent = accent)
+                PreviewGrid(start = start, pattern = pattern, from = from, colors = shiftColors)
             }
 
             Spacer(Modifier.height(16.dp))
@@ -281,6 +292,8 @@ private fun SlotRow(
     index: Int,
     date: LocalDate,
     value: String,
+    color: Color?,
+    onColorChange: (Long?) -> Unit,
     canRemove: Boolean,
     onValueChange: (String) -> Unit,
     onRemove: () -> Unit
@@ -291,7 +304,13 @@ private fun SlotRow(
             .padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.width(64.dp)) {
+        ColorDot(
+            color = color,
+            enabled = value.isNotBlank(),
+            onColorChange = onColorChange
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.width(56.dp)) {
             Text("${index + 1}일차", fontSize = 13.sp, color = Color.White)
             Text(
                 date.format(DateTimeFormatter.ofPattern("M/d (E)", Locale.KOREAN)),
@@ -335,33 +354,109 @@ private fun SlotRow(
     }
 }
 
+/** 근무 라벨 색 선택 — 탭하면 팔레트가 펼쳐진다. 같은 라벨은 같은 색을 공유. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ColorDot(
+    color: Color?,
+    enabled: Boolean,
+    onColorChange: (Long?) -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+    val shown = color ?: DefaultShiftColor
+    Box {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(if (enabled) shown else shown.copy(alpha = 0.3f))
+                .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                .clickable(enabled = enabled) { open = true }
+        )
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            modifier = Modifier.background(DarkCard)
+        ) {
+            Text(
+                "근무 색",
+                fontSize = 13.sp,
+                color = TextSecondary,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+            FlowRow(
+                modifier = Modifier
+                    .width(216.dp)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ShiftColorPalette.forEach { argb ->
+                    val c = Color(argb)
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(c)
+                            .border(
+                                2.dp,
+                                if (color == c) Color.White else Color.Transparent,
+                                CircleShape
+                            )
+                            .clickable {
+                                onColorChange(argb)
+                                open = false
+                            }
+                    )
+                }
+            }
+            Text(
+                "기본색으로",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onColorChange(null)
+                        open = false
+                    }
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            )
+        }
+    }
+}
+
+private val DefaultShiftColor = Color(0xFFCC7000)
+
 /** 생성 시작일부터 2주치를 7칸 × 2줄로 보여준다. */
 @Composable
-private fun PreviewGrid(start: LocalDate, pattern: List<String>, from: LocalDate, accent: Color) {
+private fun PreviewGrid(start: LocalDate, pattern: List<String>, from: LocalDate, colors: Map<String, Long>) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         repeat(2) { week ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 repeat(7) { col ->
                     val day = from.plusDays((week * 7 + col).toLong())
                     val label = shiftLabelOn(start, pattern, day)
+                    val bg = label?.let { ShiftColorStore.colorFor(colors, it) }
+                        ?.let { Color(it) } ?: label?.let { DefaultShiftColor }
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(DarkCard)
+                            .background(bg ?: DarkCard)
                             .padding(vertical = 5.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             "${day.dayOfMonth}",
                             fontSize = 11.sp,
-                            color = TextTertiary
+                            color = bg?.let { chipTextColor(it).copy(alpha = 0.75f) } ?: TextTertiary
                         )
                         Text(
                             label ?: "-",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (label != null) accent else TextTertiary,
+                            color = bg?.let { chipTextColor(it) } ?: TextTertiary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
