@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,11 +18,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.EventBusy
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -168,7 +172,8 @@ fun TaskDatePickerSheet(
                 MonthNav(
                     month = visibleMonth,
                     onPrev = { visibleMonth = visibleMonth.minusMonths(1) },
-                    onNext = { visibleMonth = visibleMonth.plusMonths(1) }
+                    onNext = { visibleMonth = visibleMonth.plusMonths(1) },
+                    onMonthChange = { visibleMonth = it }
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -416,7 +421,8 @@ internal fun DateOnlyCalendarDialog(
             MonthNav(
                 month = visibleMonth,
                 onPrev = { visibleMonth = visibleMonth.minusMonths(1) },
-                onNext = { visibleMonth = visibleMonth.plusMonths(1) }
+                onNext = { visibleMonth = visibleMonth.plusMonths(1) },
+                onMonthChange = { visibleMonth = it }
             )
 
             Spacer(Modifier.height(12.dp))
@@ -498,19 +504,58 @@ private fun TabRow(
 private fun MonthNav(
     month: YearMonth,
     onPrev: () -> Unit,
-    onNext: () -> Unit
+    onNext: () -> Unit,
+    onMonthChange: (YearMonth) -> Unit
 ) {
+    var yearMenuOpen by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "${month.monthValue}월",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier.weight(1f)
-        )
+        // 연도 탭 → 드롭다운으로 바로 이동. 표시 중인 연도 앞뒤로 YEAR_SPAN년.
+        Box(modifier = Modifier.weight(1f)) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { yearMenuOpen = true }
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "${month.year}년 ${month.monthValue}월",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Icon(
+                    Icons.Filled.ArrowDropDown,
+                    contentDescription = "연도 선택",
+                    tint = TextSecondary
+                )
+            }
+            DropdownMenu(
+                expanded = yearMenuOpen,
+                onDismissRequest = { yearMenuOpen = false },
+                modifier = Modifier.heightIn(max = 320.dp)
+            ) {
+                (month.year - YEAR_SPAN..month.year + YEAR_SPAN).forEach { year ->
+                    val current = year == month.year
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                "${year}년",
+                                color = if (current) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                                fontWeight = if (current) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        onClick = {
+                            onMonthChange(month.withYear(year))
+                            yearMenuOpen = false
+                        }
+                    )
+                }
+            }
+        }
         IconButton(onClick = onPrev) {
             Icon(
                 Icons.AutoMirrored.Outlined.KeyboardArrowLeft,
@@ -528,6 +573,8 @@ private fun MonthNav(
         }
     }
 }
+
+private const val YEAR_SPAN = 6
 
 @Composable
 private fun DayOfWeekHeader() {
