@@ -21,6 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import com.bettertick.ui.components.chipTextColor
+import com.bettertick.ui.components.rememberShiftColors
+import com.bettertick.ui.components.shiftChipColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -144,12 +147,15 @@ private fun StripTaskChip(
     title: String,
     isCompleted: Boolean
 ) {
-    val chipColor = if (isCompleted) Color(0xFF8B6914) else Color(0xFFCC7000)
+    val chipColor = shiftChipColor(
+        rememberShiftColors(), title, isCompleted,
+        default = Color(0xFFCC7000), completedDefault = Color(0xFF8B6914)
+    )
     Text(
         text = if (isCompleted) "\u2715 $title" else title,
         fontSize = 9.sp,
         lineHeight = 11.sp,
-        color = Color.White,
+        color = chipTextColor(chipColor),
         maxLines = 1,
         overflow = TextOverflow.Clip,
         modifier = Modifier
