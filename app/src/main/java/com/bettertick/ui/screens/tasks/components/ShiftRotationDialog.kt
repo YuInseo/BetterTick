@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,7 +60,8 @@ private enum class ShiftRepeatEnd(val label: String, val months: Long?) {
     Forever("끝없이", null),
     ThreeMonths("3개월", 3),
     SixMonths("6개월", 6),
-    OneYear("1년", 12)
+    OneYear("1년", 12),
+    Custom("직접 선택", null)
 }
 
 private val DEFAULT_PATTERN = listOf("주", "야간", "비", "휴")
@@ -70,6 +73,7 @@ private const val MAX_SLOTS = 31
  *
  * @param onApply (시작일, 패턴, 종료일) — 종료일 null = 끝없이
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ShiftRotationDialog(
     detection: ShiftDetection,
@@ -84,12 +88,32 @@ fun ShiftRotationDialog(
         }
     }
     var repeatEnd by remember { mutableStateOf(ShiftRepeatEnd.Forever) }
+    var customEnd by remember { mutableStateOf<LocalDate?>(null) }
+    var showEndPicker by remember { mutableStateOf(false) }
 
     val start = detection.start
     val pattern = slots.map { it.trim() }
-    val canApply = pattern.any { it.isNotBlank() }
     val from = start.plusDays(matchedPrefixLength(detection.run, pattern).toLong())
+    val canApply = pattern.any { it.isNotBlank() } &&
+        (repeatEnd != ShiftRepeatEnd.Custom || customEnd != null)
     val dateFmt = DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)
+    val endDate: LocalDate? = when (repeatEnd) {
+        ShiftRepeatEnd.Custom -> customEnd?.let { if (it.isBefore(from)) from else it }
+        else -> repeatEnd.months?.let { from.plusMonths(it).minusDays(1) }
+    }
+
+    if (showEndPicker) {
+        DateOnlyCalendarDialog(
+            initialDate = customEnd ?: from.plusMonths(1),
+            minDate = from,
+            onDismiss = { showEndPicker = false },
+            onConfirm = { date ->
+                customEnd = date
+                repeatEnd = ShiftRepeatEnd.Custom
+                showEndPicker = false
+            }
+        )
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -163,7 +187,10 @@ fun ShiftRotationDialog(
 
                 Spacer(Modifier.height(16.dp))
                 SectionLabel("반복 종료")
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     ShiftRepeatEnd.entries.forEach { option ->
                         val selected = option == repeatEnd
                         Box(
@@ -175,16 +202,31 @@ fun ShiftRotationDialog(
                                     if (selected) accent else Color.Transparent,
                                     RoundedCornerShape(16.dp)
                                 )
-                                .clickable { repeatEnd = option }
+                                .clickable {
+                                    if (option == ShiftRepeatEnd.Custom) showEndPicker = true
+                                    else repeatEnd = option
+                                }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
+                            val label = if (option == ShiftRepeatEnd.Custom && customEnd != null) {
+                                "~ ${customEnd!!.format(DateTimeFormatter.ofPattern("yy.M.d", Locale.KOREAN))}"
+                            } else option.label
                             Text(
-                                option.label,
+                                label,
                                 fontSize = 13.sp,
                                 color = if (selected) accent else Color.White
                             )
                         }
                     }
+                }
+
+                endDate?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "${it.format(dateFmt)}까지 반복돼요.",
+                        fontSize = 12.sp,
+                        color = TextTertiary
+                    )
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -215,10 +257,7 @@ fun ShiftRotationDialog(
                     color = if (canApply) accent else TextTertiary,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = canApply) {
-                            val end = repeatEnd.months?.let { from.plusMonths(it).minusDays(1) }
-                            onApply(start, pattern, end)
-                        }
+                        .clickable(enabled = canApply) { onApply(start, pattern, endDate) }
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 )
             }
