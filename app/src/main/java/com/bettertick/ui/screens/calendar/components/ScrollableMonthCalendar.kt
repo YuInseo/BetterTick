@@ -28,6 +28,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import com.bettertick.ui.components.chipTextColor
+import com.bettertick.ui.components.rememberShiftColors
+import com.bettertick.ui.components.shiftChipColor
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -347,13 +350,16 @@ private fun TaskChip(
     isCompleted: Boolean,
     modifier: Modifier = Modifier.fillMaxWidth()
 ) {
-    val chipColor = if (isCompleted) TaskChipCompletedColor else TaskChipActiveColor
+    val chipColor = shiftChipColor(
+        rememberShiftColors(), title, isCompleted,
+        default = TaskChipActiveColor, completedDefault = TaskChipCompletedColor
+    )
 
     Text(
         text = if (isCompleted) "\u2715 $title" else title,
         fontSize = 9.sp,
         lineHeight = 11.sp,
-        color = Color.White,
+        color = chipTextColor(chipColor),
         maxLines = 1,
         overflow = TextOverflow.Clip,
         modifier = modifier
