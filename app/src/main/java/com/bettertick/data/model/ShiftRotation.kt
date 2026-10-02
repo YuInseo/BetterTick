@@ -25,6 +25,31 @@ data class ShiftDetection(
     val pattern: List<String>
 )
 
+/**
+ * 근무 시간. 분 단위(0..1439). [endMinutes] <= [startMinutes]면 다음 날 끝나는
+ * 야간 근무로 본다 (예: 22:00~07:00 = 9시간).
+ */
+data class ShiftHours(val startMinutes: Int, val endMinutes: Int) {
+    val durationMinutes: Int
+        get() = ((endMinutes - startMinutes + 1440) % 1440).let { if (it == 0) 1440 else it }
+    val overnight: Boolean get() = endMinutes <= startMinutes
+    val startTime: LocalTime get() = LocalTime.of(startMinutes / 60, startMinutes % 60)
+
+    fun label(): String {
+        fun hm(m: Int) = "%02d:%02d".format(m / 60, m % 60)
+        return "${hm(startMinutes)}~${if (overnight) "다음날 " else ""}${hm(endMinutes)}"
+    }
+
+    fun serialize(): String = "$startMinutes-$endMinutes"
+
+    companion object {
+        fun parse(raw: String?): ShiftHours? = runCatching {
+            val (a, b) = raw!!.split("-").map { it.toInt() }
+            if (a in 0..1439 && b in 0..1439) ShiftHours(a, b) else null
+        }.getOrNull()
+    }
+}
+
 /** "주 (병가)" → "주". 끝에 붙은 괄호 메모를 떼어 같은 근무로 취급한다. */
 fun normalizeShiftLabel(title: String): String =
     title.trim()
@@ -115,7 +140,8 @@ fun buildShiftTasks(
     from: LocalDate,
     end: LocalDate?,
     templates: Map<String, Task>,
-    tasksByDate: Map<LocalDate, List<Task>>
+    tasksByDate: Map<LocalDate, List<Task>>,
+    hours: Map<String, ShiftHours> = emptyMap()
 ): List<Task> {
     val period = pattern.size
     if (period == 0) return emptyList()
@@ -136,8 +162,12 @@ fun buildShiftTasks(
         if (end != null && first.isAfter(end)) return@mapIndexedNotNull null
 
         val template = templates[label]
-        val time = template?.dueDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalTime()
+        // 근무 시간을 정했으면 그 시간 블록으로, 아니면 기존 일정의 시간(없으면 종일).
+        val shiftHours = hours[label]
+        val time = shiftHours?.startTime
+            ?: template?.dueDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalTime()
             ?: LocalTime.MIDNIGHT
+        val duration = shiftHours?.durationMinutes ?: template?.durationMinutes ?: Task().durationMinutes
         val exceptions = manualDays
             .filter { d ->
                 !d.isBefore(first) && (end == null || !d.isAfter(end)) &&
@@ -150,6 +180,7 @@ fun buildShiftTasks(
             id = "",
             title = label,
             dueDate = Timestamp(Date.from(first.atTime(time).atZone(zone).toInstant())),
+            durationMinutes = duration,
             isCompleted = false,
             completedAt = null,
             isAbandoned = false,

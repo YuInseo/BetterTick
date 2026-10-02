@@ -519,8 +519,8 @@ fun TaskDetailSheet(
                 shiftDetection = null
                 shiftAnchor = null
             },
-            onApply = { start, pattern, end ->
-                shiftViewModel.apply(start, pattern, detection.run, end)
+            onApply = { start, pattern, end, hours ->
+                shiftViewModel.apply(start, pattern, detection.run, end, hours)
                 shiftDetection = null
                 shiftAnchor = null
                 // 이 블록이 예전 근무 반복이면 방금 잘리거나 지워졌으므로,

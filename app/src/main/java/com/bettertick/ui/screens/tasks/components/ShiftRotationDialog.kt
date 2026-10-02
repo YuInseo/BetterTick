@@ -24,11 +24,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.bettertick.data.model.ShiftDetection
+import com.bettertick.data.model.ShiftHours
 import com.bettertick.data.model.matchedPrefixLength
 import com.bettertick.data.model.shiftLabelOn
 import com.bettertick.data.repository.ShiftColorStore
@@ -78,14 +81,14 @@ private const val MAX_SLOTS = 31
  * 근무 패턴 반복 설정. 달력에 입력된 근무에서 찾은 패턴을 보여주고,
  * 사용자가 칸을 고치거나 더한 뒤 적용하면 그 주기대로 자동 반복된다.
  *
- * @param onApply (시작일, 패턴, 종료일) — 종료일 null = 끝없이
+ * @param onApply (시작일, 패턴, 종료일, 라벨별 근무 시간) — 종료일 null = 끝없이
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ShiftRotationDialog(
     detection: ShiftDetection,
     onDismiss: () -> Unit,
-    onApply: (start: LocalDate, pattern: List<String>, end: LocalDate?) -> Unit
+    onApply: (start: LocalDate, pattern: List<String>, end: LocalDate?, hours: Map<String, ShiftHours>) -> Unit
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val detected = detection.pattern.isNotEmpty()
@@ -99,6 +102,20 @@ fun ShiftRotationDialog(
     var showEndPicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val shiftColors = rememberShiftColors()
+    val shiftHours by remember { ShiftColorStore.hours(context) }.collectAsState()
+    var hoursEditFor by remember { mutableStateOf<String?>(null) }
+
+    hoursEditFor?.let { label ->
+        ShiftHoursDialog(
+            label = label,
+            initial = ShiftColorStore.hoursFor(shiftHours, label),
+            onDismiss = { hoursEditFor = null },
+            onConfirm = { value ->
+                ShiftColorStore.setHours(context, label, value)
+                hoursEditFor = null
+            }
+        )
+    }
 
     val start = detection.start
     val pattern = slots.map { it.trim() }
@@ -171,6 +188,8 @@ fun ShiftRotationDialog(
                         value = label,
                         color = ShiftColorStore.colorFor(shiftColors, label)?.let { Color(it) },
                         onColorChange = { argb -> ShiftColorStore.setColor(context, label, argb) },
+                        hours = ShiftColorStore.hoursFor(shiftHours, label),
+                        onHoursClick = { hoursEditFor = label.trim() },
                         canRemove = slots.size > 1,
                         onValueChange = { slots[index] = it },
                         onRemove = { slots.removeAt(index) }
@@ -268,7 +287,10 @@ fun ShiftRotationDialog(
                     color = if (canApply) accent else TextTertiary,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = canApply) { onApply(start, pattern, endDate) }
+                        .clickable(enabled = canApply) {
+                            val labels = pattern.filter { it.isNotBlank() }.toSet()
+                            onApply(start, pattern, endDate, shiftHours.filterKeys { it in labels })
+                        }
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 )
             }
@@ -294,6 +316,8 @@ private fun SlotRow(
     value: String,
     color: Color?,
     onColorChange: (Long?) -> Unit,
+    hours: ShiftHours?,
+    onHoursClick: () -> Unit,
     canRemove: Boolean,
     onValueChange: (String) -> Unit,
     onRemove: () -> Unit
@@ -318,23 +342,49 @@ private fun SlotRow(
                 color = TextTertiary
             )
         }
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(DarkCard)
-                .padding(horizontal = 12.dp, vertical = 10.dp)
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                singleLine = true,
-                textStyle = TextStyle(fontSize = 15.sp, color = Color.White),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth()
-            )
-            if (value.isEmpty()) {
-                Text("(일정 없음)", fontSize = 15.sp, color = TextTertiary)
+        Column(modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkCard)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = TextStyle(fontSize = 15.sp, color = Color.White),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (value.isEmpty()) {
+                    Text("(일정 없음)", fontSize = 15.sp, color = TextTertiary)
+                }
+            }
+            // 근무 시간 — 탭해서 시작/종료 설정. 비어 있는 칸은 시간 없음.
+            if (value.isNotBlank()) {
+                Row(
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onHoursClick() }
+                        .padding(horizontal = 4.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.Schedule,
+                        contentDescription = null,
+                        tint = if (hours != null) MaterialTheme.colorScheme.primary else TextTertiary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = hours?.label() ?: "종일 · 근무 시간 설정",
+                        fontSize = 12.sp,
+                        color = if (hours != null) Color.White else TextTertiary
+                    )
+                }
             }
         }
         Box(
@@ -350,6 +400,112 @@ private fun SlotRow(
                 tint = if (canRemove) TextSecondary else Color.Transparent,
                 modifier = Modifier.size(18.dp)
             )
+        }
+    }
+}
+
+/** 근무 시간(시작~종료) 설정. 종료가 시작보다 이르면 다음 날 끝나는 근무. */
+@Composable
+private fun ShiftHoursDialog(
+    label: String,
+    initial: ShiftHours?,
+    onDismiss: () -> Unit,
+    onConfirm: (ShiftHours?) -> Unit
+) {
+    var startMin by remember { mutableStateOf(initial?.startMinutes ?: 9 * 60) }
+    var endMin by remember { mutableStateOf(initial?.endMinutes ?: 18 * 60) }
+    var picking by remember { mutableStateOf<Boolean?>(null) } // true=시작, false=종료
+    val accent = MaterialTheme.colorScheme.primary
+    val draft = ShiftHours(startMin, endMin)
+
+    picking?.let { isStart ->
+        val m = if (isStart) startMin else endMin
+        TaskTimePickerDialog(
+            initialHour = m / 60,
+            initialMinute = m % 60,
+            onDismiss = { picking = null },
+            onConfirm = { h, mm ->
+                if (isStart) startMin = h * 60 + mm else endMin = h * 60 + mm
+                picking = null
+            }
+        )
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 40.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(DarkSurface)
+                .padding(20.dp)
+        ) {
+            Text("'$label' 근무 시간", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(16.dp))
+            listOf(true to "시작", false to "종료").forEach { (isStart, title) ->
+                val m = if (isStart) startMin else endMin
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DarkCard)
+                        .clickable { picking = isStart }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(title, fontSize = 14.sp, color = TextSecondary, modifier = Modifier.weight(1f))
+                    Text(
+                        (if (!isStart && draft.overnight) "다음날 " else "") +
+                            "%02d:%02d".format(m / 60, m % 60),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "총 ${draft.durationMinutes / 60}시간" +
+                    (if (draft.durationMinutes % 60 != 0) " ${draft.durationMinutes % 60}분" else ""),
+                fontSize = 12.sp,
+                color = TextTertiary
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "종일로",
+                    fontSize = 14.sp,
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onConfirm(null) }
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "취소",
+                    fontSize = 15.sp,
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onDismiss() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+                Text(
+                    "확인",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onConfirm(draft) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
         }
     }
 }
