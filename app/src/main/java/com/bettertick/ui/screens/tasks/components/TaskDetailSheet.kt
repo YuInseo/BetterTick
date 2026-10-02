@@ -54,6 +54,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,6 +75,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
+import com.bettertick.data.model.isShiftRotationOf
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
 import com.bettertick.ui.components.MarkdownInlineTransformation
@@ -144,6 +146,14 @@ fun TaskDetailSheet(
     var priority by remember(task.id) { mutableStateOf(task.priority) }
 
     var showDatePicker by remember { mutableStateOf(false) }
+    // 반복 > 근무 패턴 반복 — 이 블록 날짜 주변의 근무 입력으로 패턴을 찾아 자동 반복.
+    val shiftViewModel: ShiftRotationViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    var shiftAnchor by remember { mutableStateOf<LocalDate?>(null) }
+    var shiftDetection by remember { mutableStateOf<com.bettertick.data.model.ShiftDetection?>(null) }
+    LaunchedEffect(shiftAnchor) {
+        val anchor = shiftAnchor ?: return@LaunchedEffect
+        shiftDetection = shiftViewModel.detect(anchor)
+    }
     var showNotionInput by remember { mutableStateOf(false) }
     var showTagPicker by remember { mutableStateOf(false) }
     var priorityMenuOpen by remember { mutableStateOf(false) }
@@ -494,6 +504,29 @@ fun TaskDetailSheet(
                 repeatRule = repeat.toRule()
                 repeatEnd = end.toPersisted()
                 showDatePicker = false
+            },
+            onShiftPatternRequested = { date ->
+                showDatePicker = false
+                shiftAnchor = date
+            }
+        )
+    }
+
+    shiftDetection?.let { detection ->
+        ShiftRotationDialog(
+            detection = detection,
+            onDismiss = {
+                shiftDetection = null
+                shiftAnchor = null
+            },
+            onApply = { start, pattern, end ->
+                shiftViewModel.apply(start, pattern, detection.run, end)
+                shiftDetection = null
+                shiftAnchor = null
+                // 이 블록이 예전 근무 반복이면 방금 잘리거나 지워졌으므로,
+                // 오래된 사본을 다시 저장하지 않도록 커밋 없이 닫는다.
+                val labels = pattern.filter { it.isNotBlank() }.toSet()
+                if (task.isShiftRotationOf(labels)) onDismiss()
             }
         )
     }

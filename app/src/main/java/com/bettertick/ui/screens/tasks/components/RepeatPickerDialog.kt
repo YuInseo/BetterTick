@@ -187,7 +187,9 @@ fun RepeatPickerDialog(
     referenceDate: LocalDate,
     onDismiss: () -> Unit,
     onPresetSelected: (RepeatChoice) -> Unit,
-    onCustomRequested: () -> Unit
+    onCustomRequested: () -> Unit,
+    // 주/야/비/휴 같은 교대 근무를 패턴대로 자동 반복. null이면 행을 숨긴다.
+    onShiftPatternRequested: (() -> Unit)? = null
 ) {
     // Presets derived from the reference date. `매주 (X)` uses today's day
     // of week; `매월 (Nth)` uses today's day of month; `매년 (M월 D)` uses
@@ -258,6 +260,16 @@ fun RepeatPickerDialog(
                 showCheck = false,
                 onClick = onCustomRequested
             )
+
+            if (onShiftPatternRequested != null) {
+                RepeatRow(
+                    label = "근무 패턴 반복",
+                    preview = "(주·야·비·휴)",
+                    selected = false,
+                    showCheck = false,
+                    onClick = onShiftPatternRequested
+                )
+            }
 
             Spacer(Modifier.height(4.dp))
 
