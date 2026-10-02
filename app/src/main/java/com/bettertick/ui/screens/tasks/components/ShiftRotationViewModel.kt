@@ -3,6 +3,7 @@ package com.bettertick.ui.screens.tasks.components
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bettertick.data.model.ShiftDetection
+import com.bettertick.data.model.ShiftHours
 import com.bettertick.data.model.Task
 import com.bettertick.data.model.buildShiftTasks
 import com.bettertick.data.model.detectShiftPattern
@@ -48,7 +49,13 @@ class ShiftRotationViewModel @Inject constructor(
      * 패턴 칸마다 N일 반복 할일을 만든다. 같은 라벨로 예전에 만든 근무 반복이
      * 있으면 새 반복 시작 전날에서 끊어 겹치지 않게 한다.
      */
-    fun apply(start: LocalDate, pattern: List<String>, run: List<String>, end: LocalDate?) {
+    fun apply(
+        start: LocalDate,
+        pattern: List<String>,
+        run: List<String>,
+        end: LocalDate?,
+        hours: Map<String, ShiftHours> = emptyMap()
+    ) {
         val cleaned = pattern.map { it.trim() }
         val labels = cleaned.filter { it.isNotBlank() }.toSet()
         if (labels.isEmpty()) return
@@ -65,7 +72,7 @@ class ShiftRotationViewModel @Inject constructor(
                 ?.let { label to it }
         }.toMap()
 
-        val newTasks = buildShiftTasks(start, cleaned, from, end, templates, byDate)
+        val newTasks = buildShiftTasks(start, cleaned, from, end, templates, byDate, hours)
         val previous = allTasks.filter { it.isShiftRotationOf(labels) }
         viewModelScope.launch {
             previous.forEach { old ->
