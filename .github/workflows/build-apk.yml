@@ -215,11 +215,23 @@ jobs:
           cat version.json
           ls -la BetterTick.apk
 
+      # 기존 release에 asset만 덮어쓰면 태그는 처음 커밋에, 게시일은 처음 날짜에
+      # 그대로 남아 릴리즈 페이지에서 새 빌드가 안 올라간 것처럼 보인다.
+      # 매번 release + 태그를 지우고 이번 커밋에서 새로 만든다.
+      - name: Remove previous latest-debug release
+        if: steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest-debug --repo "$GITHUB_REPOSITORY" --yes --cleanup-tag \
+            || echo "no previous latest-debug release"
+
       - name: Publish to GitHub Release (latest-debug)
         if: steps.build.outcome == 'success'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-debug
+          target_commitish: ${{ github.sha }}
           name: Latest Debug Build
           body: |
             Debug APK built automatically from the latest push to `main`.
