@@ -791,7 +791,6 @@ private fun DragAwareWeekStrip(
     onExpandMonth: () -> Unit
 ) {
     val selectedWeek = week.take(7)
-    val selectedWeekList = remember(selectedWeek) { listOf(selectedWeek) }
 
     Box(
         modifier = Modifier
@@ -811,8 +810,6 @@ private fun DragAwareWeekStrip(
         Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
             WeekRow(
                 week = selectedWeek,
-                weekIdx = 0,
-                allWeeks = selectedWeekList,
                 today = today,
                 selectedDate = selectedDate,
                 lookup = lookup,

@@ -20,13 +20,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.bettertick.ui.components.chipTextColor
 import com.bettertick.ui.components.rememberShiftColors
@@ -47,7 +48,6 @@ import java.time.YearMonth
 
 // File-scope constants — previously allocated on every DayCell recomposition,
 // which added GC churn during scroll.
-private val DayCellBorderColor = TextTertiary.copy(alpha = 0.35f)
 private val TaskChipCompletedColor = Color(0xFF8B6914)
 private val TaskChipActiveColor = Color(0xFFCC7000)
 
@@ -73,6 +73,8 @@ fun ScrollableMonthCalendar(
         weeks.indexOfFirst { it.contains(target) }.coerceAtLeast(0)
     }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    // 화면에서 가장 많이 보이는 달 — 그 달이 아닌 날짜는 흐리게 표시해 월 구분선을 대신한다.
+    var activeMonth by remember { mutableStateOf(initialMonth) }
 
     // When a date is selected, animate the calendar so the week containing
     // that date sits at the top of the viewport — the bottom card then has
@@ -106,7 +108,10 @@ fun ScrollableMonthCalendar(
         }
             .filterNotNull()
             .distinctUntilChanged()
-            .collect { onVisibleMonthChanged(it) }
+            .collect {
+                activeMonth = it
+                onVisibleMonthChanged(it)
+            }
     }
 
     LazyColumn(
@@ -123,9 +128,8 @@ fun ScrollableMonthCalendar(
         ) { weekIdx ->
             WeekRow(
                 week = weeks[weekIdx],
-                weekIdx = weekIdx,
-                allWeeks = weeks,
                 today = today,
+                activeMonth = activeMonth,
                 selectedDate = selectedDate,
                 lookup = lookup,
                 onDateSelected = onDateSelected,
@@ -176,20 +180,13 @@ private fun buildWeeks(months: List<YearMonth>): List<List<LocalDate>> {
 @Composable
 fun WeekRow(
     week: List<LocalDate>,
-    weekIdx: Int,
-    allWeeks: List<List<LocalDate>>,
     today: LocalDate,
+    activeMonth: YearMonth? = null,
     selectedDate: LocalDate?,
     lookup: TaskDateLookup,
     onDateSelected: (LocalDate) -> Unit,
     showMonthChips: Boolean = false
 ) {
-    // Precompute the 7 edge-states once per week so DayCell stays skippable.
-    // Without this, computeBorderEdges fired on every recomposition for every
-    // cell, and the weeks list (unstable) dragged DayCell along with it.
-    val edges = remember(weekIdx, allWeeks) {
-        Array(7) { dayIdx -> computeBorderEdges(weekIdx, dayIdx, allWeeks) }
-    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -202,7 +199,7 @@ fun WeekRow(
                 isSelected = date == selectedDate,
                 tasks = lookup.tasksOn(date),
                 showMonthChip = showMonthChips && date.dayOfMonth == 1,
-                edges = edges[dayIdx],
+                dimmed = activeMonth != null && YearMonth.from(date) != activeMonth,
                 onClick = { onDateSelected(date) },
                 modifier = Modifier
                     .weight(1f)
@@ -212,36 +209,6 @@ fun WeekRow(
     }
 }
 
-private data class BorderEdges(
-    val top: Boolean,
-    val right: Boolean,
-    val bottom: Boolean,
-    val left: Boolean
-)
-
-/** A cell draws a border on an edge if the neighbor is a different month. */
-private fun computeBorderEdges(
-    weekIdx: Int,
-    dayIdx: Int,
-    weeks: List<List<LocalDate>>
-): BorderEdges {
-    val current = weeks[weekIdx][dayIdx]
-    val currentYm = YearMonth.from(current)
-
-    fun sameMonthAt(w: Int, d: Int): Boolean {
-        if (w < 0 || w > weeks.lastIndex) return false
-        if (d < 0 || d > 6) return false
-        return YearMonth.from(weeks[w][d]) == currentYm
-    }
-
-    return BorderEdges(
-        top = !sameMonthAt(weekIdx - 1, dayIdx),
-        right = !sameMonthAt(weekIdx, dayIdx + 1),
-        bottom = !sameMonthAt(weekIdx + 1, dayIdx),
-        left = !sameMonthAt(weekIdx, dayIdx - 1)
-    )
-}
-
 @Composable
 private fun DayCell(
     date: LocalDate,
@@ -249,7 +216,7 @@ private fun DayCell(
     isSelected: Boolean,
     tasks: List<Task>,
     showMonthChip: Boolean,
-    edges: BorderEdges,
+    dimmed: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -257,15 +224,6 @@ private fun DayCell(
 
     Column(
         modifier = modifier
-            .drawBehind {
-                val sw = 1.dp.toPx()
-                val w = size.width
-                val h = size.height
-                if (edges.top) drawLine(DayCellBorderColor, Offset(0f, 0f), Offset(w, 0f), sw)
-                if (edges.bottom) drawLine(DayCellBorderColor, Offset(0f, h), Offset(w, h), sw)
-                if (edges.left) drawLine(DayCellBorderColor, Offset(0f, 0f), Offset(0f, h), sw)
-                if (edges.right) drawLine(DayCellBorderColor, Offset(w, 0f), Offset(w, h), sw)
-            }
             .clickable { onClick() }
             .padding(1.dp),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -296,6 +254,7 @@ private fun DayCell(
                 color = when {
                     isSelected -> Color.White
                     isToday -> Color.White
+                    dimmed -> TextTertiary
                     else -> MaterialTheme.colorScheme.onBackground
                 },
                 textAlign = TextAlign.Center,
