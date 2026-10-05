@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,16 +17,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -35,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -44,8 +51,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.bettertick.data.model.ShiftDetection
+import com.bettertick.data.model.ShiftHours
 import com.bettertick.data.model.matchedPrefixLength
 import com.bettertick.data.model.shiftLabelOn
+import com.bettertick.data.repository.ShiftColorStore
+import com.bettertick.ui.components.ShiftColorPalette
+import com.bettertick.ui.components.chipTextColor
+import com.bettertick.ui.components.rememberShiftColors
 import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
@@ -58,7 +70,8 @@ private enum class ShiftRepeatEnd(val label: String, val months: Long?) {
     Forever("끝없이", null),
     ThreeMonths("3개월", 3),
     SixMonths("6개월", 6),
-    OneYear("1년", 12)
+    OneYear("1년", 12),
+    Custom("직접 선택", null)
 }
 
 private val DEFAULT_PATTERN = listOf("주", "야간", "비", "휴")
@@ -68,13 +81,14 @@ private const val MAX_SLOTS = 31
  * 근무 패턴 반복 설정. 달력에 입력된 근무에서 찾은 패턴을 보여주고,
  * 사용자가 칸을 고치거나 더한 뒤 적용하면 그 주기대로 자동 반복된다.
  *
- * @param onApply (시작일, 패턴, 종료일) — 종료일 null = 끝없이
+ * @param onApply (시작일, 패턴, 종료일, 라벨별 근무 시간) — 종료일 null = 끝없이
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun ShiftRotationDialog(
     detection: ShiftDetection,
     onDismiss: () -> Unit,
-    onApply: (start: LocalDate, pattern: List<String>, end: LocalDate?) -> Unit
+    onApply: (start: LocalDate, pattern: List<String>, end: LocalDate?, hours: Map<String, ShiftHours>) -> Unit
 ) {
     val accent = MaterialTheme.colorScheme.primary
     val detected = detection.pattern.isNotEmpty()
@@ -84,12 +98,48 @@ fun ShiftRotationDialog(
         }
     }
     var repeatEnd by remember { mutableStateOf(ShiftRepeatEnd.Forever) }
+    var customEnd by remember { mutableStateOf<LocalDate?>(null) }
+    var showEndPicker by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val shiftColors = rememberShiftColors()
+    val shiftHours by remember { ShiftColorStore.hours(context) }.collectAsState()
+    var hoursEditFor by remember { mutableStateOf<String?>(null) }
+
+    hoursEditFor?.let { label ->
+        ShiftHoursDialog(
+            label = label,
+            initial = ShiftColorStore.hoursFor(shiftHours, label),
+            onDismiss = { hoursEditFor = null },
+            onConfirm = { value ->
+                ShiftColorStore.setHours(context, label, value)
+                hoursEditFor = null
+            }
+        )
+    }
 
     val start = detection.start
     val pattern = slots.map { it.trim() }
-    val canApply = pattern.any { it.isNotBlank() }
     val from = start.plusDays(matchedPrefixLength(detection.run, pattern).toLong())
+    val canApply = pattern.any { it.isNotBlank() } &&
+        (repeatEnd != ShiftRepeatEnd.Custom || customEnd != null)
     val dateFmt = DateTimeFormatter.ofPattern("M월 d일 (E)", Locale.KOREAN)
+    val endDate: LocalDate? = when (repeatEnd) {
+        ShiftRepeatEnd.Custom -> customEnd?.let { if (it.isBefore(from)) from else it }
+        else -> repeatEnd.months?.let { from.plusMonths(it).minusDays(1) }
+    }
+
+    if (showEndPicker) {
+        DateOnlyCalendarDialog(
+            initialDate = customEnd ?: from.plusMonths(1),
+            minDate = from,
+            onDismiss = { showEndPicker = false },
+            onConfirm = { date ->
+                customEnd = date
+                repeatEnd = ShiftRepeatEnd.Custom
+                showEndPicker = false
+            }
+        )
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -136,6 +186,10 @@ fun ShiftRotationDialog(
                         index = index,
                         date = start.plusDays(index.toLong()),
                         value = label,
+                        color = ShiftColorStore.colorFor(shiftColors, label)?.let { Color(it) },
+                        onColorChange = { argb -> ShiftColorStore.setColor(context, label, argb) },
+                        hours = ShiftColorStore.hoursFor(shiftHours, label),
+                        onHoursClick = { hoursEditFor = label.trim() },
                         canRemove = slots.size > 1,
                         onValueChange = { slots[index] = it },
                         onRemove = { slots.removeAt(index) }
@@ -163,7 +217,10 @@ fun ShiftRotationDialog(
 
                 Spacer(Modifier.height(16.dp))
                 SectionLabel("반복 종료")
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     ShiftRepeatEnd.entries.forEach { option ->
                         val selected = option == repeatEnd
                         Box(
@@ -175,11 +232,17 @@ fun ShiftRotationDialog(
                                     if (selected) accent else Color.Transparent,
                                     RoundedCornerShape(16.dp)
                                 )
-                                .clickable { repeatEnd = option }
+                                .clickable {
+                                    if (option == ShiftRepeatEnd.Custom) showEndPicker = true
+                                    else repeatEnd = option
+                                }
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
+                            val label = if (option == ShiftRepeatEnd.Custom && customEnd != null) {
+                                "~ ${customEnd!!.format(DateTimeFormatter.ofPattern("yy.M.d", Locale.KOREAN))}"
+                            } else option.label
                             Text(
-                                option.label,
+                                label,
                                 fontSize = 13.sp,
                                 color = if (selected) accent else Color.White
                             )
@@ -187,9 +250,18 @@ fun ShiftRotationDialog(
                     }
                 }
 
+                endDate?.let {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "${it.format(dateFmt)}까지 반복돼요.",
+                        fontSize = 12.sp,
+                        color = TextTertiary
+                    )
+                }
+
                 Spacer(Modifier.height(16.dp))
                 SectionLabel("${from.format(dateFmt)}부터 미리보기")
-                PreviewGrid(start = start, pattern = pattern, from = from, accent = accent)
+                PreviewGrid(start = start, pattern = pattern, from = from, colors = shiftColors)
             }
 
             Spacer(Modifier.height(16.dp))
@@ -216,8 +288,8 @@ fun ShiftRotationDialog(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable(enabled = canApply) {
-                            val end = repeatEnd.months?.let { from.plusMonths(it).minusDays(1) }
-                            onApply(start, pattern, end)
+                            val labels = pattern.filter { it.isNotBlank() }.toSet()
+                            onApply(start, pattern, endDate, shiftHours.filterKeys { it in labels })
                         }
                         .padding(horizontal = 12.dp, vertical = 8.dp)
                 )
@@ -242,6 +314,10 @@ private fun SlotRow(
     index: Int,
     date: LocalDate,
     value: String,
+    color: Color?,
+    onColorChange: (Long?) -> Unit,
+    hours: ShiftHours?,
+    onHoursClick: () -> Unit,
     canRemove: Boolean,
     onValueChange: (String) -> Unit,
     onRemove: () -> Unit
@@ -252,7 +328,13 @@ private fun SlotRow(
             .padding(vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.width(64.dp)) {
+        ColorDot(
+            color = color,
+            enabled = value.isNotBlank(),
+            onColorChange = onColorChange
+        )
+        Spacer(Modifier.width(8.dp))
+        Column(modifier = Modifier.width(56.dp)) {
             Text("${index + 1}일차", fontSize = 13.sp, color = Color.White)
             Text(
                 date.format(DateTimeFormatter.ofPattern("M/d (E)", Locale.KOREAN)),
@@ -260,23 +342,49 @@ private fun SlotRow(
                 color = TextTertiary
             )
         }
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(8.dp))
-                .background(DarkCard)
-                .padding(horizontal = 12.dp, vertical = 10.dp)
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                singleLine = true,
-                textStyle = TextStyle(fontSize = 15.sp, color = Color.White),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth()
-            )
-            if (value.isEmpty()) {
-                Text("(일정 없음)", fontSize = 15.sp, color = TextTertiary)
+        Column(modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(DarkCard)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    singleLine = true,
+                    textStyle = TextStyle(fontSize = 15.sp, color = Color.White),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (value.isEmpty()) {
+                    Text("(일정 없음)", fontSize = 15.sp, color = TextTertiary)
+                }
+            }
+            // 근무 시간 — 탭해서 시작/종료 설정. 비어 있는 칸은 시간 없음.
+            if (value.isNotBlank()) {
+                Row(
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { onHoursClick() }
+                        .padding(horizontal = 4.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Outlined.Schedule,
+                        contentDescription = null,
+                        tint = if (hours != null) MaterialTheme.colorScheme.primary else TextTertiary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = hours?.label() ?: "종일 · 근무 시간 설정",
+                        fontSize = 12.sp,
+                        color = if (hours != null) Color.White else TextTertiary
+                    )
+                }
             }
         }
         Box(
@@ -296,33 +404,215 @@ private fun SlotRow(
     }
 }
 
+/** 근무 시간(시작~종료) 설정. 종료가 시작보다 이르면 다음 날 끝나는 근무. */
+@Composable
+private fun ShiftHoursDialog(
+    label: String,
+    initial: ShiftHours?,
+    onDismiss: () -> Unit,
+    onConfirm: (ShiftHours?) -> Unit
+) {
+    var startMin by remember { mutableStateOf(initial?.startMinutes ?: 9 * 60) }
+    var endMin by remember { mutableStateOf(initial?.endMinutes ?: 18 * 60) }
+    var picking by remember { mutableStateOf<Boolean?>(null) } // true=시작, false=종료
+    val accent = MaterialTheme.colorScheme.primary
+    val draft = ShiftHours(startMin, endMin)
+
+    picking?.let { isStart ->
+        val m = if (isStart) startMin else endMin
+        TaskTimePickerDialog(
+            initialHour = m / 60,
+            initialMinute = m % 60,
+            onDismiss = { picking = null },
+            onConfirm = { h, mm ->
+                if (isStart) startMin = h * 60 + mm else endMin = h * 60 + mm
+                picking = null
+            }
+        )
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 40.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(DarkSurface)
+                .padding(20.dp)
+        ) {
+            Text("'$label' 근무 시간", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(16.dp))
+            listOf(true to "시작", false to "종료").forEach { (isStart, title) ->
+                val m = if (isStart) startMin else endMin
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DarkCard)
+                        .clickable { picking = isStart }
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(title, fontSize = 14.sp, color = TextSecondary, modifier = Modifier.weight(1f))
+                    Text(
+                        (if (!isStart && draft.overnight) "다음날 " else "") +
+                            "%02d:%02d".format(m / 60, m % 60),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "총 ${draft.durationMinutes / 60}시간" +
+                    (if (draft.durationMinutes % 60 != 0) " ${draft.durationMinutes % 60}분" else ""),
+                fontSize = 12.sp,
+                color = TextTertiary
+            )
+            Spacer(Modifier.height(16.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "종일로",
+                    fontSize = 14.sp,
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onConfirm(null) }
+                        .padding(horizontal = 8.dp, vertical = 8.dp)
+                )
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "취소",
+                    fontSize = 15.sp,
+                    color = TextSecondary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onDismiss() }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+                Text(
+                    "확인",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accent,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onConfirm(draft) }
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+        }
+    }
+}
+
+/** 근무 라벨 색 선택 — 탭하면 팔레트가 펼쳐진다. 같은 라벨은 같은 색을 공유. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ColorDot(
+    color: Color?,
+    enabled: Boolean,
+    onColorChange: (Long?) -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+    val shown = color ?: DefaultShiftColor
+    Box {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(if (enabled) shown else shown.copy(alpha = 0.3f))
+                .border(1.dp, Color.White.copy(alpha = 0.25f), CircleShape)
+                .clickable(enabled = enabled) { open = true }
+        )
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            modifier = Modifier.background(DarkCard)
+        ) {
+            Text(
+                "근무 색",
+                fontSize = 13.sp,
+                color = TextSecondary,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+            FlowRow(
+                modifier = Modifier
+                    .width(216.dp)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                ShiftColorPalette.forEach { argb ->
+                    val c = Color(argb)
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(c)
+                            .border(
+                                2.dp,
+                                if (color == c) Color.White else Color.Transparent,
+                                CircleShape
+                            )
+                            .clickable {
+                                onColorChange(argb)
+                                open = false
+                            }
+                    )
+                }
+            }
+            Text(
+                "기본색으로",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onColorChange(null)
+                        open = false
+                    }
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            )
+        }
+    }
+}
+
+private val DefaultShiftColor = Color(0xFFCC7000)
+
 /** 생성 시작일부터 2주치를 7칸 × 2줄로 보여준다. */
 @Composable
-private fun PreviewGrid(start: LocalDate, pattern: List<String>, from: LocalDate, accent: Color) {
+private fun PreviewGrid(start: LocalDate, pattern: List<String>, from: LocalDate, colors: Map<String, Long>) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         repeat(2) { week ->
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 repeat(7) { col ->
                     val day = from.plusDays((week * 7 + col).toLong())
                     val label = shiftLabelOn(start, pattern, day)
+                    val bg = label?.let { ShiftColorStore.colorFor(colors, it) }
+                        ?.let { Color(it) } ?: label?.let { DefaultShiftColor }
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(DarkCard)
+                            .background(bg ?: DarkCard)
                             .padding(vertical = 5.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             "${day.dayOfMonth}",
                             fontSize = 11.sp,
-                            color = TextTertiary
+                            color = bg?.let { chipTextColor(it).copy(alpha = 0.75f) } ?: TextTertiary
                         )
                         Text(
                             label ?: "-",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = if (label != null) accent else TextTertiary,
+                            color = bg?.let { chipTextColor(it) } ?: TextTertiary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center
