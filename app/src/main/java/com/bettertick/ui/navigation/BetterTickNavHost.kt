@@ -444,8 +444,27 @@ private fun MainContent(
                 }
                 composable(BottomNavItem.Calendar.route) {
                     CalendarScreen(
-                        onSelectedDateChanged = { calendarSelectedDate = it }
+                        onSelectedDateChanged = { calendarSelectedDate = it },
+                        onOpenViewOptions = { navController.navigate("calendar_options") }
                     )
+                }
+                // 캘린더 ⋮ > 옵션 보기 and its sub pages (full screen, no tab bar).
+                composable("calendar_options") {
+                    com.bettertick.ui.screens.calendar.CalendarViewOptionsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenColors = { navController.navigate("calendar_colors") },
+                        onOpenStyle = { navController.navigate("calendar_style") },
+                        onOpenTimeZone = { navController.navigate("calendar_timezone") }
+                    )
+                }
+                composable("calendar_colors") {
+                    com.bettertick.ui.screens.calendar.CalendarColorsScreen(onBack = { navController.popBackStack() })
+                }
+                composable("calendar_style") {
+                    com.bettertick.ui.screens.calendar.CalendarStyleScreen(onBack = { navController.popBackStack() })
+                }
+                composable("calendar_timezone") {
+                    com.bettertick.ui.screens.calendar.CalendarTimeZoneScreen(onBack = { navController.popBackStack() })
                 }
                 composable(BottomNavItem.Matrix.route) {
                     MatrixScreen(
@@ -570,7 +589,8 @@ private fun MainContent(
             // 습관 탭은 자체 '습관 추가' 플로팅 버튼이 같은 자리에 있어 제외.
             // 오른쪽 아래, 하단 네비게이션 바 바로 위에 떠 있는 플로팅 버튼.
             if (isTabRoute && currentRoute != "location" && currentRoute != "more" &&
-                currentRoute != BottomNavItem.Habits.route
+                currentRoute != BottomNavItem.Habits.route &&
+                !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen
             ) {
                 Box(
                     modifier = Modifier
@@ -702,21 +722,28 @@ private fun MainContent(
                         val isKanbanContext = contextListId.isNotEmpty() &&
                             lists.firstOrNull { it.id == contextListId }?.viewType == "kanban"
                         val contextColumn = if (isKanbanContext) selectedKanbanColumn else ""
+                        val qaLists by quickAddViewModel.lists.collectAsState()
+                        val qaTags by quickAddViewModel.tags.collectAsState()
                         TaskInputSheet(
-                            onAddTask = { title, date ->
-                                quickAddViewModel.addTask(
-                                    title = title,
-                                    date = if (isKanbanContext) null else date,
-                                    listId = contextListId,
+                            onAddTask = { draft ->
+                                quickAddViewModel.addDraft(
+                                    draft,
+                                    contextListId = contextListId,
                                     kanbanColumn = contextColumn
                                 )
                                 showTaskInput = false
                             },
                             onDismiss = { showTaskInput = false },
-                            initialDate = if (currentRoute == BottomNavItem.Calendar.route)
-                                calendarSelectedDate ?: java.time.LocalDate.now()
-                            else
-                                java.time.LocalDate.now()
+                            initialDate = when {
+                                isKanbanContext -> null
+                                currentRoute == BottomNavItem.Calendar.route ->
+                                    calendarSelectedDate ?: java.time.LocalDate.now()
+                                else -> java.time.LocalDate.now()
+                            },
+                            lists = qaLists,
+                            tags = qaTags,
+                            contextListId = contextListId,
+                            onCreateTag = { quickAddViewModel.createTag(it) }
                         )
                     }
                     } // close Column (drag handle wrapper)

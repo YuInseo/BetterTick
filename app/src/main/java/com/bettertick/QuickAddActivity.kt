@@ -181,13 +181,20 @@ class QuickAddActivity : ComponentActivity() {
                                 )
                                 HorizontalDivider(color = TextPrimary.copy(alpha = 0.06f))
                                 when (selectedTab) {
-                                    0 -> TaskInputSheet(
-                                        onAddTask = { title, date ->
-                                            taskVm.addTask(title, date)
-                                            finish()
-                                        },
-                                        onDismiss = { finish() }
-                                    )
+                                    0 -> {
+                                        val qaLists by taskVm.lists.collectAsState()
+                                        val qaTags by taskVm.tags.collectAsState()
+                                        TaskInputSheet(
+                                            onAddTask = { draft ->
+                                                taskVm.addDraft(draft)
+                                                finish()
+                                            },
+                                            onDismiss = { finish() },
+                                            lists = qaLists,
+                                            tags = qaTags,
+                                            onCreateTag = { taskVm.createTag(it) }
+                                        )
+                                    }
                                     else -> QuickDiarySheet(
                                         vm = diaryVm,
                                         onSave = { content ->
