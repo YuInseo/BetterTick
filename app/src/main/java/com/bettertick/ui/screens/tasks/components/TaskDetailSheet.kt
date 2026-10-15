@@ -27,6 +27,12 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.DoNotDisturbOn
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Add
@@ -115,7 +121,13 @@ fun TaskDetailSheet(
     onUpdateTask: (Task) -> Unit,
     onToggleComplete: () -> Unit,
     tags: List<Tag> = emptyList(),
-    onCreateTag: suspend (String) -> String = { "" }
+    onCreateTag: suspend (String) -> String = { "" },
+    /** Lists for the header's 목록 picker (empty = 기본함 only). */
+    lists: List<com.bettertick.data.model.TaskList> = emptyList(),
+    /** ⋯ > 복제 — creates a copy of the (edited) task. */
+    onDuplicate: ((Task) -> Unit)? = null,
+    /** ⋯ > 삭제. */
+    onDelete: ((Task) -> Unit)? = null
 ) {
     // Local edit state — keyed by task.id so re-opening a different task
     // pulls in fresh values instead of leaking from the previous one.
@@ -145,6 +157,15 @@ fun TaskDetailSheet(
     var repeatEnd by remember(task.id) { mutableStateOf(task.repeatEnd) }
     var tagIds by remember(task.id) { mutableStateOf(task.tagIds) }
     var priority by remember(task.id) { mutableStateOf(task.priority) }
+    var reminders by remember(task.id) { mutableStateOf(task.reminders) }
+    var listId by remember(task.id) { mutableStateOf(task.listId) }
+    var isPinned by remember(task.id) { mutableStateOf(task.isPinned) }
+    var isAbandoned by remember(task.id) { mutableStateOf(task.isAbandoned) }
+    var moreMenuOpen by remember { mutableStateOf(false) }
+    var showListPicker by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    val shownListName = if (listId == task.listId) listName
+        else lists.firstOrNull { it.id == listId }?.name ?: "기본함"
 
     var showDatePicker by remember { mutableStateOf(false) }
     // 반복 > 근무 패턴 반복 — 이 블록 날짜 주변의 근무 입력으로 패턴을 찾아 자동 반복.
@@ -174,6 +195,10 @@ fun TaskDetailSheet(
                 repeatEnd != task.repeatEnd ||
                 tagIds != task.tagIds ||
                 priority != task.priority ||
+                reminders != task.reminders ||
+                listId != task.listId ||
+                isPinned != task.isPinned ||
+                isAbandoned != task.isAbandoned ||
                 attachmentsList != task.attachments
         if (changed) {
             onUpdateTask(
@@ -187,7 +212,12 @@ fun TaskDetailSheet(
                     repeatEnd = repeatEnd,
                     tagIds = tagIds,
                     priority = priority,
-                    attachments = attachmentsList
+                    attachments = attachmentsList,
+                    reminders = reminders,
+                    listId = listId,
+                    isPinned = isPinned,
+                    isAbandoned = isAbandoned,
+                    abandonedAt = if (isAbandoned && !task.isAbandoned) com.google.firebase.Timestamp.now() else task.abandonedAt
                 )
             )
         }
@@ -211,10 +241,10 @@ fun TaskDetailSheet(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { /* list picker — future */ }
+                    modifier = Modifier.clickable { showListPicker = true }
                 ) {
                     Text(
-                        text = listName,
+                        text = shownListName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
@@ -283,12 +313,49 @@ fun TaskDetailSheet(
                         )
                     }
                 }
-                IconButton(onClick = { /* more — future */ }) {
-                    Icon(
-                        Icons.Outlined.MoreHoriz,
-                        contentDescription = "더 보기",
-                        tint = TextSecondary
-                    )
+                Box {
+                    IconButton(onClick = { moreMenuOpen = true }) {
+                        Icon(
+                            Icons.Outlined.MoreHoriz,
+                            contentDescription = "더 보기",
+                            tint = TextSecondary
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = moreMenuOpen,
+                        onDismissRequest = { moreMenuOpen = false },
+                        modifier = Modifier.background(DarkSurface)
+                    ) {
+                        DetailMenuItem(if (isPinned) "고정 해제" else "고정", Icons.Outlined.PushPin) {
+                            isPinned = !isPinned; moreMenuOpen = false
+                        }
+                        DetailMenuItem(if (isAbandoned) "하지 않음 취소" else "하지 않음", Icons.Outlined.DoNotDisturbOn) {
+                            isAbandoned = !isAbandoned; moreMenuOpen = false
+                        }
+                        if (onDuplicate != null) {
+                            DetailMenuItem("복제", Icons.Outlined.ContentCopy) {
+                                moreMenuOpen = false
+                                onDuplicate(task.copy(title = title, notes = notes, dueDate = dueTimestamp,
+                                    durationMinutes = duration, repeatRule = repeatRule, repeatEnd = repeatEnd,
+                                    tagIds = tagIds, priority = priority, reminders = reminders, listId = listId))
+                                android.widget.Toast.makeText(context, "할일을 복제했습니다", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        DetailMenuItem("목록 이동", Icons.AutoMirrored.Outlined.DriveFileMove) {
+                            moreMenuOpen = false; showListPicker = true
+                        }
+                        DetailMenuItem("공유", Icons.Outlined.Share) {
+                            moreMenuOpen = false
+                            com.bettertick.ui.screens.tasks.shareText(
+                                context, if (notes.isBlank()) title else "$title\n\n$notes"
+                            )
+                        }
+                        if (onDelete != null) {
+                            DetailMenuItem("삭제", Icons.Outlined.Delete, tint = com.bettertick.ui.theme.OverdueRed) {
+                                moreMenuOpen = false; confirmDelete = true
+                            }
+                        }
+                    }
                 }
             }
 
@@ -487,11 +554,14 @@ fun TaskDetailSheet(
             initialDurationMinutes = duration,
             initialRepeat = parseRepeatRule(repeatRule),
             initialRepeatEnd = parseRepeatEnd(repeatEnd),
+            initialReminders = if (initialTime != null || reminders.isNotEmpty()) reminders else null,
+            onRemindersChosen = { reminders = it },
             onDismiss = { showDatePicker = false },
             onDelete = {
                 dueTimestamp = null
                 repeatRule = null
                 repeatEnd = null
+                reminders = emptyList()
                 showDatePicker = false
             },
             onConfirm = { date, time, durationMinutes, repeat, end ->
@@ -539,6 +609,36 @@ fun TaskDetailSheet(
             onConfirm = { value ->
                 notionUrl = value.trim()
                 showNotionInput = false
+            }
+        )
+    }
+
+    if (showListPicker) {
+        MoveTaskListSheet(
+            lists = lists,
+            currentListId = listId,
+            onDismiss = { showListPicker = false },
+            onPick = { id -> listId = id; showListPicker = false }
+        )
+    }
+
+    if (confirmDelete && onDelete != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            containerColor = DarkSurface,
+            title = { Text("할일을 삭제할까요?", color = TextPrimary) },
+            text = { Text("'$title'을(를) 삭제합니다.", color = TextSecondary) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmDelete = false
+                    onDelete(task)
+                    onDismiss()
+                }) { Text("삭제", color = com.bettertick.ui.theme.OverdueRed) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDelete = false }) {
+                    Text("취소", color = TextSecondary)
+                }
             }
         )
     }
@@ -1489,3 +1589,17 @@ private fun formatKorean12h(time: LocalTime): String {
 
 private fun String.ensureScheme(): String =
     if (startsWith("http://") || startsWith("https://")) this else "https://$this"
+
+@Composable
+private fun DetailMenuItem(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    tint: Color = TextPrimary,
+    onClick: () -> Unit
+) {
+    DropdownMenuItem(
+        text = { Text(label, color = tint, fontSize = 15.sp) },
+        leadingIcon = { Icon(icon, contentDescription = null, tint = if (tint == TextPrimary) TextSecondary else tint) },
+        onClick = onClick
+    )
+}

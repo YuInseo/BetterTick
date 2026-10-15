@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.outlined.DragIndicator
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -139,7 +141,7 @@ fun TasksScreen(
     val hiddenBySection: Map<TaskSection, Set<String>> = TaskSection.entries.associateWith { s ->
         hiddenTagsBySection[s]?.filterValues { it }?.keys?.toSet() ?: emptySet()
     }
-    val buckets: TaskBuckets = remember(tasks, today, hiddenBySection) {
+    val buckets: TaskBuckets = remember(tasks, today, hiddenBySection, TaskListPrefs.sortBy) {
         val overdue = mutableListOf<Task>()
         val todayList = mutableListOf<Task>()
         val future = mutableListOf<Task>()
@@ -150,12 +152,9 @@ fun TasksScreen(
             return hidden.isNotEmpty() && task.tagIds.any { it in hidden }
         }
         for (t in tasks) {
-            // 완료/포기 항목도 원래 속한 날짜 섹션에 그대로 둔다. 별도 버킷으로 빼면
-            // 체크 직후 행이 사라진 듯 보여 UX가 어색함. TaskItem이 isCompleted/
-            // isAbandoned 상태에 따라 체크 아이콘 + 취소선을 그리므로 시각적으론 충분.
-            // 완료된 항목도 completedTasks에 함께 누적해 두면 다른 곳에서 필요 시
-            // 참조 가능.
-            if (t.isCompleted || t.isAbandoned) completed += t
+            // TickTick: 완료·포기한 항목은 맨 아래 '완료됨' 그룹으로 모은다
+            // (목록 ⋮ > 완료 항목 표시/숨기기).
+            if (t.isCompleted || t.isAbandoned) { completed += t; continue }
             val d = t.dueDate?.toLocalDate()
             when {
                 d == null -> if (!isHidden(TaskSection.NoDate, t)) noDate += t
@@ -164,14 +163,13 @@ fun TasksScreen(
                 else -> if (!isHidden(TaskSection.Future, t)) future += t
             }
         }
-        val repeatFirst = compareByDescending<Task> { !it.repeatRule.isNullOrBlank() }
-            .thenBy { it.sortOrder }
+        val order = TaskListPrefs.comparator()
         TaskBuckets(
-            overdue.sortedWith(repeatFirst),
-            todayList.sortedWith(repeatFirst),
-            future.sortedWith(repeatFirst),
-            noDate.sortedWith(repeatFirst),
-            completed
+            overdue.sortedWith(order),
+            todayList.sortedWith(order),
+            future.sortedWith(order),
+            noDate.sortedWith(order),
+            completed.sortedByDescending { it.completedAt?.seconds ?: it.updatedAt.seconds }
         )
     }
     val overdueTasks = buckets.overdue
@@ -201,42 +199,117 @@ fun TasksScreen(
     var showQuickDateSettings by remember { mutableStateOf(false) }
     var recurringDeleteFor by remember { mutableStateOf<Task?>(null) }
 
+    // 목록 ⋮ menu state
+    var showListMenu by remember { mutableStateOf(false) }
+    var showGroupSort by remember { mutableStateOf(false) }
+    var selectionMode by remember { mutableStateOf(false) }
+    val selectedIds = remember { androidx.compose.runtime.mutableStateListOf<String>() }
+    var batchDatePicker by remember { mutableStateOf(false) }
+    var batchMove by remember { mutableStateOf(false) }
+    var batchDeleteConfirm by remember { mutableStateOf(false) }
+    val groupExpanded = remember { mutableStateMapOf<String, Boolean>() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.DisposableEffect(selectionMode) {
+        TaskListPrefs.selectionActive = selectionMode
+        onDispose { TaskListPrefs.selectionActive = false }
+    }
+    fun exitSelection() { selectionMode = false; selectedIds.clear() }
+    fun dateGroups(): List<TaskGroup> = sectionOrder.filter { hiddenSections[it] != true }.mapNotNull { s ->
+        val b = when (s) {
+            TaskSection.Overdue -> overdueTasks
+            TaskSection.Today -> todayTasks
+            TaskSection.Future -> futureTasks
+            TaskSection.NoDate -> noDueDateTasks
+        }
+        if (b.isEmpty()) null
+        else TaskGroup("date:${s.name}", s.label, b, isOverdue = s == TaskSection.Overdue)
+    }
+    fun currentGroups(open: List<Task>, lists: List<com.bettertick.data.model.TaskList>, tags: List<Tag>): List<TaskGroup> =
+        if (TaskListPrefs.groupBy == TaskGroupBy.DATE) dateGroups()
+        else groupOpenTasks(open, TaskListPrefs.groupBy, lists, tags, TaskListPrefs.comparator())
+    androidx.activity.compose.BackHandler(enabled = selectionMode) { exitSelection() }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(DarkBackground)
     ) {
-        // Top bar
-        TopAppBar(
-            title = {
-                Text(
-                    text = viewModel.filterTitle,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            },
-            navigationIcon = {
-                IconButton(onClick = onOpenDrawer) {
-                    Icon(
-                        Icons.Default.Menu,
-                        contentDescription = "Menu",
-                        tint = MaterialTheme.colorScheme.onBackground
+        // Top bar — selection mode swaps in a count + close/select-all bar.
+        if (selectionMode) {
+            TopAppBar(
+                title = {
+                    Text(
+                        "${selectedIds.size}개 선택됨",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
-                }
-            },
-            actions = {
-                IconButton(onClick = { showSectionSettings = true }) {
-                    Icon(
-                        Icons.Outlined.Tune,
-                        contentDescription = "섹션 설정",
-                        tint = MaterialTheme.colorScheme.onBackground
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = DarkBackground
+                },
+                navigationIcon = {
+                    IconButton(onClick = { exitSelection() }) {
+                        Icon(Icons.Default.Close, contentDescription = "선택 종료", tint = MaterialTheme.colorScheme.onBackground)
+                    }
+                },
+                actions = {
+                    val allIds = tasks.filter { !it.isCompleted && !it.isAbandoned }.map { it.id }
+                    androidx.compose.material3.TextButton(onClick = {
+                        if (selectedIds.size == allIds.size) selectedIds.clear()
+                        else { selectedIds.clear(); selectedIds.addAll(allIds) }
+                    }) {
+                        Text(
+                            if (selectedIds.size == allIds.size && allIds.isNotEmpty()) "선택 해제" else "전체 선택",
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
             )
-        )
+        } else {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = viewModel.filterTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
+                        Icon(
+                            Icons.Default.Menu,
+                            contentDescription = "Menu",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                },
+                actions = {
+                    Box {
+                        IconButton(onClick = { showListMenu = true }) {
+                            Icon(
+                                Icons.Default.MoreVert,
+                                contentDescription = "더보기",
+                                tint = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        TaskListMenu(
+                            expanded = showListMenu,
+                            onDismiss = { showListMenu = false },
+                            onGroupSort = { showGroupSort = true },
+                            onSelect = { selectionMode = true },
+                            onSectionSettings = { showSectionSettings = true },
+                            onShare = {
+                                val groups = currentGroups(
+                                    tasks.filter { !it.isCompleted && !it.isAbandoned }, lists, tags
+                                )
+                                shareText(context, buildTaskListShareText(viewModel.filterTitle, groups))
+                            }
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = DarkBackground
+                )
+            )
+        }
 
         if (activeListViewType == "timetable") {
             // 시간표 view — reuse the calendar's week timeline to render the
@@ -295,63 +368,151 @@ fun TasksScreen(
             return@Column
         }
 
-        fun bucketFor(s: TaskSection): List<Task> = when (s) {
-            TaskSection.Overdue -> overdueTasks
-            TaskSection.Today -> todayTasks
-            TaskSection.Future -> futureTasks
-            TaskSection.NoDate -> noDueDateTasks
-        }
-        val accentColor = MaterialTheme.colorScheme.primary
-        fun colorFor(s: TaskSection): Color = when (s) {
-            TaskSection.Overdue -> OverdueRed
-            TaskSection.Today -> accentColor
-            TaskSection.Future, TaskSection.NoDate -> TextSecondary
-        }
+        val openTasks = remember(tasks) { tasks.filter { !it.isCompleted && !it.isAbandoned } }
+        val archive = currentFilter.isArchive
+        // 완료 / 하지 않음 lists: finished tasks grouped by when they ended.
+        val groups = if (archive) archiveGroups(completedTasks) else currentGroups(openTasks, lists, tags)
+        val completedGroup = if (!archive && TaskListPrefs.showCompleted && completedTasks.isNotEmpty())
+            TaskGroup("completed", "완료됨", completedTasks) else null
 
-        // Task list — iterates over the configured order, skipping sections
-        // the user has hidden or that have no items.
+        // Task list — groups per 목록 ⋮ > 그룹 및 정렬, then 완료됨 at the bottom.
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            sectionOrder.forEach { section ->
-                if (hiddenSections[section] == true) return@forEach
-                val bucket = bucketFor(section)
-                if (bucket.isEmpty()) return@forEach
-                val expanded = expandedMap[section] ?: true
-
-                item(key = "header-${section.name}") {
-                    SectionHeader(
-                        title = section.label,
-                        count = bucket.size,
-                        color = colorFor(section),
-                        expanded = expanded,
-                        onToggle = { expandedMap[section] = !expanded }
-                    )
-                }
-                if (expanded) {
-                    items(bucket, key = { it.id }) { task ->
-                        val taskTags = remember(task.tagIds, tags) {
-                            task.tagIds.mapNotNull { id -> tags.firstOrNull { it.id == id } }
-                        }
-                        SwipeableTaskItem(
-                            task = task,
-                            onToggleComplete = { viewModel.toggleComplete(task.id, !task.isCompleted) },
-                            onMove = { moveFor = task },
-                            onDelete = {
-                                if (task.repeatRule.isNullOrBlank()) viewModel.deleteTask(task.id)
-                                else recurringDeleteFor = task
-                            },
-                            onReschedule = { rescheduleFor = task },
-                            onClick = { detailFor = task },
-                            listName = lists.firstOrNull { it.id == task.listId }?.name ?: "기본함",
-                            resolvedTags = taskTags
+            (groups + listOfNotNull(completedGroup)).forEach { group ->
+                // 완료됨 starts collapsed, like TickTick.
+                val expanded = groupExpanded[group.key] ?: (group.key != "completed")
+                if (group.title.isNotEmpty()) {
+                    item(key = "header-${group.key}") {
+                        SectionHeader(
+                            title = group.title,
+                            count = group.tasks.size,
+                            color = if (group.isOverdue) OverdueRed else TextSecondary,
+                            expanded = expanded,
+                            onToggle = { groupExpanded[group.key] = !expanded }
                         )
                     }
                 }
+                if (expanded) {
+                    items(group.tasks, key = { "${group.key}-${it.id}" }) { task ->
+                        val taskTags = remember(task.tagIds, tags) {
+                            task.tagIds.mapNotNull { id -> tags.firstOrNull { it.id == id } }
+                        }
+                        val listName = lists.firstOrNull { it.id == task.listId }?.name ?: "기본함"
+                        if (selectionMode) {
+                            SelectableTaskRow(
+                                task = task,
+                                selected = task.id in selectedIds,
+                                listName = listName,
+                                tags = taskTags,
+                                onToggle = {
+                                    if (task.id in selectedIds) selectedIds.remove(task.id) else selectedIds.add(task.id)
+                                }
+                            )
+                        } else {
+                            SwipeableTaskItem(
+                                task = task,
+                                onToggleComplete = {
+                                    if (task.isAbandoned) viewModel.updateTask(task.copy(isAbandoned = false))
+                                    else viewModel.toggleComplete(task.id, !task.isCompleted)
+                                },
+                                onMove = { moveFor = task },
+                                onDelete = {
+                                    if (task.repeatRule.isNullOrBlank()) viewModel.deleteTask(task.id)
+                                    else recurringDeleteFor = task
+                                },
+                                onReschedule = { rescheduleFor = task },
+                                onClick = { detailFor = task },
+                                listName = listName,
+                                resolvedTags = taskTags,
+                                onLongClick = {
+                                    selectionMode = true
+                                    if (task.id !in selectedIds) selectedIds.add(task.id)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            if (groups.isEmpty() && completedGroup == null) {
+                item(key = "empty") { EmptyTaskList() }
             }
         }
+
+        if (selectionMode) {
+            val selectedTasks = tasks.filter { it.id in selectedIds }
+            BatchActionBar(
+                enabled = selectedTasks.isNotEmpty(),
+                onComplete = {
+                    selectedTasks.forEach { viewModel.toggleComplete(it.id, true) }
+                    exitSelection()
+                },
+                onDate = { batchDatePicker = true },
+                onMove = { batchMove = true },
+                onPriority = { lvl ->
+                    selectedTasks.forEach { viewModel.updateTask(it.copy(priority = lvl)) }
+                    exitSelection()
+                },
+                onDelete = { batchDeleteConfirm = true }
+            )
+        }
+    }
+
+    if (showGroupSort) {
+        GroupSortSheet(onDismiss = { showGroupSort = false })
+    }
+
+    if (batchDatePicker) {
+        TaskDatePickerSheet(
+            initialDate = LocalDate.now(),
+            onDismiss = { batchDatePicker = false },
+            onDelete = {
+                tasks.filter { it.id in selectedIds }.forEach { viewModel.updateTask(it.copy(dueDate = null)) }
+                batchDatePicker = false
+                exitSelection()
+            },
+            onConfirm = { d, _, _, _, _ ->
+                tasks.filter { it.id in selectedIds }.forEach { viewModel.updateTask(it.copy(dueDate = rescheduleTo(it, d))) }
+                batchDatePicker = false
+                exitSelection()
+            }
+        )
+    }
+
+    if (batchMove) {
+        MoveTaskListSheet(
+            lists = lists,
+            currentListId = "",
+            onDismiss = { batchMove = false },
+            onPick = { listId ->
+                tasks.filter { it.id in selectedIds }.forEach { viewModel.updateTask(it.copy(listId = listId)) }
+                batchMove = false
+                exitSelection()
+            }
+        )
+    }
+
+    if (batchDeleteConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { batchDeleteConfirm = false },
+            containerColor = DarkSurface,
+            title = { Text("${selectedIds.size}개의 할일을 삭제할까요?", color = TextPrimary) },
+            text = { Text("삭제한 할일은 되돌릴 수 없습니다.", color = TextSecondary) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    selectedIds.toList().forEach { viewModel.deleteTask(it) }
+                    batchDeleteConfirm = false
+                    exitSelection()
+                }) { Text("삭제", color = OverdueRed) }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { batchDeleteConfirm = false }) {
+                    Text("취소", color = TextSecondary)
+                }
+            }
+        )
     }
 
     if (showSectionSettings) {
@@ -457,7 +618,10 @@ fun TasksScreen(
                 detailFor = null
             },
             tags = tags,
-            onCreateTag = { viewModel.createTag(it) }
+            onCreateTag = { viewModel.createTag(it) },
+            lists = lists,
+            onDuplicate = { viewModel.duplicateTask(it) },
+            onDelete = { viewModel.deleteTask(it.id) }
         )
     }
 }
@@ -766,4 +930,27 @@ private fun rescheduleTo(task: Task, date: LocalDate): com.google.firebase.Times
         .atZone(java.time.ZoneId.systemDefault())
         .toInstant()
     return com.google.firebase.Timestamp(java.util.Date.from(instant))
+}
+
+/** Groups finished tasks by completion day: 오늘 / 어제 / 최근 7일 / 이전. */
+private fun archiveGroups(done: List<Task>): List<TaskGroup> {
+    val today = LocalDate.now()
+    fun dayOf(t: Task): LocalDate? = (t.completedAt ?: t.abandonedAt ?: t.updatedAt).toLocalDate()
+    val buckets = linkedMapOf(
+        "오늘" to mutableListOf<Task>(),
+        "어제" to mutableListOf(),
+        "최근 7일" to mutableListOf(),
+        "이전" to mutableListOf()
+    )
+    done.sortedByDescending { (it.completedAt ?: it.abandonedAt ?: it.updatedAt).seconds }.forEach { t ->
+        val d = dayOf(t)
+        val key = when {
+            d == today -> "오늘"
+            d == today.minusDays(1) -> "어제"
+            d != null && d.isAfter(today.minusDays(7)) -> "최근 7일"
+            else -> "이전"
+        }
+        buckets.getValue(key) += t
+    }
+    return buckets.filterValues { it.isNotEmpty() }.map { (k, v) -> TaskGroup("archive:$k", k, v) }
 }

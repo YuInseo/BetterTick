@@ -35,6 +35,7 @@ data class QuickAddDraft(
     val durationMinutes: Int = 60,
     val repeatRule: String? = null,
     val repeatEnd: String? = null,
+    val reminders: List<Int> = emptyList(),
     val priority: Int = 0,
     val tagIds: List<String> = emptyList(),
     /** Tag names typed as #tag that may not exist yet. */
@@ -91,11 +92,14 @@ class QuickAddViewModel @Inject constructor(
                 durationMinutes = draft.durationMinutes,
                 repeatRule = draft.repeatRule,
                 repeatEnd = draft.repeatEnd,
+                reminders = draft.reminders,
                 priority = draft.priority,
                 tagIds = (draft.tagIds + createdTagIds).distinct(),
                 listId = draft.listId ?: contextListId,
                 kanbanColumn = kanbanColumn,
-                sortOrder = System.currentTimeMillis()
+                // 설정 > 일반 > 새 할일을 맨 위에 추가
+                sortOrder = if (com.bettertick.ui.theme.AppPrefs.newTaskOnTop) -System.currentTimeMillis()
+                    else System.currentTimeMillis()
             )
             taskRepository.addTask(task)
             runCatching { ReminderWidget().updateAll(context) }

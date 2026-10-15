@@ -253,7 +253,7 @@ private fun DatePane(
         Spacer(Modifier.height(4.dp))
 
         Row(modifier = Modifier.fillMaxWidth()) {
-            listOf("일", "월", "화", "수", "목", "금", "토").forEach { label ->
+            com.bettertick.ui.theme.AppPrefs.weekdayLabels().forEach { label ->
                 Text(
                     text = label,
                     fontSize = 12.sp,
@@ -267,7 +267,7 @@ private fun DatePane(
         Spacer(Modifier.height(4.dp))
 
         val firstDay = month.atDay(1)
-        val startOffset = firstDay.dayOfWeek.value % 7 // Sun=0
+        val startOffset = com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(firstDay.dayOfWeek)
         val daysInMonth = month.lengthOfMonth()
         val totalCells = startOffset + daysInMonth
         val weeks = (totalCells + 6) / 7

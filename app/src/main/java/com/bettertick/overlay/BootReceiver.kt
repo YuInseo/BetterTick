@@ -12,6 +12,10 @@ class BootReceiver : BroadcastReceiver() {
         if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
             intent.action != "android.intent.action.QUICKBOOT_POWERON") return
 
+        // Alarms are wiped on reboot. Application.onCreate re-syncs task
+        // reminders from the task stream; the daily summary is re-armed here.
+        com.bettertick.reminder.ReminderScheduler.scheduleDailySummary(context)
+
         val prefs = context.getSharedPreferences("bettertick_prefs", Context.MODE_PRIVATE)
         if (!prefs.getBoolean("lock_screen_bar", true)) return
 

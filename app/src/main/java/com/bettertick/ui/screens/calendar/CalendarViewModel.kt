@@ -230,6 +230,11 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    fun duplicateTask(task: Task) = createTask(
+        task.copy(id = "", isCompleted = false, completedAt = null,
+            createdAt = com.google.firebase.Timestamp.now(), updatedAt = com.google.firebase.Timestamp.now())
+    )
+
     fun createTask(task: Task) {
         viewModelScope.launch {
             taskRepository.addTask(task)

@@ -51,6 +51,20 @@ sealed interface AlarmChoice {
     data class Custom(val days: Int, val hours: Int, val minutes: Int) : AlarmChoice
 }
 
+/** Offsets (minutes before start) persisted on [Task.reminders]. */
+fun AlarmChoice.toMinutes(): List<Int> = when (this) {
+    AlarmChoice.None -> emptyList()
+    AlarmChoice.OnTime -> listOf(0)
+    is AlarmChoice.Preset -> listOf(minutesBefore)
+    is AlarmChoice.Custom -> listOf(days * 1440 + hours * 60 + minutes)
+}
+
+fun alarmChoiceFromMinutes(m: Int): AlarmChoice = when {
+    m <= 0 -> AlarmChoice.OnTime
+    m in listOf(5, 15, 30, 60, 1440) -> AlarmChoice.Preset(m)
+    else -> AlarmChoice.Custom(m / 1440, (m % 1440) / 60, m % 60)
+}
+
 /** Human-facing label used in the date picker's 알림 row. */
 fun AlarmChoice.displayLabel(): String = when (this) {
     AlarmChoice.None -> "없음"

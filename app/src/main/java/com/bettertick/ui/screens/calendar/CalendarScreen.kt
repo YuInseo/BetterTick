@@ -415,7 +415,7 @@ fun CalendarScreen(
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 4.dp)
             ) {
-                listOf("일", "월", "화", "수", "목", "금", "토").forEach { day ->
+                com.bettertick.ui.theme.AppPrefs.weekdayLabels().forEach { day ->
                     Text(
                         text = day,
                         style = MaterialTheme.typography.labelMedium,
@@ -681,7 +681,10 @@ fun CalendarScreen(
             onUpdateTask = { updated -> viewModel.updateTask(updated); selectedTask = null },
             onToggleComplete = { viewModel.toggleTaskComplete(task.id, !task.isCompleted) },
             tags = tags,
-            onCreateTag = { name -> viewModel.createTag(name) }
+            onCreateTag = { name -> viewModel.createTag(name) },
+            lists = calLists,
+            onDuplicate = { viewModel.duplicateTask(it) },
+            onDelete = { viewModel.deleteTask(it.id) }
         )
     }
 
@@ -1036,7 +1039,7 @@ private fun TimelinePager(
                 val a = anchorAt(p)
                 val sel = latestSelected
                 val next = if (mode == CalendarViewMode.WEEK) {
-                    if (sel in weekContaining(a)) sel else weekContaining(a)[sel.dayOfWeek.value % 7]
+                    if (sel in weekContaining(a)) sel else weekContaining(a)[com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(sel.dayOfWeek)]
                 } else a
                 if (next != sel && sel !in datesFor(a)) onSettle(next)
             }

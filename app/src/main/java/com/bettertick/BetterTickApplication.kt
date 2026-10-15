@@ -42,7 +42,12 @@ class BetterTickApplication : Application() {
         // Restore the user's TickTick-style appearance (light/dark + accent)
         // before any Compose content reads the palette.
         com.bettertick.ui.theme.ThemeState.init(this)
+        com.bettertick.ui.theme.AppPrefs.init(this)
         com.bettertick.ui.screens.calendar.CalendarPrefs.init(this)
+        com.bettertick.ui.screens.tasks.TaskListPrefs.init(this)
+        com.bettertick.ui.screens.tasks.SmartListPrefs.init(this)
+        com.bettertick.ui.screens.focus.FocusPrefs.init(this)
+        com.bettertick.reminder.ReminderScheduler.scheduleDailySummary(this)
         KakaoMapSdk.init(this, "36af0c02f9ab81fb67df8c9bbeefc7f1")
         // Initialize widget service locator for AppWidget access
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
@@ -79,6 +84,8 @@ class BetterTickApplication : Application() {
             }
             .onEach { tasks ->
                 WidgetServiceLocator.publishTasks(tasks)
+                // Keep task reminder alarms in step with every task change.
+                runCatching { com.bettertick.reminder.ReminderScheduler.syncAll(this@BetterTickApplication, tasks) }
                 runCatching { ReminderWidget().updateAll(this@BetterTickApplication) }
                 runCatching { WeeklyCalendarWidget().updateAll(this@BetterTickApplication) }
             }

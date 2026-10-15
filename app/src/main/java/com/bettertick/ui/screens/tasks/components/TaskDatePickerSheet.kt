@@ -80,6 +80,10 @@ fun TaskDatePickerSheet(
     onDismiss: () -> Unit,
     onDelete: () -> Unit,
     onConfirm: (LocalDate, LocalTime?, Int, RepeatChoice, RepeatEnd) -> Unit,
+    /** Saved reminder offsets; null = default (15분 전 once a time is set). */
+    initialReminders: List<Int>? = null,
+    /** Called with the chosen 알림 offsets right before [onConfirm]. */
+    onRemindersChosen: (List<Int>) -> Unit = {},
     // 반복 > 근무 패턴 반복. 이 블록의 날짜를 기준으로 근무 패턴 설정을 연다.
     onShiftPatternRequested: ((LocalDate) -> Unit)? = null
 ) {
@@ -93,7 +97,11 @@ fun TaskDatePickerSheet(
     var selectedTime by remember { mutableStateOf(initialTime) }
     var alarmChoice by remember {
         mutableStateOf<AlarmChoice>(
-            if (initialTime != null) AlarmChoice.Preset(15) else AlarmChoice.None
+            when {
+                initialReminders != null -> initialReminders.firstOrNull()?.let { alarmChoiceFromMinutes(it) } ?: AlarmChoice.None
+                initialTime != null -> AlarmChoice.Preset(15)
+                else -> AlarmChoice.None
+            }
         )
     }
     var persistentAlarm by remember { mutableStateOf(false) }
@@ -263,6 +271,7 @@ fun TaskDatePickerSheet(
                     // durationMinutes). The Date tab only owns a single
                     // point in time, so duration falls back to the initial
                     // value (or 60 min) to avoid silently zeroing it out.
+                    onRemindersChosen(alarmChoice.toMinutes())
                     if (selectedTab == DateTab.Date) {
                         onConfirm(selectedDate, selectedTime, seedDuration, repeatChoice, repeatEnd)
                     } else {
@@ -533,7 +542,7 @@ private fun MonthNav(
 @Composable
 private fun DayOfWeekHeader() {
     Row(modifier = Modifier.fillMaxWidth()) {
-        listOf("일", "월", "화", "수", "목", "금", "토").forEach { label ->
+        com.bettertick.ui.theme.AppPrefs.weekdayLabels().forEach { label ->
             Text(
                 text = label,
                 fontSize = 12.sp,
@@ -553,7 +562,7 @@ private fun DateGrid(
     minDate: LocalDate? = null
 ) {
     val firstDay = month.atDay(1)
-    val startOffset = firstDay.dayOfWeek.value % 7 // Sun=0
+    val startOffset = com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(firstDay.dayOfWeek)
     val daysInMonth = month.lengthOfMonth()
     val totalCells = startOffset + daysInMonth
     val weeks = (totalCells + 6) / 7

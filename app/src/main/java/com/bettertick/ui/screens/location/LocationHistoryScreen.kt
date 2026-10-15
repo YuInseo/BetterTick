@@ -791,7 +791,7 @@ private fun MiniMonthCalendar(
         }
         Spacer(Modifier.height(8.dp))
         Row(Modifier.fillMaxWidth()) {
-            listOf("일", "월", "화", "수", "목", "금", "토").forEach { d ->
+            com.bettertick.ui.theme.AppPrefs.weekdayLabels().forEach { d ->
                 Text(
                     d, color = TextTertiary, fontSize = 11.sp,
                     textAlign = TextAlign.Center, modifier = Modifier.weight(1f)
@@ -800,7 +800,7 @@ private fun MiniMonthCalendar(
         }
         Spacer(Modifier.height(4.dp))
         // 일요일 시작(일=0). DayOfWeek.value는 월=1..일=7.
-        val firstDow = month.atDay(1).dayOfWeek.value % 7
+        val firstDow = com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(month.atDay(1).dayOfWeek)
         val cells = ArrayList<LocalDate?>()
         repeat(firstDow) { cells.add(null) }
         for (d in 1..month.lengthOfMonth()) cells.add(month.atDay(d))
