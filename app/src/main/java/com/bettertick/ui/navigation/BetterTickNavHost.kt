@@ -444,8 +444,27 @@ private fun MainContent(
                 }
                 composable(BottomNavItem.Calendar.route) {
                     CalendarScreen(
-                        onSelectedDateChanged = { calendarSelectedDate = it }
+                        onSelectedDateChanged = { calendarSelectedDate = it },
+                        onOpenViewOptions = { navController.navigate("calendar_options") }
                     )
+                }
+                // 캘린더 ⋮ > 옵션 보기 and its sub pages (full screen, no tab bar).
+                composable("calendar_options") {
+                    com.bettertick.ui.screens.calendar.CalendarViewOptionsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenColors = { navController.navigate("calendar_colors") },
+                        onOpenStyle = { navController.navigate("calendar_style") },
+                        onOpenTimeZone = { navController.navigate("calendar_timezone") }
+                    )
+                }
+                composable("calendar_colors") {
+                    com.bettertick.ui.screens.calendar.CalendarColorsScreen(onBack = { navController.popBackStack() })
+                }
+                composable("calendar_style") {
+                    com.bettertick.ui.screens.calendar.CalendarStyleScreen(onBack = { navController.popBackStack() })
+                }
+                composable("calendar_timezone") {
+                    com.bettertick.ui.screens.calendar.CalendarTimeZoneScreen(onBack = { navController.popBackStack() })
                 }
                 composable(BottomNavItem.Matrix.route) {
                     MatrixScreen(
@@ -570,7 +589,8 @@ private fun MainContent(
             // 습관 탭은 자체 '습관 추가' 플로팅 버튼이 같은 자리에 있어 제외.
             // 오른쪽 아래, 하단 네비게이션 바 바로 위에 떠 있는 플로팅 버튼.
             if (isTabRoute && currentRoute != "location" && currentRoute != "more" &&
-                currentRoute != BottomNavItem.Habits.route
+                currentRoute != BottomNavItem.Habits.route &&
+                !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen
             ) {
                 Box(
                     modifier = Modifier

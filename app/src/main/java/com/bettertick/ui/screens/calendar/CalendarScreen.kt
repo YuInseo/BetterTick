@@ -148,7 +148,8 @@ private data class CreatePreset(
 @Composable
 fun CalendarScreen(
     viewModel: CalendarViewModel = hiltViewModel(),
-    onSelectedDateChanged: (java.time.LocalDate?) -> Unit = {}
+    onSelectedDateChanged: (java.time.LocalDate?) -> Unit = {},
+    onOpenViewOptions: () -> Unit = {}
 ) {
     val selectedMonth by viewModel.selectedMonth.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
@@ -156,7 +157,66 @@ fun CalendarScreen(
         onSelectedDateChanged(selectedDate)
     }
     val tasksByDate by viewModel.tasksByDate.collectAsState()
-    val lookup = remember(tasksByDate) { TaskDateLookup(tasksByDate) }
+    val calLists by viewModel.lists.collectAsState()
+    val calTags by viewModel.tags.collectAsState()
+    val focusSessions by viewModel.focusSessions.collectAsState()
+    val undatedTasks by viewModel.undatedTasks.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // ── 옵션 보기 / 필터 보기 범위 applied to everything the calendar draws ──
+    val todayDate = java.time.LocalDate.now()
+    val filterKey = listOf<Any>(
+        CalendarPrefs.showCompleted, CalendarPrefs.hiddenListIds, CalendarPrefs.tagFilter
+    )
+    val repeatCycles = CalendarPrefs.showRepeatCycles
+    val checkItems = CalendarPrefs.showCheckItems
+    // The "current cycle" of each recurring task: its first occurrence from
+    // today on (or its last one when the series has ended). Used when
+    // 반복 주기 표시 is off so a repeat shows up once instead of every day.
+    val currentCycle: Map<String, java.time.LocalDate> = remember(tasksByDate) {
+        val next = mutableMapOf<String, java.time.LocalDate>()
+        val last = mutableMapOf<String, java.time.LocalDate>()
+        tasksByDate.keys.sorted().forEach { d ->
+            tasksByDate[d].orEmpty().forEach { t ->
+                if (!t.repeatRule.isNullOrBlank()) {
+                    if (!d.isBefore(todayDate) && t.id !in next) next[t.id] = d
+                    last[t.id] = d
+                }
+            }
+        }
+        last.forEach { (id, d) -> next.putIfAbsent(id, d) }
+        next
+    }
+    val occurrenceFilter: (Task, java.time.LocalDate) -> Boolean = remember(currentCycle, repeatCycles) {
+        { t, d ->
+            repeatCycles || t.repeatRule.isNullOrBlank() ||
+                (currentCycle[parentTaskId(t.id)]?.let { it == d } ?: true)
+        }
+    }
+    val filteredByDate = remember(tasksByDate, filterKey, occurrenceFilter) {
+        tasksByDate.mapValues { (d, l) -> l.filter { CalendarPrefs.passesFilter(it) && occurrenceFilter(it, d) } }
+    }
+    // Panel lists keep real tasks only; grid chips may add check items.
+    val lookup = remember(filteredByDate) { TaskDateLookup(filteredByDate) }
+    val displayLookup = remember(filteredByDate, checkItems) {
+        if (!checkItems) lookup
+        else TaskDateLookup(filteredByDate.mapValues { (_, l) ->
+            l.flatMap { listOf(it) + it.checkItemEntries() }.filter { CalendarPrefs.passesFilter(it) }
+        })
+    }
+    val taskColor: (Task) -> androidx.compose.ui.graphics.Color = remember(calLists, calTags) {
+        { t -> CalendarPrefs.colorFor(t, calLists, calTags) }
+    }
+
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var showArrange by remember { mutableStateOf(false) }
+    var arrangeTask by remember { mutableStateOf<Task?>(null) }
+    androidx.compose.runtime.DisposableEffect(showArrange) {
+        CalendarPrefs.arrangePanelOpen = showArrange
+        onDispose { CalendarPrefs.arrangePanelOpen = false }
+    }
+    // Shared vertical position of the week/3-day/day timeline while paging.
+    val timelineScroll = remember { IntArray(1) { -1 } }
 
     var viewMode by remember { mutableStateOf(CalendarViewMode.MONTH) }
     var showViewModeMenu by remember { mutableStateOf(false) }
@@ -173,6 +233,28 @@ fun CalendarScreen(
     val monthFormatter = DateTimeFormatter.ofPattern("M월", Locale.KOREAN)
     val initialMonth = remember { selectedMonth }
 
+    /** Date taps: assign the picked task while 할 일 배정하기 is active. */
+    val onDatePick: (java.time.LocalDate) -> Unit = { d ->
+        val t = arrangeTask
+        if (t != null) {
+            viewModel.moveTaskToDate(t.id, d)
+            arrangeTask = null
+            android.widget.Toast.makeText(
+                context, "'${t.title}'을(를) ${d.monthValue}월 ${d.dayOfMonth}일에 배정했습니다",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+        } else viewModel.selectDate(d)
+    }
+    val onTimelineDatePick: (java.time.LocalDate) -> Unit = { d ->
+        if (arrangeTask != null) onDatePick(d) else viewModel.setSelectedDate(d)
+    }
+    val openTask: (Task) -> Unit = { t ->
+        val parentId = parentTaskId(t.id)
+        selectedTask = if (parentId == t.id) t
+            else viewModel.allTasks.value.firstOrNull { it.id == parentId } ?: t
+    }
+
+    androidx.compose.runtime.CompositionLocalProvider(LocalTaskColor provides taskColor) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -209,8 +291,12 @@ fun CalendarScreen(
                         color = MaterialTheme.colorScheme.onBackground
                     )
                 } else {
+                    // Timeline / list views follow the shown date, not the
+                    // month the month-grid last scrolled to.
+                    val titleMonth = if (viewMode == CalendarViewMode.MONTH) selectedMonth
+                        else java.time.YearMonth.from(selectedDate ?: java.time.LocalDate.now())
                     Text(
-                        text = "${selectedMonth.year}년 ${selectedMonth.format(monthFormatter)}",
+                        text = "${titleMonth.year}년 ${titleMonth.format(monthFormatter)}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -286,22 +372,35 @@ fun CalendarScreen(
                     ) {
                         DropdownMenuItem(
                             text = { Text("필터 보기 범위") },
-                            onClick = { showMoreMenu = false },
+                            onClick = { showMoreMenu = false; showFilterSheet = true },
                             leadingIcon = { Icon(Icons.Outlined.FilterList, null, modifier = Modifier.size(20.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("옵션 보기") },
-                            onClick = { showMoreMenu = false },
+                            onClick = { showMoreMenu = false; onOpenViewOptions() },
                             leadingIcon = { Icon(Icons.Outlined.Settings, null, modifier = Modifier.size(20.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("할 일 배정하기") },
-                            onClick = { showMoreMenu = false },
+                            onClick = { showMoreMenu = false; showArrange = true; arrangeTask = null },
                             leadingIcon = { Icon(Icons.Outlined.TaskAlt, null, modifier = Modifier.size(20.dp)) }
                         )
                         DropdownMenuItem(
                             text = { Text("공유") },
-                            onClick = { showMoreMenu = false },
+                            onClick = {
+                                showMoreMenu = false
+                                val anchor = selectedDate ?: java.time.LocalDate.now()
+                                val (title, dates) = when (viewMode) {
+                                    CalendarViewMode.WEEK -> "${anchor.year}년 ${anchor.monthValue}월 주간 일정" to weekContaining(anchor)
+                                    CalendarViewMode.THREE_DAY -> "3일 일정" to listOf(anchor.minusDays(1), anchor, anchor.plusDays(1))
+                                    CalendarViewMode.DAY -> "${anchor.monthValue}월 ${anchor.dayOfMonth}일 일정" to listOf(anchor)
+                                    CalendarViewMode.LIST -> "다가오는 일정" to (0L until 30L).map { java.time.LocalDate.now().plusDays(it) }
+                                    else -> "${selectedMonth.year}년 ${selectedMonth.monthValue}월 일정" to
+                                        (1..selectedMonth.lengthOfMonth()).map { selectedMonth.atDay(it) }
+                                }
+                                val shareTasks = viewModel.allTasks.value.filter { CalendarPrefs.passesFilter(it) }
+                                shareCalendarText(context, buildCalendarShareText(title, dates, shareTasks))
+                            },
                             leadingIcon = { Icon(Icons.Outlined.Share, null, modifier = Modifier.size(20.dp)) }
                         )
                     }
@@ -332,71 +431,61 @@ fun CalendarScreen(
         val weekTasks by viewModel.allTasks.collectAsState()
 
         when (viewMode) {
-            CalendarViewMode.WEEK -> {
+            CalendarViewMode.WEEK, CalendarViewMode.THREE_DAY, CalendarViewMode.DAY -> {
                 val anchor = date ?: java.time.LocalDate.now()
-                val week = remember(anchor) { weekContaining(anchor) }
-                WeekTimelineView(
-                    weekDates = week,
-                    allTasks = weekTasks,
-                    today = java.time.LocalDate.now(),
-                    selectedDate = anchor,
-                    onDateSelected = { viewModel.selectDate(it) },
-                    hourHeight = hourHeight,
-                    onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
-                    onTaskClick = { selectedTask = it },
-                    modifier = Modifier.weight(1f).fillMaxWidth()
-                )
-            }
-
-            CalendarViewMode.THREE_DAY -> {
-                val anchor = date ?: java.time.LocalDate.now()
-                val threeDays = remember(anchor) {
-                    listOf(anchor.minusDays(1), anchor, anchor.plusDays(1))
+                val timelineTasks = remember(weekTasks, filterKey, checkItems) {
+                    val base = weekTasks.filter { CalendarPrefs.passesFilter(it) }
+                    if (!checkItems) base
+                    else base.flatMap { listOf(it) + it.checkItemEntries() }.filter { CalendarPrefs.passesFilter(it) }
                 }
-                WeekTimelineView(
-                    weekDates = threeDays,
-                    allTasks = weekTasks,
-                    today = java.time.LocalDate.now(),
-                    selectedDate = anchor,
-                    onDateSelected = { viewModel.selectDate(it) },
-                    hourHeight = hourHeight,
-                    onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
-                    onTaskClick = { selectedTask = it },
-                    modifier = Modifier.weight(1f).fillMaxWidth()
-                )
-            }
-
-            CalendarViewMode.DAY -> {
-                val anchor = date ?: java.time.LocalDate.now()
-                val week = remember(anchor) { weekContaining(anchor) }
+                val secondaryZone = CalendarPrefs.secondaryZones.firstOrNull()
+                    ?.takeIf { CalendarPrefs.secondaryTzEnabled }
+                val shownFocus = if (CalendarPrefs.showFocusRecords) focusSessions else emptyList()
                 Column(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                    DayViewNavStrip(
-                        week = week,
-                        today = java.time.LocalDate.now(),
-                        selectedDate = anchor,
-                        onDateSelected = { viewModel.selectDate(it) }
-                    )
-                    WeekTimelineView(
-                        weekDates = listOf(anchor),
-                        allTasks = weekTasks,
-                        today = java.time.LocalDate.now(),
-                        selectedDate = anchor,
-                        onDateSelected = { viewModel.selectDate(it) },
-                        showDayHeader = false,
-                        hourHeight = hourHeight,
-                        onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
-                        onTaskClick = { selectedTask = it },
+                    if (viewMode == CalendarViewMode.DAY) {
+                        DayViewNavStrip(
+                            week = weekContaining(anchor),
+                            today = java.time.LocalDate.now(),
+                            selectedDate = anchor,
+                            onDateSelected = onTimelineDatePick
+                        )
+                    }
+                    // Swipe left / right to page by a week, 3 days or a day.
+                    TimelinePager(
+                        mode = viewMode,
+                        selected = anchor,
+                        onSettle = { viewModel.setSelectedDate(it) },
                         modifier = Modifier.weight(1f).fillMaxWidth()
-                    )
+                    ) { dates ->
+                        WeekTimelineView(
+                            weekDates = dates,
+                            allTasks = timelineTasks,
+                            today = java.time.LocalDate.now(),
+                            selectedDate = anchor,
+                            onDateSelected = onTimelineDatePick,
+                            showDayHeader = viewMode != CalendarViewMode.DAY,
+                            hourHeight = hourHeight,
+                            onCreateTask = { d, t, dur -> createPreset = CreatePreset(d, t, dur) },
+                            onTaskClick = openTask,
+                            focusSessions = shownFocus,
+                            secondaryZoneId = secondaryZone,
+                            initialScrollPx = timelineScroll[0].takeIf { it >= 0 },
+                            onScrollChanged = { timelineScroll[0] = it },
+                            occurrenceFilter = occurrenceFilter,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 
             CalendarViewMode.LIST -> {
                 ListCalendarView(
-                    allTasks = weekTasks,
+                    allTasks = weekTasks.filter { CalendarPrefs.passesFilter(it) },
                     today = java.time.LocalDate.now(),
                     selectedDate = date,
-                    onDateSelected = { viewModel.selectDate(it) },
+                    onDateSelected = onDatePick,
+                    occurrenceFilter = occurrenceFilter,
+                    onTaskClick = openTask,
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 )
             }
@@ -425,9 +514,9 @@ fun CalendarScreen(
                     ScrollableMonthCalendar(
                         months = viewModel.monthsList,
                         selectedDate = null,
-                        lookup = lookup,
+                        lookup = displayLookup,
                         initialMonth = initialMonth,
-                        onDateSelected = { viewModel.selectDate(it) },
+                        onDateSelected = onDatePick,
                         onVisibleMonthChanged = { viewModel.onVisibleMonthChanged(it) },
                         modifier = Modifier.fillMaxSize()
                     )
@@ -475,10 +564,10 @@ fun CalendarScreen(
                                 week = selectedWeek,
                                 today = today,
                                 selectedDate = currentDate,
-                                lookup = lookup,
+                                lookup = displayLookup,
                                 activeDrag = activeDrag,
                                 hoveredDate = hoveredDate,
-                                onDateSelected = { viewModel.selectDate(it) },
+                                onDateSelected = onDatePick,
                                 onDateBounds = { d, r -> dateBounds[d] = r },
                                 onExpandMonth = { viewModel.clearSelection() }
                             )
@@ -563,6 +652,25 @@ fun CalendarScreen(
                 }
             }
         }
+
+        if (showArrange) {
+            ArrangeTasksPanel(
+                tasks = undatedTasks.filter { CalendarPrefs.passesFilter(it) },
+                lists = calLists,
+                selectedTaskId = arrangeTask?.id,
+                onSelect = { arrangeTask = it },
+                onClose = { showArrange = false; arrangeTask = null }
+            )
+        }
+    }
+    }
+
+    if (showFilterSheet) {
+        CalendarFilterSheet(
+            lists = calLists,
+            tags = calTags,
+            onDismiss = { showFilterSheet = false }
+        )
     }
 
     selectedTask?.let { task ->
@@ -864,5 +972,82 @@ private fun DragAwareWeekStrip(
                     .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
             )
         }
+    }
+}
+
+/**
+ * Horizontally swipeable timeline: each page is one week (주), three days
+ * (3일) or one day (일). Settling on a page moves the selection; selecting a
+ * date elsewhere (오늘 button, day strip) pages to it.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun TimelinePager(
+    mode: CalendarViewMode,
+    selected: java.time.LocalDate,
+    onSettle: (java.time.LocalDate) -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable (List<java.time.LocalDate>) -> Unit
+) {
+    val center = 5_000
+    val step = when (mode) {
+        CalendarViewMode.WEEK -> 7L
+        CalendarViewMode.THREE_DAY -> 3L
+        else -> 1L
+    }
+    var base by remember(mode) { mutableStateOf(selected) }
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(initialPage = center) { center * 2 }
+    fun anchorAt(page: Int) = base.plusDays((page - center) * step)
+    fun datesFor(a: java.time.LocalDate): List<java.time.LocalDate> = when (mode) {
+        CalendarViewMode.WEEK -> weekContaining(a)
+        CalendarViewMode.THREE_DAY -> listOf(a.minusDays(1), a, a.plusDays(1))
+        else -> listOf(a)
+    }
+    val latestSelected by androidx.compose.runtime.rememberUpdatedState(selected)
+
+    // Selection changed from outside the pager → page (or re-center) to it.
+    androidx.compose.runtime.LaunchedEffect(selected, mode) {
+        val page = pagerState.currentPage
+        val cur = anchorAt(page)
+        if (selected in datesFor(cur)) {
+            // 3일 view keeps the selected day in the middle.
+            if (mode == CalendarViewMode.THREE_DAY && selected != cur) {
+                base = selected.minusDays((page - center) * step)
+            }
+            return@LaunchedEffect
+        }
+        val pages = when (mode) {
+            CalendarViewMode.WEEK -> java.time.temporal.ChronoUnit.WEEKS.between(
+                weekContaining(cur).first(), weekContaining(selected).first()
+            ).toInt()
+            else -> (java.time.temporal.ChronoUnit.DAYS.between(cur, selected) / step).toInt()
+                .let { if (it == 0) (if (selected.isAfter(cur)) 1 else -1) else it }
+        }
+        val target = (page + pages).coerceIn(0, center * 2 - 1)
+        base = selected.minusDays((target - center) * step)
+        if (kotlin.math.abs(pages) <= 2) pagerState.animateScrollToPage(target)
+        else pagerState.scrollToPage(target)
+    }
+
+    // User swiped to another page → move the selection with it.
+    androidx.compose.runtime.LaunchedEffect(pagerState, mode) {
+        androidx.compose.runtime.snapshotFlow { pagerState.settledPage }
+            .collect { p ->
+                val a = anchorAt(p)
+                val sel = latestSelected
+                val next = if (mode == CalendarViewMode.WEEK) {
+                    if (sel in weekContaining(a)) sel else weekContaining(a)[sel.dayOfWeek.value % 7]
+                } else a
+                if (next != sel && sel !in datesFor(a)) onSettle(next)
+            }
+    }
+
+    androidx.compose.foundation.pager.HorizontalPager(
+        state = pagerState,
+        modifier = modifier,
+        beyondBoundsPageCount = 1,
+        key = { it }
+    ) { page ->
+        content(datesFor(anchorAt(page)))
     }
 }

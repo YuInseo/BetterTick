@@ -48,14 +48,16 @@ fun ListCalendarView(
     today: LocalDate,
     selectedDate: LocalDate?,
     onDateSelected: (LocalDate) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    occurrenceFilter: (Task, LocalDate) -> Boolean = { _, _ -> true },
+    onTaskClick: (Task) -> Unit = {}
 ) {
-    val groupedTasks: List<Pair<LocalDate, List<Task>>> = remember(allTasks, today) {
+    val groupedTasks: List<Pair<LocalDate, List<Task>>> = remember(allTasks, today, occurrenceFilter) {
         val endDate = today.plusMonths(12)
         val byDate = mutableMapOf<LocalDate, MutableList<Task>>()
         var day = today
         while (!day.isAfter(endDate)) {
-            val dayTasks = allTasks.filter { it.occursOn(day) && !it.isAbandoned }
+            val dayTasks = allTasks.filter { it.occursOn(day) && !it.isAbandoned && occurrenceFilter(it, day) }
             if (dayTasks.isNotEmpty()) byDate[day] = dayTasks.toMutableList()
             day = day.plusDays(1)
         }
@@ -87,7 +89,7 @@ fun ListCalendarView(
                 )
             }
             items(tasks, key = { "${date.toEpochDay()}_${it.id}" }) { task ->
-                ListTaskRow(task = task)
+                ListTaskRow(task = task, onClick = { onTaskClick(task) })
                 Spacer(modifier = Modifier.height(4.dp))
             }
             item(key = "spacer_${date.toEpochDay()}") {
@@ -154,7 +156,7 @@ private fun ListDateHeader(
 }
 
 @Composable
-private fun ListTaskRow(task: Task) {
+private fun ListTaskRow(task: Task, onClick: () -> Unit = {}) {
     val alpha = if (task.isCompleted) 0.45f else 1f
     val timeLabel = task.dueDate?.toDate()?.toInstant()
         ?.atZone(ZoneId.systemDefault())?.toLocalTime()
@@ -176,6 +178,7 @@ private fun ListTaskRow(task: Task) {
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .background(DarkCard)
+            .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -183,7 +186,7 @@ private fun ListTaskRow(task: Task) {
             modifier = Modifier
                 .size(10.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF4257B2).copy(alpha = alpha))
+                .background(com.bettertick.ui.screens.calendar.LocalTaskColor.current(task).copy(alpha = alpha))
         )
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -203,6 +206,14 @@ private fun ListTaskRow(task: Task) {
                         Text(text = "반복", fontSize = 11.sp, color = TextTertiary)
                     }
                 }
+            }
+            if (com.bettertick.ui.screens.calendar.CalendarPrefs.showDetails && task.notes.isNotBlank()) {
+                Text(
+                    text = task.notes.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty(),
+                    fontSize = 12.sp,
+                    color = TextTertiary,
+                    maxLines = 1
+                )
             }
         }
         if (task.isCompleted) {

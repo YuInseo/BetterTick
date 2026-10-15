@@ -121,10 +121,7 @@ private fun WeekDayCell(
             val overflow = tasks.size - maxVisibleTasks
 
             visible.forEach { task ->
-                StripTaskChip(
-                    title = task.title,
-                    isCompleted = task.isCompleted
-                )
+                com.bettertick.ui.screens.calendar.components.CalendarTaskChip(task = task)
                 Spacer(modifier = Modifier.height(1.dp))
             }
             if (overflow > 0) {
@@ -138,25 +135,4 @@ private fun WeekDayCell(
             }
         }
     }
-}
-
-@Composable
-private fun StripTaskChip(
-    title: String,
-    isCompleted: Boolean
-) {
-    val chipColor = if (isCompleted) ThemeState.accentColor.copy(alpha = 0.45f) else ThemeState.accentColor
-    Text(
-        text = if (isCompleted) "\u2715 $title" else title,
-        fontSize = 9.sp,
-        lineHeight = 11.sp,
-        color = Color.White,
-        maxLines = 1,
-        overflow = TextOverflow.Clip,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(2.dp))
-            .background(chipColor)
-            .padding(horizontal = 2.dp, vertical = 1.dp)
-    )
 }
