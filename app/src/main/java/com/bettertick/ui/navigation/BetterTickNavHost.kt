@@ -443,6 +443,12 @@ private fun MainContent(
                         onOpenDrawer = {
                             scope.launch { drawerState.open() }
                         },
+                        onOpenHabits = {
+                            navController.navigate(BottomNavItem.Habits.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
                         viewModel = tasksViewModel
                     )
                 }
@@ -469,7 +475,16 @@ private fun MainContent(
                     com.bettertick.ui.screens.more.SoundSettingsScreen(onBack = { navController.popBackStack() })
                 }
                 composable("settings_general") {
-                    com.bettertick.ui.screens.more.GeneralSettingsScreen(onBack = { navController.popBackStack() })
+                    val exportContext = androidx.compose.ui.platform.LocalContext.current
+                    com.bettertick.ui.screens.more.GeneralSettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onExportTasks = {
+                            com.bettertick.ui.screens.more.shareTasksCsv(
+                                exportContext,
+                                com.bettertick.ui.screens.more.buildTasksCsv(allTasks, lists, tags)
+                            )
+                        }
+                    )
                 }
                 composable("smartlists") {
                     com.bettertick.ui.screens.more.SmartListSettingsScreen(onBack = { navController.popBackStack() })

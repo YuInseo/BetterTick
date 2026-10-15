@@ -145,6 +145,41 @@ class HabitRepository @Inject constructor(
             .update("isArchived", true)
     }
 
+    /** Marks [habitId] done on [date] (notification 체크인). Idempotent and
+     *  keeps an existing mood / note. */
+    suspend fun checkIn(habitId: String, date: String) {
+        runCatching {
+            val existing = firestoreProvider.habitLogsCollection()
+                .whereEqualTo("habitId", habitId)
+                .whereEqualTo("date", date)
+                .get(Source.CACHE).await()
+            val doc = existing.documents.firstOrNull()
+            if (doc == null) {
+                firestoreProvider.habitLogsCollection().add(
+                    HabitLog(habitId = habitId, date = date, isCompleted = true, completedAt = Timestamp.now())
+                )
+            } else {
+                // Go through the POJO mapper so the field names match what
+                // toObject() reads (Kotlin "isX" booleans are renamed).
+                val log = doc.toObject(HabitLog::class.java) ?: HabitLog(habitId = habitId, date = date)
+                if (!log.isCompleted) {
+                    doc.reference.set(log.copy(id = doc.id, isCompleted = true, completedAt = Timestamp.now()))
+                }
+            }
+        }.onFailure { Log.e("HabitRepo", "checkIn failed", it) }
+    }
+
+    /** 열 관리 rename: moves every habit of section [old] to [new]. */
+    suspend fun renameGroup(old: String, new: String) {
+        runCatching {
+            val docs = firestoreProvider.habitsCollection()
+                .whereEqualTo("group", old)
+                .get(Source.CACHE).await()
+            // Do not await the writes — offline writes wait for a server ack.
+            docs.documents.forEach { it.reference.update("group", new) }
+        }.onFailure { Log.e("HabitRepo", "renameGroup failed", it) }
+    }
+
     suspend fun deleteHabit(habitId: String) {
         firestoreProvider.habitsCollection().document(habitId).delete()
     }

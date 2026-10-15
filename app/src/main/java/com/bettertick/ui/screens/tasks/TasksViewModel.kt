@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
 import com.bettertick.data.model.TaskList
+import com.bettertick.data.model.Habit
+import com.bettertick.data.repository.HabitRepository
 import com.bettertick.data.repository.ListRepository
 import com.bettertick.data.repository.TagRepository
 import com.bettertick.data.repository.TaskRepository
@@ -21,14 +23,37 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Date
+import com.bettertick.ui.screens.habits.isDueOn
+import kotlinx.coroutines.flow.catch
 import javax.inject.Inject
+
+data class HabitTodayItem(val habit: Habit, val done: Boolean)
 
 @HiltViewModel
 class TasksViewModel @Inject constructor(
     private val taskRepository: TaskRepository,
     private val listRepository: ListRepository,
-    private val tagRepository: TagRepository
+    private val tagRepository: TagRepository,
+    private val habitRepository: HabitRepository
 ) : ViewModel() {
+
+    /** Habits due today with their check-in state — shown in 오늘 / 다음 7일
+     *  when 습관 설정 > "오늘" & "다음 7일"에 표시 is on. */
+    val todayHabits: StateFlow<List<HabitTodayItem>> = run {
+        val today = LocalDate.now()
+        kotlinx.coroutines.flow.combine(
+            habitRepository.observeHabits(),
+            habitRepository.observeHabitLogs(today.toString(), today.toString())
+        ) { habits, logs ->
+            val done = logs.filter { it.isCompleted }.map { it.habitId }.toSet()
+            habits.filter { it.isDueOn(today) }.map { HabitTodayItem(it, it.id in done) }
+        }
+    }.catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun toggleHabitToday(habitId: String) {
+        viewModelScope.launch { habitRepository.toggleHabitLog(habitId, LocalDate.now().toString()) }
+    }
 
     private val _currentFilter = MutableStateFlow<TaskFilter>(TaskFilter.Today)
     val currentFilter: StateFlow<TaskFilter> = _currentFilter.asStateFlow()

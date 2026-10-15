@@ -22,6 +22,16 @@ class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         when (intent.action) {
             ReminderScheduler.ACTION_REMIND -> showTaskReminder(context, intent)
+            HabitReminderScheduler.ACTION_HABIT -> {
+                val pending = goAsync()
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    try {
+                        showHabitReminder(context, intent)
+                    } finally {
+                        pending.finish()
+                    }
+                }
+            }
             ReminderScheduler.ACTION_DAILY -> {
                 val pending = goAsync()
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
@@ -79,6 +89,49 @@ class ReminderReceiver : BroadcastReceiver() {
     }
 
     @android.annotation.SuppressLint("MissingPermission") // guarded by canNotify()
+    private suspend fun showHabitReminder(context: Context, intent: Intent) {
+        val habitId = intent.getStringExtra(HabitReminderScheduler.EXTRA_HABIT_ID) ?: return
+        val name = intent.getStringExtra(HabitReminderScheduler.EXTRA_HABIT_NAME).orEmpty()
+        val date = intent.getStringExtra(HabitReminderScheduler.EXTRA_DATE) ?: LocalDate.now().toString()
+        val notifId = intent.getIntExtra(HabitReminderScheduler.EXTRA_NOTIFICATION_ID, habitId.hashCode())
+        var alreadyDone = false
+        if (WidgetServiceLocator.isInitialized) {
+            val repo = WidgetServiceLocator.habitRepository
+            alreadyDone = withTimeoutOrNull(5_000) {
+                repo.observeHabitLogs(date, date).first()
+                    .any { it.habitId == habitId && it.isCompleted }
+            } ?: false
+            // Arm the next occurrence of this habit's reminders.
+            withTimeoutOrNull(8_000) { repo.observeHabits().first() }
+                ?.let { runCatching { HabitReminderScheduler.syncAll(context, it) } }
+        }
+        if (alreadyDone) return
+        val checkIn = PendingIntent.getBroadcast(
+            context, notifId + 1,
+            Intent(context, ReminderActionReceiver::class.java).apply {
+                action = HabitReminderScheduler.ACTION_HABIT_CHECK_IN
+                putExtra(HabitReminderScheduler.EXTRA_HABIT_ID, habitId)
+                putExtra(HabitReminderScheduler.EXTRA_DATE, date)
+                putExtra(HabitReminderScheduler.EXTRA_NOTIFICATION_ID, notifId)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val n = NotificationCompat.Builder(context, HabitReminderScheduler.channelId(context))
+            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setContentTitle(name)
+            .setContentText("오늘의 습관을 체크인할 시간이에요")
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent(context, notifId))
+            .addAction(0, "체크인", checkIn)
+            .build()
+        if (canNotify(context)) {
+            runCatching { NotificationManagerCompat.from(context).notify(notifId, n) }
+        }
+    }
+
+    @android.annotation.SuppressLint("MissingPermission") // guarded by canNotify()
     private suspend fun showDailySummary(context: Context) {
         if (!WidgetServiceLocator.isInitialized) return
         val tasks = withTimeoutOrNull(8_000) {
@@ -115,6 +168,22 @@ private fun canNotify(context: Context): Boolean =
 /** Notification buttons: 완료 / 10분 후 다시 알림. */
 class ReminderActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == HabitReminderScheduler.ACTION_HABIT_CHECK_IN) {
+            val habitId = intent.getStringExtra(HabitReminderScheduler.EXTRA_HABIT_ID) ?: return
+            val date = intent.getStringExtra(HabitReminderScheduler.EXTRA_DATE) ?: LocalDate.now().toString()
+            NotificationManagerCompat.from(context)
+                .cancel(intent.getIntExtra(HabitReminderScheduler.EXTRA_NOTIFICATION_ID, habitId.hashCode()))
+            if (!WidgetServiceLocator.isInitialized) return
+            val pending = goAsync()
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                try {
+                    WidgetServiceLocator.habitRepository.checkIn(habitId, date)
+                } finally {
+                    pending.finish()
+                }
+            }
+            return
+        }
         val taskId = intent.getStringExtra(ReminderScheduler.EXTRA_TASK_ID) ?: return
         val notifId = intent.getIntExtra(ReminderScheduler.EXTRA_NOTIFICATION_ID, taskId.hashCode())
         NotificationManagerCompat.from(context).cancel(notifId)

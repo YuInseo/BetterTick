@@ -35,8 +35,9 @@ object ReminderScheduler {
 
     private const val STATE_PREFS = "reminder_state"
     private const val DAILY_REQUEST = 7_770_001
-    /** All-day tasks are reminded relative to this time. */
-    private val ALL_DAY_TIME: LocalTime = LocalTime.of(9, 0)
+    /** All-day tasks are reminded relative to this time (설정 > 날짜 & 시간). */
+    private val ALL_DAY_TIME: LocalTime
+        get() = AppPrefs.allDayReminderMinutes.let { LocalTime.of(it / 60 % 24, it % 60) }
 
     data class Fire(val code: Int, val at: Long, val task: Task, val occurrence: LocalDateTime)
 
