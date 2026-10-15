@@ -3,6 +3,7 @@ package com.bettertick.ui.screens.tasks.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,7 +61,7 @@ import java.time.ZoneId
  *   gray otherwise,
  * - completed / won't-do rows fade their title to the tertiary text color.
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun TaskItem(
     task: Task,
@@ -75,7 +76,11 @@ fun TaskItem(
      */
     overrideDate: LocalDate? = null,
     listName: String = "기본함",
-    resolvedTags: List<Tag> = emptyList()
+    resolvedTags: List<Tag> = emptyList(),
+    /** 목록 ⋮ > 세부 정보 표시 — notes preview + tag pills. */
+    showDetails: Boolean = com.bettertick.ui.screens.tasks.TaskListPrefs.showDetails,
+    /** Long-press — enters multi-select in the task list. */
+    onLongClick: (() -> Unit)? = null
 ) {
     val shownDate = overrideDate ?: task.dueDate?.toLocalDate()
     // Recurring tasks aren't really "overdue" — even when their stored
@@ -105,7 +110,7 @@ fun TaskItem(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
-            .clickable { onClick() }
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(start = 4.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -135,7 +140,7 @@ fun TaskItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (task.notes.isNotBlank()) {
+            if (showDetails && task.notes.isNotBlank()) {
                 MarkdownText(
                     text = task.notes,
                     color = TextSecondary,
@@ -144,7 +149,7 @@ fun TaskItem(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (resolvedTags.isNotEmpty()) {
+            if (showDetails && resolvedTags.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),

@@ -590,7 +590,8 @@ private fun MainContent(
             // 오른쪽 아래, 하단 네비게이션 바 바로 위에 떠 있는 플로팅 버튼.
             if (isTabRoute && currentRoute != "location" && currentRoute != "more" &&
                 currentRoute != BottomNavItem.Habits.route &&
-                !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen
+                !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen &&
+                !com.bettertick.ui.screens.tasks.TaskListPrefs.selectionActive
             ) {
                 Box(
                     modifier = Modifier
