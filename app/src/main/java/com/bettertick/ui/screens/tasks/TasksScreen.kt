@@ -368,8 +368,10 @@ fun TasksScreen(
         }
 
         val openTasks = remember(tasks) { tasks.filter { !it.isCompleted && !it.isAbandoned } }
-        val groups = currentGroups(openTasks, lists, tags)
-        val completedGroup = if (TaskListPrefs.showCompleted && completedTasks.isNotEmpty())
+        val archive = currentFilter.isArchive
+        // 완료 / 하지 않음 lists: finished tasks grouped by when they ended.
+        val groups = if (archive) archiveGroups(completedTasks) else currentGroups(openTasks, lists, tags)
+        val completedGroup = if (!archive && TaskListPrefs.showCompleted && completedTasks.isNotEmpty())
             TaskGroup("completed", "완료됨", completedTasks) else null
 
         // Task list — groups per 목록 ⋮ > 그룹 및 정렬, then 완료됨 at the bottom.
@@ -924,4 +926,27 @@ private fun rescheduleTo(task: Task, date: LocalDate): com.google.firebase.Times
         .atZone(java.time.ZoneId.systemDefault())
         .toInstant()
     return com.google.firebase.Timestamp(java.util.Date.from(instant))
+}
+
+/** Groups finished tasks by completion day: 오늘 / 어제 / 최근 7일 / 이전. */
+private fun archiveGroups(done: List<Task>): List<TaskGroup> {
+    val today = LocalDate.now()
+    fun dayOf(t: Task): LocalDate? = (t.completedAt ?: t.abandonedAt ?: t.updatedAt).toLocalDate()
+    val buckets = linkedMapOf(
+        "오늘" to mutableListOf<Task>(),
+        "어제" to mutableListOf(),
+        "최근 7일" to mutableListOf(),
+        "이전" to mutableListOf()
+    )
+    done.sortedByDescending { (it.completedAt ?: it.abandonedAt ?: it.updatedAt).seconds }.forEach { t ->
+        val d = dayOf(t)
+        val key = when {
+            d == today -> "오늘"
+            d == today.minusDays(1) -> "어제"
+            d != null && d.isAfter(today.minusDays(7)) -> "최근 7일"
+            else -> "이전"
+        }
+        buckets.getValue(key) += t
+    }
+    return buckets.filterValues { it.isNotEmpty() }.map { (k, v) -> TaskGroup("archive:$k", k, v) }
 }

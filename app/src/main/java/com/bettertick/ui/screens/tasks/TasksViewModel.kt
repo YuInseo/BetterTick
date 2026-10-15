@@ -23,12 +23,6 @@ import java.time.ZoneId
 import java.util.Date
 import javax.inject.Inject
 
-sealed class TaskFilter {
-    data object Today : TaskFilter()
-    data object Inbox : TaskFilter()
-    data class ByList(val listId: String, val listName: String) : TaskFilter()
-}
-
 @HiltViewModel
 class TasksViewModel @Inject constructor(
     private val taskRepository: TaskRepository,
@@ -70,9 +64,12 @@ class TasksViewModel @Inject constructor(
             // returning 0 rows because Kotlin's Firestore mapper serializes
             // `isCompleted` under a different field name than the raw query
             // expects.
-            is TaskFilter.Today -> taskRepository.observeAllTasks()
-            is TaskFilter.Inbox -> taskRepository.observeAllTasks()
             is TaskFilter.ByList -> taskRepository.observeTasksByList(filter.listId)
+            // Smart lists / tags: filter the shared stream (see SmartLists.kt).
+            else -> kotlinx.coroutines.flow.combine(taskRepository.observeAllTasks(), lists) { all, ls ->
+                val today = LocalDate.now()
+                all.filter { filter.matches(it, ls, today) }
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -81,11 +78,7 @@ class TasksViewModel @Inject constructor(
     }
 
     val filterTitle: String
-        get() = when (val filter = _currentFilter.value) {
-            is TaskFilter.Today -> "오늘"
-            is TaskFilter.Inbox -> "기본함"
-            is TaskFilter.ByList -> filter.listName
-        }
+        get() = _currentFilter.value.title
 
     fun addTask(title: String, dueDate: LocalDate? = null) {
         if (title.isBlank()) return
