@@ -100,10 +100,12 @@ private enum class TaskSection(val label: String) {
 @Composable
 fun TasksScreen(
     onOpenDrawer: () -> Unit,
+    onOpenHabits: () -> Unit = {},
     viewModel: TasksViewModel = hiltViewModel()
 ) {
     val tasks by viewModel.tasks.collectAsState()
     val currentFilter by viewModel.currentFilter.collectAsState()
+    val todayHabits by viewModel.todayHabits.collectAsState()
     val lists by viewModel.lists.collectAsState()
     val tags by viewModel.tags.collectAsState()
 
@@ -436,7 +438,32 @@ fun TasksScreen(
                     }
                 }
             }
-            if (groups.isEmpty() && completedGroup == null) {
+            // 습관 — due habits in 오늘 / 다음 7일 (습관 설정 toggle).
+            val habitItems = if (!selectionMode && com.bettertick.ui.screens.habits.HabitPrefs.showInTodayNext7 &&
+                (currentFilter is TaskFilter.Today || currentFilter is TaskFilter.Next7Days)) todayHabits else emptyList()
+            if (habitItems.isNotEmpty()) {
+                val expanded = groupExpanded["habits"] ?: true
+                item(key = "header-habits") {
+                    SectionHeader(
+                        title = "습관",
+                        count = habitItems.count { !it.done },
+                        color = TextSecondary,
+                        expanded = expanded,
+                        onToggle = { groupExpanded["habits"] = !expanded }
+                    )
+                }
+                if (expanded) {
+                    items(habitItems, key = { "habit-${it.habit.id}" }) { h ->
+                        com.bettertick.ui.screens.tasks.components.HabitTaskRow(
+                            habit = h.habit,
+                            done = h.done,
+                            onToggle = { viewModel.toggleHabitToday(h.habit.id) },
+                            onClick = onOpenHabits
+                        )
+                    }
+                }
+            }
+            if (groups.isEmpty() && completedGroup == null && habitItems.isEmpty()) {
                 item(key = "empty") { EmptyTaskList() }
             }
         }

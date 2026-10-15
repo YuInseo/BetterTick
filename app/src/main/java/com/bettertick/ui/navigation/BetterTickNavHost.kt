@@ -443,6 +443,12 @@ private fun MainContent(
                         onOpenDrawer = {
                             scope.launch { drawerState.open() }
                         },
+                        onOpenHabits = {
+                            navController.navigate(BottomNavItem.Habits.route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        },
                         viewModel = tasksViewModel
                     )
                 }
