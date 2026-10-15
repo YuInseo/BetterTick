@@ -275,7 +275,7 @@ private fun ThemeTabContent(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(GroupedCard)
-                .clickable { ThemeState.setFollowSystemDark(!ThemeState.followSystemDark) }
+                .clickable { ThemeState.updateFollowSystemDark(!ThemeState.followSystemDark) }
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -287,7 +287,7 @@ private fun ThemeTabContent(
             )
             androidx.compose.material3.Switch(
                 checked = ThemeState.followSystemDark,
-                onCheckedChange = { ThemeState.setFollowSystemDark(it) },
+                onCheckedChange = { ThemeState.updateFollowSystemDark(it) },
                 colors = androidx.compose.material3.SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
                     checkedTrackColor = MaterialTheme.colorScheme.primary,

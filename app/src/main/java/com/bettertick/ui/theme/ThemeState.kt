@@ -62,7 +62,7 @@ object ThemeState {
         save()
     }
 
-    fun setFollowSystemDark(enabled: Boolean) {
+    fun updateFollowSystemDark(enabled: Boolean) {
         followSystemDark = enabled
         save()
     }
