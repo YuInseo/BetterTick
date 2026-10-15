@@ -1231,7 +1231,7 @@ private fun TagChip(
 }
 
 @Composable
-private fun TagPickerDialog(
+internal fun TagPickerDialog(
     tags: List<Tag>,
     selectedIds: List<String>,
     onToggle: (String) -> Unit,

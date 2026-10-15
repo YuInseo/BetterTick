@@ -722,21 +722,28 @@ private fun MainContent(
                         val isKanbanContext = contextListId.isNotEmpty() &&
                             lists.firstOrNull { it.id == contextListId }?.viewType == "kanban"
                         val contextColumn = if (isKanbanContext) selectedKanbanColumn else ""
+                        val qaLists by quickAddViewModel.lists.collectAsState()
+                        val qaTags by quickAddViewModel.tags.collectAsState()
                         TaskInputSheet(
-                            onAddTask = { title, date ->
-                                quickAddViewModel.addTask(
-                                    title = title,
-                                    date = if (isKanbanContext) null else date,
-                                    listId = contextListId,
+                            onAddTask = { draft ->
+                                quickAddViewModel.addDraft(
+                                    draft,
+                                    contextListId = contextListId,
                                     kanbanColumn = contextColumn
                                 )
                                 showTaskInput = false
                             },
                             onDismiss = { showTaskInput = false },
-                            initialDate = if (currentRoute == BottomNavItem.Calendar.route)
-                                calendarSelectedDate ?: java.time.LocalDate.now()
-                            else
-                                java.time.LocalDate.now()
+                            initialDate = when {
+                                isKanbanContext -> null
+                                currentRoute == BottomNavItem.Calendar.route ->
+                                    calendarSelectedDate ?: java.time.LocalDate.now()
+                                else -> java.time.LocalDate.now()
+                            },
+                            lists = qaLists,
+                            tags = qaTags,
+                            contextListId = contextListId,
+                            onCreateTag = { quickAddViewModel.createTag(it) }
                         )
                     }
                     } // close Column (drag handle wrapper)
