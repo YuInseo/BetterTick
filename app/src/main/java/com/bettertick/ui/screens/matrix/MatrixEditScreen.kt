@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.matrix
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.ThemeState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -71,14 +73,14 @@ fun MatrixEditScreen(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = Color.White
+                    tint = TextPrimary
                 )
             }
             Text(
                 text = "행렬 편집",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 modifier = Modifier.padding(start = 4.dp)
             )
         }
@@ -108,7 +110,7 @@ fun MatrixEditScreen(
             TextButton(onClick = { viewModel.saveConfig(defaultMatrix) }) {
                 Text(
                     text = "예시",
-                    color = Color(0xFF4A90E2),
+                    color = ThemeState.accentColor,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold
                 )

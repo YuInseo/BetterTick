@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -25,7 +26,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.bettertick.ui.theme.DarkSurfaceVariant
 
-private val InfoAccent = Color(0xFF4A90E2)
+private val InfoAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /** "반복 유형에 대해" — help modal launched from the ? button next to the
  *  dropdown in [CustomRepeatDialog]. Three labeled paragraphs, single
@@ -50,7 +51,7 @@ fun RepeatTypeInfoDialog(
                 text = "반복 유형에 대해",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = TextPrimary
             )
 
             Spacer(Modifier.height(16.dp))
@@ -94,10 +95,10 @@ fun RepeatTypeInfoDialog(
 private fun InfoParagraph(label: String, body: String) {
     Text(
         text = buildAnnotatedString {
-            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) {
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = TextPrimary)) {
                 append(label)
             }
-            withStyle(SpanStyle(color = Color.White.copy(alpha = 0.75f))) {
+            withStyle(SpanStyle(color = TextPrimary.copy(alpha = 0.75f))) {
                 append(body)
             }
         },

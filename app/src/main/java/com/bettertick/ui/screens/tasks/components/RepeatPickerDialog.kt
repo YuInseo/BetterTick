@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +35,7 @@ import com.bettertick.ui.theme.TextTertiary
 import java.time.DayOfWeek
 import java.time.LocalDate
 
-private val RepeatPickerAccent = Color(0xFF4A90E2)
+private val RepeatPickerAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /** Recurrence rule attached to a task, surfaced as the date picker's 반복 row. */
 sealed interface RepeatChoice {
@@ -218,7 +219,7 @@ fun RepeatPickerDialog(
                 text = "반복",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
             )
 
@@ -318,7 +319,7 @@ private fun RepeatRow(
             Text(
                 text = label,
                 fontSize = 15.sp,
-                color = if (selected) RepeatPickerAccent else Color.White
+                color = if (selected) RepeatPickerAccent else TextPrimary
             )
             if (preview != null) {
                 Spacer(modifier = Modifier.size(6.dp))

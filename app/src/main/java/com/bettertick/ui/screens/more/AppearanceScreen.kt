@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.more
 
+import com.bettertick.ui.theme.TextTertiary
+import com.bettertick.ui.theme.TickBlue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,8 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.bettertick.ui.theme.DarkBackground
-import com.bettertick.ui.theme.DarkCard
+import com.bettertick.ui.theme.GroupedBackground
+import com.bettertick.ui.theme.GroupedCard
 import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.ThemeState
@@ -60,7 +62,7 @@ data class ThemeColor(
     val colors: List<Color>,
     val accentColor: Color = Color.Unspecified,
     // City / scene themes override the preview card with a full-bleed gradient.
-    // Default themes leave these null and fall back to DarkCard.
+    // Default themes leave these null and fall back to GroupedCard.
     val backgroundColors: List<Color>? = null,
     val cardColor: Color? = null,
     val previewTextColor: Color? = null,
@@ -82,7 +84,7 @@ fun AppearanceScreen(
     var selectedTab by remember { mutableIntStateOf(0) }
     val themeColors = remember {
         listOf(
-            ThemeColor("기본값", listOf(Color(0xFF4A90D9), Color(0xFF357ABD)), accentColor = Color(0xFF4A90D9)),
+            ThemeColor("기본값", listOf(Color(0xFF6E8EFB), Color(0xFF4772FA)), accentColor = TickBlue),
             ThemeColor("티얼 블루", listOf(Color(0xFF7ED6DF), Color(0xFF22A6B3)), accentColor = Color(0xFF22A6B3)),
             ThemeColor("터쿼이즈", listOf(Color(0xFF7CEBC6), Color(0xFF55E6A0)), accentColor = Color(0xFF55E6A0)),
             ThemeColor("갈대 녹색", listOf(Color(0xFFD4E09B), Color(0xFFC5D86D)), accentColor = Color(0xFFC5D86D)),
@@ -93,8 +95,8 @@ fun AppearanceScreen(
             ThemeColor("자갈색", listOf(Color(0xFFBDC3C7), Color(0xFF95A5A6)), accentColor = Color(0xFF95A5A6)),
             ThemeColor(
                 name = "어둠",
-                colors = listOf(Color(0xFF2C2C2C), Color(0xFF1A1A1A)),
-                accentColor = Orange,
+                colors = listOf(Color(0xFF2C2C2E), Color(0xFF121212)),
+                accentColor = TickBlue,
                 hasCustomAccent = true
             ),
             ThemeColor(
@@ -168,9 +170,7 @@ fun AppearanceScreen(
             )
         )
     }
-    var selectedTheme by remember { mutableStateOf(
-        themeColors.find { it.accentColor == ThemeState.accentColor }?.name ?: "어둠"
-    ) }
+    var selectedTheme by remember { mutableStateOf(ThemeState.themeName) }
     var detailTheme by remember { mutableStateOf<ThemeColor?>(null) }
 
     // Show detail screen when a color is tapped — preview + apply.
@@ -182,7 +182,11 @@ fun AppearanceScreen(
             onBack = { detailTheme = null },
             onApply = { applied ->
                 selectedTheme = applied.name
-                ThemeState.setTheme(applied.accentColor)
+                ThemeState.applyTheme(
+                    name = applied.name,
+                    accent = applied.accentColor,
+                    dark = applied.name == ThemeState.DARK_THEME_NAME
+                )
                 detailTheme = null
             }
         )
@@ -192,7 +196,7 @@ fun AppearanceScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground)
+            .background(GroupedBackground)
     ) {
         // Back button + Tabs in same row
         Row(
@@ -208,7 +212,7 @@ fun AppearanceScreen(
             }
             TabRow(
                 selectedTabIndex = selectedTab,
-                containerColor = DarkBackground,
+                containerColor = GroupedBackground,
                 contentColor = MaterialTheme.colorScheme.onBackground,
                 indicator = { tabPositions ->
                     if (selectedTab < tabPositions.size) {
@@ -270,27 +274,27 @@ private fun ThemeTabContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(DarkCard)
-                .clickable {}
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .background(GroupedCard)
+                .clickable { ThemeState.updateFollowSystemDark(!ThemeState.followSystemDark) }
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "시스템 어두운 모드로 이동",
+                text = "시스템 어두운 모드 따르기",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.weight(1f)
             )
-            Text(
-                text = "켜기",
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary
-            )
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null,
-                tint = TextSecondary,
-                modifier = Modifier.size(20.dp)
+            androidx.compose.material3.Switch(
+                checked = ThemeState.followSystemDark,
+                onCheckedChange = { ThemeState.updateFollowSystemDark(it) },
+                colors = androidx.compose.material3.SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary,
+                    uncheckedThumbColor = Color.White,
+                    uncheckedTrackColor = TextTertiary,
+                    uncheckedBorderColor = Color.Transparent
+                )
             )
         }
 
@@ -299,7 +303,7 @@ private fun ThemeTabContent(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
-                .background(DarkCard)
+                .background(GroupedCard)
                 .padding(16.dp)
         ) {
             Text(

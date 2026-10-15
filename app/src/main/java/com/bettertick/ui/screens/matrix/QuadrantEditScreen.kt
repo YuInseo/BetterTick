@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.matrix
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,7 +56,7 @@ import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 
-private val MatrixAccent = Color(0xFF4A90E2)
+private val MatrixAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /**
  * Per-quadrant filter editor. Five rows — 목록 / 태그 / 날짜 / 우선 순위 /
@@ -97,14 +98,14 @@ fun QuadrantEditScreen(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = Color.White
+                    tint = TextPrimary
                 )
             }
             Text(
                 text = "행렬 편집",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 modifier = Modifier.padding(start = 4.dp)
             )
             Spacer(Modifier.weight(1f))
@@ -115,7 +116,7 @@ fun QuadrantEditScreen(
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = "Save",
-                    tint = Color.White
+                    tint = TextPrimary
                 )
             }
         }
@@ -309,7 +310,7 @@ private fun SettingRow(
     ) {
         Text(
             text = label,
-            color = Color.White,
+            color = TextPrimary,
             fontSize = 15.sp,
             modifier = Modifier.weight(1f)
         )
@@ -366,7 +367,7 @@ private fun SingleChoiceDialog(
             Column(modifier = Modifier.padding(vertical = 20.dp)) {
                 Text(
                     text = title,
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 20.dp)
@@ -396,7 +397,7 @@ private fun SingleChoiceDialog(
                             Spacer(Modifier.width(8.dp))
                             Text(
                                 text = label,
-                                color = Color.White,
+                                color = TextPrimary,
                                 fontSize = 16.sp
                             )
                         }
@@ -448,7 +449,7 @@ private fun ListsPickerDialog(
             Column(modifier = Modifier.padding(vertical = 20.dp)) {
                 Text(
                     text = "필터 보기 범위",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 20.dp)
@@ -468,7 +469,7 @@ private fun ListsPickerDialog(
                     ) {
                         Text(
                             text = "전체",
-                            color = Color.White,
+                            color = TextPrimary,
                             fontSize = 15.sp,
                             modifier = Modifier.weight(1f)
                         )
@@ -502,7 +503,7 @@ private fun ListsPickerDialog(
                         ) {
                             Text(
                                 text = list.name,
-                                color = Color.White,
+                                color = TextPrimary,
                                 fontSize = 15.sp,
                                 modifier = Modifier.weight(1f)
                             )

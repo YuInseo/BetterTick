@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.layout.Box
@@ -118,7 +119,7 @@ fun WheelPicker(
                     text = label,
                     fontSize = if (isCentre) centerFontSize else sideFontSize,
                     fontWeight = if (isCentre) FontWeight.Bold else FontWeight.Normal,
-                    color = Color.White.copy(alpha = alpha)
+                    color = TextPrimary.copy(alpha = alpha)
                 )
             }
         }

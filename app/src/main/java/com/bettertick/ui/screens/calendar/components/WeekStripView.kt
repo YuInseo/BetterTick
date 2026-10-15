@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.calendar.components
 
+import com.bettertick.ui.theme.ThemeState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -144,7 +145,7 @@ private fun StripTaskChip(
     title: String,
     isCompleted: Boolean
 ) {
-    val chipColor = if (isCompleted) Color(0xFF8B6914) else Color(0xFFCC7000)
+    val chipColor = if (isCompleted) ThemeState.accentColor.copy(alpha = 0.45f) else ThemeState.accentColor
     Text(
         text = if (isCompleted) "\u2715 $title" else title,
         fontSize = 9.sp,

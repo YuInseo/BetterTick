@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,7 +46,7 @@ import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 
-private val KanbanAccent = Color(0xFF4A90E2)
+private val KanbanAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /** Kanban view for a list. Top row is the column chip strip (미분류 + user
  *  columns + "+"), which filters the card list below. Tapping "+" opens an
@@ -219,7 +220,7 @@ private fun NewColumnDialog(
         ) {
             Text(
                 text = "새로운 열",
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -242,8 +243,8 @@ private fun NewColumnDialog(
                     value = name,
                     onValueChange = { name = it },
                     singleLine = true,
-                    textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
-                    cursorBrush = SolidColor(Color.White),
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp),
+                    cursorBrush = SolidColor(TextPrimary),
                     modifier = Modifier.fillMaxWidth()
                 )
             }

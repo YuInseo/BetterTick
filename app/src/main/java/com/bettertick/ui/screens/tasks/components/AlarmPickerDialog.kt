@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.DarkSurfaceVariant
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -35,7 +37,7 @@ import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 
-private val AlarmPickerAccent = Color(0xFF4A90E2)
+private val AlarmPickerAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /**
  * Alarm preset + custom alarm offset model. Built-in preset list matches
@@ -111,7 +113,7 @@ fun AlarmPickerDialog(
                 text = "알림",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
             )
 
@@ -154,7 +156,7 @@ fun AlarmPickerDialog(
                 Text(
                     text = "지속적인 알림",
                     fontSize = 15.sp,
-                    color = Color.White,
+                    color = TextPrimary,
                     modifier = Modifier.weight(1f)
                 )
                 Switch(
@@ -164,7 +166,7 @@ fun AlarmPickerDialog(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = AlarmPickerAccent,
                         uncheckedThumbColor = TextSecondary,
-                        uncheckedTrackColor = Color(0xFF3A3A3A),
+                        uncheckedTrackColor = DarkSurfaceVariant,
                         uncheckedBorderColor = Color.Transparent
                     )
                 )
@@ -209,7 +211,7 @@ private fun AlarmRow(
         Text(
             text = label,
             fontSize = 15.sp,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.weight(1f)
         )
         when (trailing) {

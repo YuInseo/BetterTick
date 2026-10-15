@@ -46,7 +46,7 @@ import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.TextSecondary
 
-private val GalleryBlue = Color(0xFF4A90E2)
+private val GalleryBlue: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 private data class PresetHabit(
     val name: String,

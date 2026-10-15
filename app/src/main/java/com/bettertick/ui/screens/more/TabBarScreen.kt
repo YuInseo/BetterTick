@@ -65,8 +65,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.data.model.TabBarConfig
-import com.bettertick.ui.theme.DarkBackground
-import com.bettertick.ui.theme.DarkCard
+import com.bettertick.ui.theme.GroupedBackground
+import com.bettertick.ui.theme.GroupedCard
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.OverdueRed
@@ -136,7 +136,7 @@ fun TabBarScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground)
+            .background(GroupedBackground)
     ) {
         TopAppBar(
             title = {
@@ -156,7 +156,7 @@ fun TabBarScreen(
                     )
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = GroupedBackground)
         )
 
         Column(
@@ -191,7 +191,7 @@ fun TabBarScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(DarkCard)
+                    .background(GroupedCard)
             ) {
                 unusedTabs.forEach { tab ->
                     TabListItem(
@@ -209,7 +209,7 @@ fun TabBarScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(DarkCard)
+                    .background(GroupedCard)
                     .clickable { showMaxTabsDialog = true }
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -288,7 +288,7 @@ fun TabBarScreen(
                     Text("취소", color = MaterialTheme.colorScheme.primary)
                 }
             },
-            containerColor = DarkCard
+            containerColor = GroupedCard
         )
     }
 }
@@ -329,7 +329,7 @@ private fun ReorderableEnabledList(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(DarkCard)
+            .background(GroupedCard)
     ) {
         enabledTabs.forEach { tab ->
             key(tab.id) {

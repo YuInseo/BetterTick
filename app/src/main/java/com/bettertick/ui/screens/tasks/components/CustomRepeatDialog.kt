@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -55,7 +56,7 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
 
-private val CustomRepeatAccent = Color(0xFF4A90E2)
+private val CustomRepeatAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /**
  * Full-screen "사용자 설정" editor for custom recurrence. Two layouts,
@@ -203,14 +204,14 @@ private fun TopBar(
             Icon(
                 imageVector = Icons.Outlined.Close,
                 contentDescription = "Cancel",
-                tint = Color.White
+                tint = TextPrimary
             )
         }
         Text(
             text = "사용자 설정",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.padding(start = 4.dp)
         )
         Spacer(Modifier.weight(1f))
@@ -218,7 +219,7 @@ private fun TopBar(
             Icon(
                 imageVector = Icons.Default.Check,
                 contentDescription = "Save",
-                tint = Color.White
+                tint = TextPrimary
             )
         }
     }
@@ -243,7 +244,7 @@ private fun RepeatTypeRow(
         Text(
             text = "반복 유형",
             fontSize = 15.sp,
-            color = Color.White
+            color = TextPrimary
         )
         Spacer(Modifier.width(6.dp))
         Icon(
@@ -266,7 +267,7 @@ private fun RepeatTypeRow(
                 Text(
                     text = type.label,
                     fontSize = 15.sp,
-                    color = Color.White
+                    color = TextPrimary
                 )
                 Spacer(Modifier.width(4.dp))
                 Icon(
@@ -286,7 +287,7 @@ private fun RepeatTypeRow(
                         text = {
                             Text(
                                 text = option.label,
-                                color = if (option == type) CustomRepeatAccent else Color.White
+                                color = if (option == type) CustomRepeatAccent else TextPrimary
                             )
                         },
                         trailingIcon = {
@@ -352,7 +353,7 @@ private fun FrequencySection(
                     text = "매",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = TextPrimary
                 )
             }
             WheelPicker(
@@ -398,7 +399,7 @@ private fun WeekdaysSection(
         Text(
             text = "주",
             fontSize = 14.sp,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)
         )
         // 7 chips wrapped to 4 + 3 to match the reference's two-row layout.
@@ -489,7 +490,7 @@ private fun SpecificDatesSection(
                 text = "${visibleMonth.monthValue}월",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = { visibleMonth = visibleMonth.minusMonths(1) }) {
@@ -558,7 +559,7 @@ private fun SpecificDatesSection(
                                 Text(
                                     text = dayNum.toString(),
                                     fontSize = 15.sp,
-                                    color = if (isSelected) Color.White else Color.White,
+                                    color = if (isSelected) Color.White else TextPrimary,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                             }

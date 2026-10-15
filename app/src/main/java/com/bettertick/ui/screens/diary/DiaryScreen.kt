@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.diary
 
+import com.bettertick.ui.theme.DividerColor
+import com.bettertick.ui.theme.TextTertiary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -260,7 +262,7 @@ fun DiaryScreen(
             }
         }
 
-        HorizontalDivider(color = Color(0xFF2C2C2E))
+        HorizontalDivider(color = DividerColor)
 
         // Date label
         val fmt = DateTimeFormatter.ofPattern("yyyy년 M월 d일 (E)", Locale.KOREAN)
@@ -333,7 +335,7 @@ fun DiaryScreen(
                     }
                 ) { Text("복구", style = MaterialTheme.typography.labelSmall) }
                 TextButton(onClick = { viewModel.deleteDraft() }) {
-                    Text("삭제", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8A8A8E))
+                    Text("삭제", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                 }
             }
         }
@@ -368,7 +370,7 @@ fun DiaryScreen(
                             text = "오늘은 어떤 하루였나요?\n생각이나 느낌을 자유롭게 적어보세요...",
                             style = TextStyle(
                                 fontSize = 16.sp,
-                                color = Color(0xFF555558),
+                                color = TextTertiary,
                                 lineHeight = 26.sp
                             )
                         )

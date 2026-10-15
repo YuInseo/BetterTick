@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.location
 
+import com.bettertick.ui.theme.TextPrimary
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
@@ -859,7 +860,7 @@ private fun FavoriteNameDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = DarkSurface,
-        title = { Text("이 위치 이름 짓기", color = Color.White) },
+        title = { Text("이 위치 이름 짓기", color = TextPrimary) },
         text = {
             Column {
                 Text(
@@ -1454,7 +1455,7 @@ private fun RouteMapView(
                             .padding(top = 10.dp)
                             .size(width = 36.dp, height = 4.dp)
                             .clip(RoundedCornerShape(2.dp))
-                            .background(Color.White.copy(alpha = 0.18f))
+                            .background(TextPrimary.copy(alpha = 0.18f))
                     )
 
                     Row(
@@ -1494,7 +1495,7 @@ private fun RouteMapView(
                                 .fillMaxWidth()
                                 .padding(horizontal = 20.dp)
                                 .height(1.dp)
-                                .background(Color.White.copy(alpha = 0.08f))
+                                .background(TextPrimary.copy(alpha = 0.08f))
                         )
                         Spacer(Modifier.height(14.dp))
 

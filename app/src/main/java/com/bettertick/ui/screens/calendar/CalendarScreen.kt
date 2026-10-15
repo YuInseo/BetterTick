@@ -1,5 +1,8 @@
 package com.bettertick.ui.screens.calendar
 
+import com.bettertick.ui.theme.DarkSurface
+import com.bettertick.ui.theme.TextTertiary
+import com.bettertick.ui.theme.ThemeState
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -584,7 +587,7 @@ fun CalendarScreen(
         ModalBottomSheet(
             onDismissRequest = { createPreset = null },
             sheetState = sheetState,
-            containerColor = Color(0xFF1C1C1E),
+            containerColor = DarkSurface,
             dragHandle = {}
         ) {
             Column(
@@ -626,7 +629,7 @@ fun CalendarScreen(
                             Text(
                                 "무엇을 하고 싶으신가요?",
                                 fontSize = 20.sp,
-                                color = Color(0xFF6B6B6B)
+                                color = TextTertiary
                             )
                         }
                         innerTextField()
@@ -640,10 +643,10 @@ fun CalendarScreen(
                     value = taskNote,
                     onValueChange = { taskNote = it },
                     modifier = Modifier.fillMaxWidth(),
-                    textStyle = TextStyle(fontSize = 14.sp, color = Color(0xFF8A8A8E)),
+                    textStyle = TextStyle(fontSize = 14.sp, color = TextSecondary),
                     decorationBox = { innerTextField ->
                         if (taskNote.isEmpty()) {
-                            Text("설명", fontSize = 14.sp, color = Color(0xFF555558))
+                            Text("설명", fontSize = 14.sp, color = TextTertiary)
                         }
                         innerTextField()
                     }
@@ -666,8 +669,8 @@ fun CalendarScreen(
                     // Date chip
                     Surface(
                         shape = RoundedCornerShape(20.dp),
-                        color = Color(0xFFFF8C00).copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, Color(0xFFFF8C00).copy(alpha = 0.5f))
+                        color = ThemeState.accentColor.copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, ThemeState.accentColor.copy(alpha = 0.5f))
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
@@ -677,32 +680,32 @@ fun CalendarScreen(
                                 Icons.Outlined.Today,
                                 contentDescription = null,
                                 modifier = Modifier.size(13.dp),
-                                tint = Color(0xFFFF8C00)
+                                tint = ThemeState.accentColor
                             )
                             Spacer(Modifier.width(4.dp))
-                            Text(dateLabel, fontSize = 12.sp, color = Color(0xFFFF8C00))
+                            Text(dateLabel, fontSize = 12.sp, color = ThemeState.accentColor)
                         }
                     }
 
                     Spacer(Modifier.width(2.dp))
 
                     IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.Flag, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                        Icon(Icons.Outlined.Flag, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
                     }
                     IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.Label, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                        Icon(Icons.Outlined.Label, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
                     }
                     IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.MoveToInbox, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                        Icon(Icons.Outlined.MoveToInbox, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
                     }
                     IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.MoreHoriz, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                        Icon(Icons.Outlined.MoreHoriz, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
                     }
 
                     Spacer(Modifier.weight(1f))
 
                     IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.Mic, null, modifier = Modifier.size(20.dp), tint = Color(0xFF8A8A8E))
+                        Icon(Icons.Outlined.Mic, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
                     }
                 }
 
@@ -756,7 +759,7 @@ private fun DayViewNavStrip(
                         modifier = Modifier
                             .size(32.dp)
                             .then(
-                                if (d == selectedDate) Modifier.clip(CircleShape).background(Color(0xFF2F7CF6))
+                                if (d == selectedDate) Modifier.clip(CircleShape).background(ThemeState.accentColor)
                                 else Modifier
                             ),
                         contentAlignment = Alignment.Center
@@ -767,7 +770,7 @@ private fun DayViewNavStrip(
                             fontWeight = FontWeight.Bold,
                             color = when {
                                 d == selectedDate -> Color.White
-                                d == today -> Color(0xFF2F7CF6)
+                                d == today -> ThemeState.accentColor
                                 else -> MaterialTheme.colorScheme.onBackground
                             }
                         )

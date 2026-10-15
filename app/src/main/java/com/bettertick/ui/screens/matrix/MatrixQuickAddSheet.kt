@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.matrix
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.ThemeState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -103,7 +105,7 @@ fun MatrixQuickAddSheet(
             BasicTextField(
                 value = title,
                 onValueChange = { title = it },
-                textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                textStyle = TextStyle(color = TextPrimary, fontSize = 16.sp),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 visualTransformation = remember { MarkdownInlineTransformation() },
                 keyboardOptions = KeyboardOptions(
@@ -131,7 +133,7 @@ fun MatrixQuickAddSheet(
             BasicTextField(
                 value = description,
                 onValueChange = { description = it },
-                textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
+                textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 keyboardOptions = KeyboardOptions(
                     keyboardType = KeyboardType.Text,
@@ -166,8 +168,8 @@ fun MatrixQuickAddSheet(
                     .size(40.dp)
                     .clip(CircleShape)
                     .background(
-                        if (canSend) Color(0xFF4A90E2)
-                        else Color(0xFF4A90E2).copy(alpha = 0.4f)
+                        if (canSend) ThemeState.accentColor
+                        else ThemeState.accentColor.copy(alpha = 0.4f)
                     )
             ) {
                 Icon(
@@ -194,7 +196,7 @@ fun MatrixQuickAddSheet(
                         text = {
                             Text(
                                 text = q.nameEn.ifEmpty { q.nameKo },
-                                color = Color.White,
+                                color = TextPrimary,
                                 maxLines = 1
                             )
                         },

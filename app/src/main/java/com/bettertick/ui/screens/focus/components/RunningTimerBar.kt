@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.focus.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -88,7 +89,7 @@ fun RunningTimerBar(
                 Icon(
                     Icons.Default.Stop,
                     contentDescription = "Stop",
-                    tint = Color.White,
+                    tint = TextPrimary,
                     modifier = Modifier.size(24.dp)
                 )
             }

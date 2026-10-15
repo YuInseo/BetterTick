@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -32,7 +33,7 @@ import com.bettertick.ui.theme.TextSecondary
 /** The scope the user selected for a recurring-task operation. */
 enum class RecurringScope { ThisOccurrence, AllIncomplete }
 
-private val ScopeAccent = Color(0xFF4A90E2)
+private val ScopeAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /**
  * "반복 할일 편집/삭제" confirmation — matches the reference app's two-option
@@ -63,7 +64,7 @@ fun RecurringScopeDialog(
                 text = title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = TextPrimary
             )
             Spacer(Modifier.height(12.dp))
             Text(
@@ -118,7 +119,7 @@ private fun ScopeRow(label: String, onClick: () -> Unit) {
         Text(
             text = label,
             fontSize = 15.sp,
-            color = Color.White
+            color = TextPrimary
         )
     }
 }

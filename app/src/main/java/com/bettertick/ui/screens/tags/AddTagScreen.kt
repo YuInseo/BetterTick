@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tags
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -108,14 +109,14 @@ fun AddTagScreen(
                 Icon(
                     imageVector = Icons.Outlined.Close,
                     contentDescription = "Cancel",
-                    tint = Color.White
+                    tint = TextPrimary
                 )
             }
             Text(
                 text = if (isEdit) "태그 편집" else "태그 추가",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 modifier = Modifier.padding(start = 4.dp)
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -147,7 +148,7 @@ fun AddTagScreen(
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = "Save",
-                    tint = if (canSave) Color.White else TextTertiary
+                    tint = if (canSave) TextPrimary else TextTertiary
                 )
             }
         }
@@ -184,8 +185,8 @@ fun AddTagScreen(
                         value = name,
                         onValueChange = { name = it },
                         singleLine = true,
-                        textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
-                        cursorBrush = SolidColor(Color.White),
+                        textStyle = TextStyle(color = TextPrimary, fontSize = 16.sp),
+                        cursorBrush = SolidColor(TextPrimary),
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Text,
                             imeAction = ImeAction.Done
@@ -219,7 +220,7 @@ fun AddTagScreen(
         ) {
             Text(
                 text = "색상",
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -252,7 +253,7 @@ fun AddTagScreen(
         ) {
             Text(
                 text = "가족 태그",
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f)
@@ -364,7 +365,7 @@ private fun ParentTagPickerDialog(
             ) {
                 Text(
                     text = "가족 태그",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 20.dp)
@@ -432,7 +433,7 @@ private fun ParentTagOption(
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = label,
-            color = Color.White,
+            color = TextPrimary,
             fontSize = 16.sp
         )
     }

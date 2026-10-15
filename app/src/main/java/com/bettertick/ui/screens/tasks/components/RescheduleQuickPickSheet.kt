@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.DarkBackground
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -289,7 +291,7 @@ private sealed interface QuickPickIcon {
     data class DayText(val value: String) : QuickPickIcon
 }
 
-private val QuickPickAccent = Color(0xFF4A90E2)
+private val QuickPickAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /**
  * Full-screen dialog reached via long-press on [RescheduleQuickPickSheet].
@@ -388,7 +390,7 @@ fun QuickDateSettingsDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF0B0B0B))
+                .background(DarkBackground)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 18.dp)
         ) {
@@ -396,7 +398,7 @@ fun QuickDateSettingsDialog(
                 Icon(
                     imageVector = Icons.Outlined.Close,
                     contentDescription = "닫기",
-                    tint = Color.White,
+                    tint = TextPrimary,
                     modifier = Modifier
                         .size(26.dp)
                         .clickable { onDismiss() }
@@ -404,7 +406,7 @@ fun QuickDateSettingsDialog(
                 Spacer(Modifier.width(16.dp))
                 Text(
                     text = "빠른 날짜 사용자 지정",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -861,7 +863,7 @@ private fun AdvancedModeBody() {
         ) {
             AdvancedRadio(selected = true)
             Spacer(Modifier.width(14.dp))
-            Text("종일", color = Color.White, fontSize = 15.sp)
+            Text("종일", color = TextPrimary, fontSize = 15.sp)
         }
 
         Row(
@@ -873,7 +875,7 @@ private fun AdvancedModeBody() {
             AdvancedRadio(selected = false)
             Spacer(Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("기한", color = Color.White, fontSize = 15.sp)
+                Text("기한", color = TextPrimary, fontSize = 15.sp)
                 Text(
                     text = "오후 3:00",
                     color = TextSecondary,
@@ -944,7 +946,7 @@ private fun ChipGridRow(items: List<Pair<String, Boolean>>) {
             ) {
                 Text(
                     text = label,
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 15.sp
                 )
             }

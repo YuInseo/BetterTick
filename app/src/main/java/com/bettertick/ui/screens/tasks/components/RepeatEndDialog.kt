@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,7 +43,7 @@ import com.bettertick.ui.theme.TextTertiary
 import java.time.LocalDate
 import java.time.YearMonth
 
-private val RepeatEndAccent = Color(0xFF4A90E2)
+private val RepeatEndAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /** End-condition for a recurring task. */
 sealed interface RepeatEnd {
@@ -229,7 +230,7 @@ private fun DatePane(
                 text = "${month.monthValue}월",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 modifier = Modifier.weight(1f)
             )
             IconButton(onClick = onPrev) {
@@ -334,7 +335,7 @@ private fun CountPane(
             text = "카운트",
             fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.weight(1f)
         )
     }

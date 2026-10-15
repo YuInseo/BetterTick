@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.matrix
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -138,7 +139,7 @@ fun MatrixScreen(
             ) {
                 Text(
                     text = "아이젠하워 매트릭스",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
@@ -148,7 +149,7 @@ fun MatrixScreen(
                         Icon(
                             imageVector = Icons.Outlined.MoreVert,
                             contentDescription = "더 보기",
-                            tint = Color.White
+                            tint = TextPrimary
                         )
                     }
                     DropdownMenu(
@@ -157,9 +158,9 @@ fun MatrixScreen(
                         modifier = Modifier.background(DarkSurface)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("편집", color = Color.White) },
+                            text = { Text("편집", color = TextPrimary) },
                             leadingIcon = {
-                                Icon(Icons.Outlined.Edit, contentDescription = null, tint = Color.White)
+                                Icon(Icons.Outlined.Edit, contentDescription = null, tint = TextPrimary)
                             },
                             onClick = {
                                 menuOpen = false
@@ -170,14 +171,14 @@ fun MatrixScreen(
                             text = {
                                 Text(
                                     if (config.hideCompleted) "완료된 할일 보이기" else "완료된 할일 숨기기",
-                                    color = Color.White
+                                    color = TextPrimary
                                 )
                             },
                             leadingIcon = {
                                 Icon(
                                     Icons.Outlined.VisibilityOff,
                                     contentDescription = null,
-                                    tint = Color.White
+                                    tint = TextPrimary
                                 )
                             },
                             onClick = {
@@ -189,14 +190,14 @@ fun MatrixScreen(
                             text = {
                                 Text(
                                     if (config.todayOnly) "모든 날짜 보기" else "오늘 날짜만 보기",
-                                    color = Color.White
+                                    color = TextPrimary
                                 )
                             },
                             leadingIcon = {
                                 Icon(
                                     Icons.Outlined.Today,
                                     contentDescription = null,
-                                    tint = Color.White
+                                    tint = TextPrimary
                                 )
                             },
                             onClick = {
@@ -205,12 +206,12 @@ fun MatrixScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("사용자 가이드", color = Color.White) },
+                            text = { Text("사용자 가이드", color = TextPrimary) },
                             leadingIcon = {
                                 Icon(
                                     Icons.Outlined.HelpOutline,
                                     contentDescription = null,
-                                    tint = Color.White
+                                    tint = TextPrimary
                                 )
                             },
                             onClick = { menuOpen = false /* stub — no guide yet */ }
@@ -551,7 +552,7 @@ private fun DraggableTaskRow(
         ) {
             Text(
                 text = task.title,
-                color = if (task.isCompleted) TextTertiary else Color.White,
+                color = if (task.isCompleted) TextTertiary else TextPrimary,
                 fontSize = 13.sp,
                 textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null,
                 maxLines = 2

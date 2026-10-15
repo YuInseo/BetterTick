@@ -39,6 +39,9 @@ class BetterTickApplication : Application() {
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
+        // Restore the user's TickTick-style appearance (light/dark + accent)
+        // before any Compose content reads the palette.
+        com.bettertick.ui.theme.ThemeState.init(this)
         KakaoMapSdk.init(this, "36af0c02f9ab81fb67df8c9bbeefc7f1")
         // Initialize widget service locator for AppWidget access
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)

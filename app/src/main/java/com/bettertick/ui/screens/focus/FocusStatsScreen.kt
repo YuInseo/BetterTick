@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.focus
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.DarkSurfaceVariant
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,8 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.data.model.FocusSession
-import com.bettertick.ui.theme.DarkBackground
-import com.bettertick.ui.theme.DarkCard
+import com.bettertick.ui.theme.GroupedBackground
+import com.bettertick.ui.theme.GroupedCard
 import com.bettertick.ui.theme.Orange
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
@@ -56,8 +58,8 @@ import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val AccentBlue = Color(0xFF4D8EFF)
-private val CardBg = DarkCard
+private val AccentBlue: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
+private val CardBg: Color get() = GroupedCard
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -70,7 +72,7 @@ fun FocusStatsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground)
+            .background(GroupedBackground)
     ) {
         TopAppBar(
             title = {
@@ -89,7 +91,7 @@ fun FocusStatsScreen(
                     )
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = GroupedBackground)
         )
 
         LazyColumn(
@@ -285,7 +287,7 @@ private fun DetailsCard(stats: FocusStats) {
                 ) {
                     Canvas(modifier = Modifier.size(140.dp)) {
                         drawCircle(
-                            color = Color.White.copy(alpha = 0.85f),
+                            color = TextPrimary.copy(alpha = 0.85f),
                             radius = size.minDimension / 2 - 8f,
                             style = Stroke(width = 16f)
                         )
@@ -473,7 +475,7 @@ private fun BarChart(values: List<Long>, labels: List<String>, valueToLabel: (Lo
                         .weight(1f)
                         .height(hDp.dp)
                         .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                        .background(if (v > 0) AccentBlue else Color(0xFF3A3A3A))
+                        .background(if (v > 0) AccentBlue else DarkSurfaceVariant)
                 )
             }
         }
@@ -549,7 +551,7 @@ private fun DayColumn(sessions: List<FocusSession>, stats: FocusStats, modifier:
             .fillMaxWidth()
             .height(240.dp)
             .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xFF2A2A2C))
+            .background(DarkSurfaceVariant)
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val zone = java.time.ZoneId.systemDefault()
@@ -614,7 +616,7 @@ private fun PeakHourCard(stats: FocusStats) {
                     val v = hourly[i]
                     val h = (v * scale).coerceAtLeast(if (v > 0) 4f else 2f)
                     drawRect(
-                        color = if (v > 0) AccentBlue else Color(0xFF3A3A3A),
+                        color = if (v > 0) AccentBlue else DarkSurfaceVariant,
                         topLeft = Offset(i * (barWidth + gap), size.height - h),
                         size = Size(barWidth, h)
                     )
@@ -713,7 +715,7 @@ private fun LegendSwatch(color: Color, label: String) {
 }
 
 private fun heatColor(sec: Long): Color = when {
-    sec <= 0 -> Color(0xFF2A2A2C)
+    sec <= 0 -> DarkSurfaceVariant
     sec < 3600 -> Color(0xFFC7D6F7)
     sec < 3 * 3600 -> Color(0xFF7FA3E8)
     sec < 5 * 3600 -> Color(0xFF4D7FD9)

@@ -9,7 +9,7 @@ object WidgetColors {
     val surface: ColorProvider = ColorProvider(Color(0xFF1E1E1E))
     val card: ColorProvider = ColorProvider(Color(0xFF252525))
     val surfaceVariant: ColorProvider = ColorProvider(Color(0xFF2C2C2C))
-    val accent: ColorProvider = ColorProvider(Color(0xFFFF8C00))
+    val accent: ColorProvider = ColorProvider(Color(0xFF4772FA))
     val textPrimary: ColorProvider = ColorProvider(Color.White)
     val textSecondary: ColorProvider = ColorProvider(Color(0xFFB0B0B0))
     val textTertiary: ColorProvider = ColorProvider(Color(0xFF707070))
@@ -28,7 +28,7 @@ object WidgetColorValues {
     val surface = Color(0xFF1E1E1E)
     val card = Color(0xFF252525)
     val surfaceVariant = Color(0xFF2C2C2C)
-    val accent = Color(0xFFFF8C00)
+    val accent = Color(0xFF4772FA)
     val textPrimary = Color.White
     val textSecondary = Color(0xFFB0B0B0)
     val textTertiary = Color(0xFF707070)

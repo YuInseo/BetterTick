@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,7 +32,7 @@ import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 
-private val CustomAlarmAccent = Color(0xFF4A90E2)
+private val CustomAlarmAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /**
  * "기타 알림" dialog — three wheel pickers for the days / hours / minutes
@@ -78,7 +79,7 @@ fun CustomAlarmDialog(
                 text = "기타 알림",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = TextPrimary
             )
 
             Spacer(Modifier.height(16.dp))

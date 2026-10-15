@@ -1,5 +1,8 @@
 package com.bettertick
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.TextSecondary
+import com.bettertick.ui.theme.TextTertiary
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -216,7 +219,7 @@ private fun MemoInputSheet(
                 Text(
                     text = dateLabel,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color(0xFF8A8A8E)
+                    color = TextSecondary
                 )
             }
             if (isEditing) {
@@ -230,7 +233,7 @@ private fun MemoInputSheet(
 
         HorizontalDivider(
             modifier = Modifier.padding(vertical = 14.dp),
-            color = Color.White.copy(alpha = 0.06f)
+            color = TextPrimary.copy(alpha = 0.06f)
         )
 
         BasicTextField(
@@ -252,7 +255,7 @@ private fun MemoInputSheet(
                         "오늘 하루는 어땠나요?",
                         style = TextStyle(
                             fontSize = 16.sp,
-                            color = Color(0xFF6B6B6B),
+                            color = TextTertiary,
                             lineHeight = 26.sp
                         )
                     )
@@ -269,7 +272,7 @@ private fun MemoInputSheet(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(onClick = handleDismiss) {
-                Text("취소", color = Color(0xFF8A8A8E))
+                Text("취소", color = TextSecondary)
             }
             Spacer(Modifier.width(8.dp))
             Button(

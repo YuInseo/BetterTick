@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -45,7 +46,7 @@ import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import kotlinx.coroutines.flow.distinctUntilChanged
 
-private val TimePickerAccent = Color(0xFF4A90E2)
+private val TimePickerAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /**
  * Time picker dialog with two modes, toggled by the bottom-left icon:
@@ -85,7 +86,7 @@ fun TaskTimePickerDialog(
                 text = "시간",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = TextPrimary
             )
 
             Spacer(Modifier.height(16.dp))
@@ -176,7 +177,7 @@ private fun ClockTimePicker(
     val colors = TimePickerDefaults.colors(
         clockDialColor = DarkSurface,
         clockDialSelectedContentColor = Color.White,
-        clockDialUnselectedContentColor = Color.White,
+        clockDialUnselectedContentColor = TextPrimary,
         selectorColor = TimePickerAccent,
         containerColor = DarkSurfaceVariant,
         periodSelectorBorderColor = TimePickerAccent,

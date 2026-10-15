@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.calendar.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -353,7 +354,8 @@ private fun DraggableTaskRow(
             onReschedule = onReschedule,
             overrideDate = selectedDate,
             listName = listName,
-            resolvedTags = resolvedTags
+            resolvedTags = resolvedTags,
+            rowBackground = DarkCard
         )
     }
 }
@@ -405,7 +407,7 @@ private fun ActionTile(
             modifier = Modifier
                 .size(56.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.04f)),
+                .background(TextPrimary.copy(alpha = 0.04f)),
             contentAlignment = Alignment.Center
         ) {
             Icon(

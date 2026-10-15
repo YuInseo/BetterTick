@@ -48,7 +48,7 @@ import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.TextSecondary
 
-private val FocusBlue = Color(0xFF4A6BD8)
+private val FocusBlue: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 private val RingTrack = Color(0xFF1F2230)
 private val ControlBg = Color(0xFF1A1C24)
 

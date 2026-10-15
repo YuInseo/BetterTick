@@ -1,5 +1,7 @@
 package com.bettertick.widget.calendar
 
+import com.bettertick.ui.theme.ThemeState
+import com.bettertick.ui.theme.TextPrimary
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -201,13 +203,13 @@ private fun TopBar(onClose: () -> Unit, onConfirm: () -> Unit) {
                 .clickable { onClose() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Close, contentDescription = "닫기", tint = Color.White)
+            Icon(Icons.Default.Close, contentDescription = "닫기", tint = TextPrimary)
         }
         Text(
             text = "위젯 설정",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = TextPrimary
         )
         Spacer(Modifier.weight(1f))
         Box(
@@ -216,7 +218,7 @@ private fun TopBar(onClose: () -> Unit, onConfirm: () -> Unit) {
                 .clickable { onConfirm() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Default.Check, contentDescription = "저장", tint = Color.White)
+            Icon(Icons.Default.Check, contentDescription = "저장", tint = TextPrimary)
         }
     }
 }
@@ -233,7 +235,7 @@ private fun OptionRow(
             .clickable { onClick() }
             .padding(horizontal = 18.dp, vertical = 14.dp)
     ) {
-        Text(title, fontSize = 17.sp, color = Color.White, fontWeight = FontWeight.Medium)
+        Text(title, fontSize = 17.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
         Spacer(Modifier.height(4.dp))
         Text(value, fontSize = 14.sp, color = TextSecondary)
     }
@@ -247,15 +249,15 @@ private fun OpacityRow(value: Int, onChange: (Int) -> Unit) {
             .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("투명도", fontSize = 17.sp, color = Color.White, fontWeight = FontWeight.Medium)
+        Text("투명도", fontSize = 17.sp, color = TextPrimary, fontWeight = FontWeight.Medium)
         Spacer(Modifier.width(12.dp))
         Slider(
             value = value.toFloat(),
             onValueChange = { onChange(it.toInt()) },
             valueRange = 0f..100f,
             colors = SliderDefaults.colors(
-                thumbColor = Color(0xFF4A90E2),
-                activeTrackColor = Color(0xFF4A90E2),
+                thumbColor = ThemeState.accentColor,
+                activeTrackColor = ThemeState.accentColor,
                 inactiveTrackColor = DarkSurfaceVariant
             ),
             modifier = Modifier.weight(1f)
@@ -274,15 +276,15 @@ private fun ToggleRow(title: String, checked: Boolean, onChange: (Boolean) -> Un
             .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, fontSize = 17.sp, color = Color.White, modifier = Modifier.weight(1f))
+        Text(title, fontSize = 17.sp, color = TextPrimary, modifier = Modifier.weight(1f))
         Switch(
             checked = checked,
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFF4A90E2),
+                checkedTrackColor = ThemeState.accentColor,
                 uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Color(0xFF3A3A3A)
+                uncheckedTrackColor = DarkSurfaceVariant
             )
         )
     }

@@ -62,8 +62,8 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.bettertick.ui.theme.DarkBackground
-import com.bettertick.ui.theme.DarkCard
+import com.bettertick.ui.theme.GroupedBackground
+import com.bettertick.ui.theme.GroupedCard
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.update.AppUpdater
@@ -135,7 +135,7 @@ fun MoreScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground)
+            .background(GroupedBackground)
     ) {
         TopAppBar(
             title = {
@@ -146,7 +146,7 @@ fun MoreScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = GroupedBackground)
         )
 
         Column(
@@ -426,7 +426,7 @@ private fun SettingsCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(DarkCard)
+            .background(GroupedCard)
     ) {
         content()
     }

@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.more
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,7 +37,7 @@ import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 
-private val BlueAccent = Color(0xFF42A5F5)
+private val BlueAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 @Composable
 fun WidgetGalleryScreen(onBack: () -> Unit) {
@@ -57,14 +58,14 @@ fun WidgetGalleryScreen(onBack: () -> Unit) {
                 Icon(
                     Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = Color.White
+                    tint = TextPrimary
                 )
             }
             Text(
                 text = "위젯",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = TextPrimary
             )
         }
 
@@ -119,26 +120,26 @@ private fun ReminderPreview() {
                 modifier = Modifier
                     .size(22.dp)
                     .clip(RoundedCornerShape(5.dp))
-                    .background(Color.White.copy(alpha = 0.15f)),
+                    .background(TextPrimary.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = "15",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             Spacer(Modifier.weight(1f))
-            Text("\u2039", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("\u2039", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(8.dp))
-            Text("4월", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Text("4월", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(8.dp))
-            Text("\u203A", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("\u203A", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
-            Text("+", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("+", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.width(8.dp))
-            Text("\u22EE", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("\u22EE", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(8.dp))
 
