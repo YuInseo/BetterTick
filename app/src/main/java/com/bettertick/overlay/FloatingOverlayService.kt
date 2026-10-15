@@ -1,5 +1,8 @@
 package com.bettertick.overlay
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.TextSecondary
+import com.bettertick.ui.theme.TextTertiary
 import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -256,7 +259,7 @@ class FloatingOverlayService : Service() {
                                                 style = MaterialTheme.typography.labelLarge,
                                                 fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal,
                                                 color = if (sel) MaterialTheme.colorScheme.primary
-                                                        else Color(0xFF8A8A8E)
+                                                        else TextSecondary
                                             )
                                             Spacer(Modifier.height(4.dp))
                                             Box(
@@ -279,13 +282,13 @@ class FloatingOverlayService : Service() {
                                 ) {
                                     Icon(
                                         Icons.Default.Close, null,
-                                        tint = Color(0xFF8A8A8E),
+                                        tint = TextSecondary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
 
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                            HorizontalDivider(color = TextPrimary.copy(alpha = 0.06f))
 
                             Column(
                                 modifier = Modifier
@@ -313,7 +316,7 @@ class FloatingOverlayService : Service() {
                                                 else "오늘 하루는 어땠나요?",
                                                 style = TextStyle(
                                                     fontSize = 16.sp,
-                                                    color = Color(0xFF6B6B6B)
+                                                    color = TextTertiary
                                                 )
                                             )
                                         }
@@ -329,7 +332,7 @@ class FloatingOverlayService : Service() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     TextButton(onClick = { closeSheet() }) {
-                                        Text("취소", color = Color(0xFF8A8A8E))
+                                        Text("취소", color = TextSecondary)
                                     }
                                     Spacer(Modifier.width(8.dp))
                                     Button(

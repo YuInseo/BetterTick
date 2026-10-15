@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.habits
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.TextTertiary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -66,7 +68,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-private val OptionsBlue = Color(0xFF4A90E2)
+private val OptionsBlue: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 private val displayFormatter = DateTimeFormatter.ofPattern("M월 d일")
 
@@ -360,7 +362,7 @@ fun HabitOptionsScreen(
                         checkedThumbColor = Color.White,
                         checkedTrackColor = OptionsBlue,
                         uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color(0xFF555555)
+                        uncheckedTrackColor = TextTertiary
                     )
                 )
             }
@@ -604,7 +606,7 @@ private fun Stepper(
                 .clickable { if (value > min) onChange(value - 1) },
             contentAlignment = Alignment.Center
         ) {
-            Text("-", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("-", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
         Text(
             value.toString(),
@@ -621,7 +623,7 @@ private fun Stepper(
                 .clickable { if (value < max) onChange(value + 1) },
             contentAlignment = Alignment.Center
         ) {
-            Text("+", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text("+", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 18.sp)
         }
     }
 }

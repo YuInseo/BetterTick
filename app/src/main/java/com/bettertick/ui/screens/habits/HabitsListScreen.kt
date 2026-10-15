@@ -41,7 +41,7 @@ import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.TextSecondary
 
-private val HabitBlue = Color(0xFF4A90E2)
+private val HabitBlue: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 @Composable
 fun HabitsListScreen(
@@ -124,10 +124,9 @@ fun HabitsListScreen(
             }
 
             if (selectedTab == 0) {
-                AppActionButton(
-                    icon = Icons.Default.Add,
-                    contentDescription = "습관 추가",
+                com.bettertick.ui.components.TickFab(
                     onClick = onBack, // go back to main screen to add
+                    contentDescription = "습관 추가",
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(16.dp)

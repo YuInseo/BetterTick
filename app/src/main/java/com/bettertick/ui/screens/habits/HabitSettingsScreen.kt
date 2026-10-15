@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.habits
 
+import com.bettertick.ui.theme.TextTertiary
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -63,7 +64,7 @@ import com.bettertick.ui.theme.DarkCard
 import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.TextSecondary
 
-private val HabitBlue = Color(0xFF4A90E2)
+private val HabitBlue: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 private fun hasAudioPermission(context: Context): Boolean {
     val perm = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
@@ -180,7 +181,7 @@ fun HabitSettingsScreen(onBack: () -> Unit) {
                         checkedThumbColor = Color.White,
                         checkedTrackColor = HabitBlue,
                         uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color(0xFF555555)
+                        uncheckedTrackColor = TextTertiary
                     )
                 )
             }
@@ -221,7 +222,7 @@ fun HabitSettingsScreen(onBack: () -> Unit) {
                         checkedThumbColor = Color.White,
                         checkedTrackColor = HabitBlue,
                         uncheckedThumbColor = Color.White,
-                        uncheckedTrackColor = Color(0xFF555555)
+                        uncheckedTrackColor = TextTertiary
                     )
                 )
             }

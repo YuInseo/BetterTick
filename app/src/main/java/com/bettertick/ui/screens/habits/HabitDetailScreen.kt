@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.habits
 
+import com.bettertick.ui.theme.ThemeState
+import com.bettertick.ui.theme.DividerColor
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -68,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Habit
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkCard
+import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.TextSecondary
 import java.time.LocalDate
 import java.time.YearMonth
@@ -240,7 +243,7 @@ fun HabitDetailScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFF1A1A1A))
+                        .background(Color.Black.copy(alpha = 0.18f))
                         .padding(vertical = 18.dp),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
@@ -436,7 +439,7 @@ private fun StatTile(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFF2A2A2A))
+            .background(DarkCard)
             .padding(horizontal = 14.dp, vertical = 14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -527,8 +530,8 @@ private fun MonthCalendarCard(
                                     .clip(CircleShape)
                                     .then(
                                         when {
-                                            isCompleted -> Modifier.background(Color(0xFF4A90E2))
-                                            isToday -> Modifier.border(1.5.dp, Color(0xFF4A90E2), CircleShape)
+                                            isCompleted -> Modifier.background(ThemeState.accentColor)
+                                            isToday -> Modifier.border(1.5.dp, ThemeState.accentColor, CircleShape)
                                             else -> Modifier
                                         }
                                     )
@@ -539,7 +542,7 @@ private fun MonthCalendarCard(
                                     day.toString(),
                                     color = when {
                                         isCompleted -> Color.White
-                                        isToday -> Color(0xFF4A90E2)
+                                        isToday -> ThemeState.accentColor
                                         date.isAfter(today) -> TextSecondary
                                         else -> MaterialTheme.colorScheme.onBackground
                                     },
@@ -619,13 +622,13 @@ private fun HabitYearlyView(
                 // Year nav
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { year-- }) {
-                        Icon(Icons.Outlined.ChevronLeft, contentDescription = null, tint = Color(0xFF4A90E2))
+                        Icon(Icons.Outlined.ChevronLeft, contentDescription = null, tint = ThemeState.accentColor)
                     }
                     Spacer(Modifier.weight(1f))
                     Text("$year", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Spacer(Modifier.weight(1f))
                     IconButton(onClick = { year++ }) {
-                        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = Color(0xFF4A90E2))
+                        Icon(Icons.Outlined.ChevronRight, contentDescription = null, tint = ThemeState.accentColor)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -688,8 +691,8 @@ private fun BigStat(value: String, label: String, unit: String) {
 @Composable
 private fun YearHeatmap(year: Int, completedDates: Set<String>, habitColor: String) {
     val baseColor = runCatching { Color(android.graphics.Color.parseColor(habitColor)) }
-        .getOrDefault(Color(0xFF4A90E2))
-    val emptyColor = Color(0xFF2A2A2A)
+        .getOrDefault(ThemeState.accentColor)
+    val emptyColor = DarkSurfaceVariant
 
     val jan1 = LocalDate.of(year, 1, 1)
     val startDow = jan1.dayOfWeek.value % 7  // Sun=0
@@ -839,7 +842,7 @@ private fun HabitShareView(
                 .fillMaxWidth()
                 .padding(16.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4A90E2))
+            colors = ButtonDefaults.buttonColors(containerColor = ThemeState.accentColor)
         ) {
             Icon(Icons.Default.Share, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
@@ -1061,7 +1064,7 @@ fun HabitLogDialog(
                 androidx.compose.material3.RadioButton(
                     selected = completed,
                     onClick = { completed = true },
-                    colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = Color(0xFF4A90E2))
+                    colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = ThemeState.accentColor)
                 )
                 Text("달성됨", color = MaterialTheme.colorScheme.onBackground)
             }
@@ -1075,7 +1078,7 @@ fun HabitLogDialog(
                 androidx.compose.material3.RadioButton(
                     selected = !completed,
                     onClick = { completed = false },
-                    colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = Color(0xFF4A90E2))
+                    colors = androidx.compose.material3.RadioButtonDefaults.colors(selectedColor = ThemeState.accentColor)
                 )
                 Text("달성되지 않음", color = MaterialTheme.colorScheme.onBackground)
             }
@@ -1094,7 +1097,7 @@ fun HabitLogDialog(
                         modifier = Modifier
                             .size(52.dp)
                             .clip(CircleShape)
-                            .background(if (isSelected) Color.Transparent else Color(0xFF3A3A3A))
+                            .background(if (isSelected) Color.Transparent else DarkSurfaceVariant)
                             .clickable { mood = if (mood == idx) -1 else idx },
                         contentAlignment = Alignment.Center
                     ) {
@@ -1118,8 +1121,8 @@ fun HabitLogDialog(
                     .fillMaxWidth()
                     .heightIn(min = 100.dp),
                 colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF4A90E2),
-                    unfocusedBorderColor = Color(0xFF3A3A3A),
+                    focusedBorderColor = ThemeState.accentColor,
+                    unfocusedBorderColor = DividerColor,
                     focusedTextColor = MaterialTheme.colorScheme.onBackground,
                     unfocusedTextColor = MaterialTheme.colorScheme.onBackground
                 )
@@ -1132,11 +1135,11 @@ fun HabitLogDialog(
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(onClick = onDismiss) {
-                    Text("취소", color = Color(0xFF4A90E2))
+                    Text("취소", color = ThemeState.accentColor)
                 }
                 Spacer(Modifier.width(4.dp))
                 TextButton(onClick = { onSave(completed, mood, note) }) {
-                    Text("저장", color = Color(0xFF4A90E2))
+                    Text("저장", color = ThemeState.accentColor)
                 }
             }
         }

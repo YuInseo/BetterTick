@@ -1,5 +1,9 @@
 package com.bettertick.ui.navigation
 
+import com.bettertick.ui.theme.TextTertiary
+import com.bettertick.ui.theme.DividerColor
+import com.bettertick.ui.theme.OverdueRed
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List as ListGlyph
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
@@ -104,7 +109,7 @@ fun DrawerContent(
         modifier = modifier
             .fillMaxHeight()
             .width(300.dp)
-            .background(DarkBackground)
+            .background(DarkSurface)
             .padding(top = 48.dp)
     ) {
         // User header
@@ -175,14 +180,14 @@ fun DrawerContent(
 
         // Smart filters
         DrawerItem(
-            icon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) },
+            icon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(22.dp)) },
             label = "오늘",
             count = todayCount,
             isSelected = selectedFilter == "today",
             onClick = onTodayClick
         )
         DrawerItem(
-            icon = { Icon(Icons.Default.Inbox, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp)) },
+            icon = { Icon(Icons.Default.Inbox, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(22.dp)) },
             label = "기본함",
             count = inboxCount,
             isSelected = selectedFilter == "inbox",
@@ -190,7 +195,7 @@ fun DrawerContent(
         )
 
         Spacer(modifier = Modifier.height(8.dp))
-        Divider(color = DarkSurface, thickness = 1.dp)
+        Divider(color = DividerColor, thickness = 0.5.dp)
         Spacer(modifier = Modifier.height(8.dp))
 
         // Tag section header — long-press opens a 편집 popup that jumps to
@@ -199,7 +204,7 @@ fun DrawerContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .then(if (tagMenuOpen) Modifier.background(DarkSurface) else Modifier)
+                    .then(if (tagMenuOpen) Modifier.background(DarkSurfaceVariant) else Modifier)
                     .combinedClickable(
                         onClick = { tagsExpanded = !tagsExpanded },
                         onLongClick = { tagMenuOpen = true }
@@ -234,9 +239,9 @@ fun DrawerContent(
                 modifier = Modifier.background(DarkSurface)
             ) {
                 DropdownMenuItem(
-                    text = { Text("편집", color = Color.White) },
+                    text = { Text("편집", color = TextPrimary) },
                     leadingIcon = {
-                        Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.Edit, contentDescription = null, tint = TextPrimary)
                     },
                     onClick = {
                         tagMenuOpen = false
@@ -284,7 +289,7 @@ fun DrawerContent(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        Divider(color = DarkSurface, thickness = 1.dp)
+        Divider(color = DividerColor, thickness = 0.5.dp)
         Spacer(modifier = Modifier.height(8.dp))
 
         // Custom lists — long-press opens the per-list action menu (편집 /
@@ -298,27 +303,35 @@ fun DrawerContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 1.dp)
+                            .clip(RoundedCornerShape(8.dp))
                             .then(
-                                if (selectedFilter == list.id) Modifier.background(DarkSurface)
+                                if (selectedFilter == list.id) Modifier.background(DarkSurfaceVariant)
                                 else Modifier
                             )
                             .combinedClickable(
                                 onClick = { onListClick(list) },
                                 onLongClick = { openMenuForListId = list.id }
                             )
-                            .padding(horizontal = 20.dp, vertical = 14.dp),
+                            .padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // TickTick list row: list-menu glyph, name, gray count,
+                        // and the list's color dot on the far right.
+                        val listColor = runCatching {
+                            Color(android.graphics.Color.parseColor(list.color))
+                        }.getOrNull()
                         Icon(
-                            Icons.Default.Folder,
+                            Icons.AutoMirrored.Filled.ListGlyph,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            tint = TextSecondary,
+                            modifier = Modifier.size(22.dp)
                         )
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.width(14.dp))
                         Text(
                             text = list.name,
-                            style = MaterialTheme.typography.bodyLarge,
+                            fontSize = 15.sp,
+                            fontWeight = if (selectedFilter == list.id) FontWeight.Medium else FontWeight.Normal,
                             color = MaterialTheme.colorScheme.onBackground,
                             modifier = Modifier.weight(1f)
                         )
@@ -326,16 +339,19 @@ fun DrawerContent(
                         if (count != null && count > 0) {
                             Text(
                                 text = count.toString(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
+                                fontSize = 13.sp,
+                                color = TextTertiary
                             )
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = ">",
-                            color = TextSecondary,
-                            fontWeight = FontWeight.Light
-                        )
+                        if (listColor != null) {
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Box(
+                                Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(listColor)
+                            )
+                        }
                     }
                     DropdownMenu(
                         expanded = openMenuForListId == list.id,
@@ -343,9 +359,9 @@ fun DrawerContent(
                         modifier = Modifier.background(DarkSurface)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("목록 추가", color = Color.White) },
+                            text = { Text("목록 추가", color = TextPrimary) },
                             leadingIcon = {
-                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                                Icon(Icons.Default.Add, contentDescription = null, tint = TextPrimary)
                             },
                             onClick = {
                                 openMenuForListId = null
@@ -353,9 +369,9 @@ fun DrawerContent(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("편집", color = Color.White) },
+                            text = { Text("편집", color = TextPrimary) },
                             leadingIcon = {
-                                Icon(Icons.Default.Edit, contentDescription = null, tint = Color.White)
+                                Icon(Icons.Default.Edit, contentDescription = null, tint = TextPrimary)
                             },
                             onClick = {
                                 openMenuForListId = null
@@ -366,14 +382,14 @@ fun DrawerContent(
                             text = {
                                 Text(
                                     if (list.isPinned) "고정 해제" else "상단 고정",
-                                    color = Color.White
+                                    color = TextPrimary
                                 )
                             },
                             leadingIcon = {
                                 Icon(
                                     if (list.isPinned) Icons.Default.PushPin else Icons.Default.KeyboardArrowUp,
                                     contentDescription = null,
-                                    tint = Color.White
+                                    tint = TextPrimary
                                 )
                             },
                             onClick = {
@@ -382,9 +398,9 @@ fun DrawerContent(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("삭제", color = Color(0xFFFF5D5D)) },
+                            text = { Text("삭제", color = OverdueRed) },
                             leadingIcon = {
-                                Icon(Icons.Default.Delete, contentDescription = null, tint = Color(0xFFFF5D5D))
+                                Icon(Icons.Default.Delete, contentDescription = null, tint = OverdueRed)
                             },
                             onClick = {
                                 openMenuForListId = null
@@ -416,9 +432,9 @@ fun DrawerContent(
                 modifier = Modifier.background(DarkSurface)
             ) {
                 DropdownMenuItem(
-                    text = { Text("목록", color = Color.White) },
+                    text = { Text("목록", color = TextPrimary) },
                     leadingIcon = {
-                        Icon(Icons.Default.Reorder, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.Reorder, contentDescription = null, tint = TextPrimary)
                     },
                     onClick = {
                         addMenuOpen = false
@@ -426,9 +442,9 @@ fun DrawerContent(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("필터", color = Color.White) },
+                    text = { Text("필터", color = TextPrimary) },
                     leadingIcon = {
-                        Icon(Icons.Default.FilterList, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.FilterList, contentDescription = null, tint = TextPrimary)
                     },
                     onClick = {
                         addMenuOpen = false
@@ -436,9 +452,9 @@ fun DrawerContent(
                     }
                 )
                 DropdownMenuItem(
-                    text = { Text("태그", color = Color.White) },
+                    text = { Text("태그", color = TextPrimary) },
                     leadingIcon = {
-                        Icon(Icons.Default.Label, contentDescription = null, tint = Color.White)
+                        Icon(Icons.Default.Label, contentDescription = null, tint = TextPrimary)
                     },
                     onClick = {
                         addMenuOpen = false
@@ -492,36 +508,35 @@ private fun DrawerItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    // TickTick drawer row: icon · label · gray count, with a rounded gray
+    // highlight inset from the drawer edges for the selected list.
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 1.dp)
+            .clip(RoundedCornerShape(8.dp))
             .then(
-                if (isSelected) Modifier.background(DarkSurface) else Modifier
+                if (isSelected) Modifier.background(DarkSurfaceVariant) else Modifier
             )
             .clickable { onClick() }
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         icon()
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyLarge,
+            fontSize = 15.sp,
+            fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
             color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.weight(1f)
         )
         if (count != null && count > 0) {
             Text(
                 text = count.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = TextSecondary
+                fontSize = 13.sp,
+                color = TextTertiary
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = ">",
-            color = TextSecondary,
-            fontWeight = FontWeight.Light
-        )
     }
 }

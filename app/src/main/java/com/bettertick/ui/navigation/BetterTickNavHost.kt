@@ -1,5 +1,8 @@
 package com.bettertick.ui.navigation
 
+import com.bettertick.ui.theme.DividerColor
+import com.bettertick.ui.theme.TextSecondary
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -64,7 +67,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.bettertick.ui.components.AppActionButton
+import com.bettertick.ui.components.TickFab
 import com.bettertick.ui.screens.auth.AuthViewModel
 import com.bettertick.ui.screens.auth.LoginScreen
 import com.bettertick.ui.screens.auth.RegisterScreen
@@ -107,7 +110,7 @@ private fun BottomNavTab(
     accent: Color,
     onClick: () -> Unit
 ) {
-    val tint = if (selected) accent else TextTertiary
+    val tint = if (selected) accent else TextSecondary.copy(alpha = 0.7f)
     Column(
         modifier = modifier
             .fillMaxHeight()
@@ -119,21 +122,13 @@ private fun BottomNavTab(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // TickTick's tab bar is icon-only: accent when selected, gray
+        // otherwise. The label stays as the accessibility description.
         Icon(
             imageVector = icon,
             contentDescription = label,
             tint = tint,
-            modifier = Modifier.size(22.dp)
-        )
-        Spacer(Modifier.height(3.dp))
-        Text(
-            text = label,
-            color = tint,
-            fontSize = 10.sp,
-            style = MaterialTheme.typography.labelSmall,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            modifier = Modifier.size(26.dp)
         )
     }
 }
@@ -250,7 +245,8 @@ private fun MainContent(
         gesturesEnabled = drawerState.isOpen,
         drawerContent = {
             ModalDrawerSheet(
-                drawerContainerColor = DarkBackground
+                drawerContainerColor = DarkSurface,
+                drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {
                 val today = java.time.LocalDate.now()
                 val todayCount = remember(allTasks, today) {
@@ -378,14 +374,22 @@ private fun MainContent(
 
                     Surface(
                         color = DarkSurface,
-                        shadowElevation = 8.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
+                        // Hairline top divider instead of a drop shadow —
+                        // TickTick's tab bar sits flat on the page.
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .height(0.5.dp)
+                                .background(DividerColor)
+                        )
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .windowInsetsPadding(WindowInsets.navigationBars)
-                                .height(62.dp),
+                                .padding(top = 0.5.dp)
+                                .height(54.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             allNavItems.forEach { (id, tab, route) ->
@@ -575,13 +579,7 @@ private fun MainContent(
                         .padding(end = 16.dp, bottom = 16.dp),
                     contentAlignment = Alignment.BottomEnd
                 ) {
-                    AppActionButton(
-                        icon = Icons.Default.Add,
-                        contentDescription = "추가",
-                        onClick = { showTaskInput = true },
-                        size = 56.dp,
-                        modifier = Modifier.shadow(6.dp, RoundedCornerShape(12.dp))
-                    )
+                    TickFab(onClick = { showTaskInput = true })
                 }
             }
             }
@@ -691,7 +689,7 @@ private fun MainContent(
                                     .width(40.dp)
                                     .height(4.dp)
                                     .clip(RoundedCornerShape(2.dp))
-                                    .background(Color.White.copy(alpha = 0.18f))
+                                    .background(TextPrimary.copy(alpha = 0.18f))
                             )
                         }
                     if (currentRoute == BottomNavItem.Matrix.route) {

@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -66,7 +67,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
 
-private val DurationAccent = Color(0xFF4A90E2)
+private val DurationAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /**
  * 지속 시간 tab content inside the task date/duration picker. Handles four
@@ -340,7 +341,7 @@ private fun DurationCard(
             text = primary,
             fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.padding(horizontal = 14.dp)
         )
         if (secondary != null) {
@@ -372,7 +373,7 @@ private fun AllDayToggleRow(
         Text(
             text = "하루 종일",
             fontSize = 15.sp,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.weight(1f)
         )
         Switch(
@@ -382,7 +383,7 @@ private fun AllDayToggleRow(
                 checkedThumbColor = Color.White,
                 checkedTrackColor = DurationAccent,
                 uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Color(0xFF3A3A3A)
+                uncheckedTrackColor = DarkSurfaceVariant
             )
         )
     }
@@ -414,7 +415,7 @@ private fun DurationOptionRow(
         Text(
             text = label,
             fontSize = 15.sp,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.weight(1f)
         )
         Text(
@@ -655,7 +656,7 @@ private fun DurationTimelineSheet(
                 text = formatDurationHeader(baseDate),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = TextPrimary
             )
 
             Spacer(Modifier.height(14.dp))
@@ -794,7 +795,7 @@ private fun TimelineHourGrid(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(Color.White.copy(alpha = 0.06f))
+                            .background(TextPrimary.copy(alpha = 0.06f))
                     )
                 }
             }

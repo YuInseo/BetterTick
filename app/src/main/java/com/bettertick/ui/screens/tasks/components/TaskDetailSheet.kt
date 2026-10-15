@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -94,7 +95,7 @@ import java.util.Date
 
 /** Accent blue used on the date row and Notion link — same shade as
  *  TaskDatePickerSheet's DatePickerAccent so the two surfaces feel related. */
-private val DetailAccent = Color(0xFF4A90E2)
+private val DetailAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 /**
  * Bottom-sheet view of a single task. Shows the list the task belongs to,
@@ -216,7 +217,7 @@ fun TaskDetailSheet(
                         text = listName,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.White
+                        color = TextPrimary
                     )
                     Spacer(Modifier.width(4.dp))
                     Icon(
@@ -355,7 +356,7 @@ fun TaskDetailSheet(
                 value = title,
                 onValueChange = { title = it },
                 textStyle = TextStyle(
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
                     textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null
@@ -593,7 +594,7 @@ private fun NotionCard(
             Text(
                 text = "노션",
                 fontSize = 15.sp,
-                color = Color.White,
+                color = TextPrimary,
                 fontWeight = FontWeight.Medium
             )
             if (url.isNotBlank()) {
@@ -620,7 +621,7 @@ private fun NotionCard(
             Text(
                 text = "보기로 가기",
                 fontSize = 13.sp,
-                color = Color.White,
+                color = TextPrimary,
                 fontWeight = FontWeight.Medium
             )
         }
@@ -655,7 +656,7 @@ private fun MarkdownNotesEditor(
                 value = value,
                 onValueChange = onValueChange,
                 textStyle = TextStyle(
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 14.sp,
                     lineHeight = 20.sp
                 ),
@@ -807,8 +808,8 @@ private fun AttachMenuItem(
     onClick: () -> Unit
 ) {
     androidx.compose.material3.DropdownMenuItem(
-        text = { Text(label, color = Color.White, fontSize = 14.sp) },
-        leadingIcon = { Icon(icon, contentDescription = label, tint = Color.White) },
+        text = { Text(label, color = TextPrimary, fontSize = 14.sp) },
+        leadingIcon = { Icon(icon, contentDescription = label, tint = TextPrimary) },
         onClick = onClick
     )
 }
@@ -951,7 +952,7 @@ private fun AttachmentGrid(
                         Spacer(Modifier.height(6.dp))
                         Text(
                             text = name.ifBlank { "파일" },
-                            color = Color.White,
+                            color = TextPrimary,
                             fontSize = 11.sp,
                             maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
@@ -1151,7 +1152,7 @@ private fun ChecklistRow(
                 value = item.text,
                 onValueChange = onTextChange,
                 textStyle = TextStyle(
-                    color = if (item.done) TextSecondary else Color.White,
+                    color = if (item.done) TextSecondary else TextPrimary,
                     fontSize = 15.sp,
                     textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None
                 ),
@@ -1224,7 +1225,7 @@ private fun TagChip(
         Text(
             text = tag.name,
             fontSize = 12.sp,
-            color = Color.White
+            color = TextPrimary
         )
     }
 }
@@ -1266,7 +1267,7 @@ private fun TagPickerDialog(
             ) {
                 Text(
                     text = "태그",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
@@ -1317,7 +1318,7 @@ private fun TagPickerDialog(
                             value = query,
                             onValueChange = { query = it },
                             singleLine = true,
-                            textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
+                            textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
                             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                             modifier = Modifier.fillMaxWidth()
@@ -1369,9 +1370,9 @@ private fun TagPickerDialog(
  *  the same palette the matrix screens use so the cue is consistent across
  *  every surface that shows priority. */
 private fun priorityColor(level: Int): Color = when (level) {
-    3 -> Color(0xFFFF5D5D)
-    2 -> Color(0xFFFF8C00)
-    1 -> Color(0xFF3DA5F5)
+    3 -> com.bettertick.ui.theme.PriorityHigh
+    2 -> com.bettertick.ui.theme.PriorityMedium
+    1 -> com.bettertick.ui.theme.PriorityLow
     else -> TextSecondary
 }
 
@@ -1383,7 +1384,7 @@ private fun PriorityMenuItem(
     onClick: () -> Unit
 ) {
     DropdownMenuItem(
-        text = { Text(label, color = Color.White) },
+        text = { Text(label, color = TextPrimary) },
         leadingIcon = {
             Icon(
                 imageVector = if (level > 0) Icons.Filled.Flag else Icons.Outlined.Flag,
@@ -1429,7 +1430,7 @@ private fun TagPickerRow(
         Spacer(Modifier.width(12.dp))
         Text(
             text = tag.name,
-            color = Color.White,
+            color = TextPrimary,
             fontSize = 15.sp,
             modifier = Modifier.weight(1f)
         )

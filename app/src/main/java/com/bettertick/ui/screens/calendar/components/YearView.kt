@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.calendar.components
 
+import com.bettertick.ui.theme.ThemeState
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,10 +45,10 @@ import java.time.YearMonth
 // matters because scroll over ~10 years otherwise allocates thousands of
 // identical Color/TextStyle objects that just churn the GC.
 private val DayHeaderLabels = listOf("S", "M", "T", "W", "T", "F", "S")
-private val TaskCellBg = Orange.copy(alpha = 0.22f)
-private val DayNumStyle = TextStyle(fontSize = 9.sp, color = Color.White)
-private val DayNumTodayStyle = TextStyle(fontSize = 9.sp, color = Color.White, fontWeight = FontWeight.Bold)
-private val DayHeaderStyle = TextStyle(fontSize = 8.sp, color = TextTertiary)
+private val TaskCellBg: Color get() = ThemeState.accentColor.copy(alpha = 0.22f)
+private val DayNumStyle: TextStyle get() = TextStyle(fontSize = 9.sp, color = TextPrimary)
+private val DayNumTodayStyle: TextStyle get() = TextStyle(fontSize = 9.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
+private val DayHeaderStyle: TextStyle get() = TextStyle(fontSize = 8.sp, color = TextTertiary)
 
 /**
  * Vertically scrolling year overview. Each LazyColumn item is a whole year
@@ -187,7 +189,7 @@ private fun MiniMonth(
             text = "${month.monthValue}월",
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.padding(start = 2.dp, bottom = 4.dp)
         )
 

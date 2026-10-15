@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.lists
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.ThemeState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -103,14 +105,14 @@ fun AddListScreen(
                 Icon(
                     imageVector = Icons.Outlined.Close,
                     contentDescription = "Cancel",
-                    tint = Color.White
+                    tint = TextPrimary
                 )
             }
             Text(
                 text = if (isEdit) "목록 편집" else "목록 추가",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = TextPrimary,
                 modifier = Modifier.padding(start = 4.dp)
             )
             Spacer(modifier = Modifier.weight(1f))
@@ -143,7 +145,7 @@ fun AddListScreen(
                 Icon(
                     imageVector = Icons.Default.Check,
                     contentDescription = "Save",
-                    tint = if (canSave) Color.White else TextTertiary
+                    tint = if (canSave) TextPrimary else TextTertiary
                 )
             }
         }
@@ -180,8 +182,8 @@ fun AddListScreen(
                         value = name,
                         onValueChange = { name = it },
                         singleLine = true,
-                        textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
-                        cursorBrush = SolidColor(Color.White),
+                        textStyle = TextStyle(color = TextPrimary, fontSize = 16.sp),
+                        cursorBrush = SolidColor(TextPrimary),
                         keyboardOptions = KeyboardOptions(
                             keyboardType = KeyboardType.Text,
                             imeAction = ImeAction.Done
@@ -215,7 +217,7 @@ fun AddListScreen(
         ) {
             Text(
                 text = "목록 색상",
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -229,7 +231,7 @@ fun AddListScreen(
 
             Text(
                 text = "보기 유형",
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -343,7 +345,7 @@ private fun ViewTypeCard(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val accent = Color(0xFF4A90E2)
+    val accent = ThemeState.accentColor
     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
         Box(
             modifier = Modifier

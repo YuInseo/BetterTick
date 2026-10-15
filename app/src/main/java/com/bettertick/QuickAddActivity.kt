@@ -1,5 +1,8 @@
 package com.bettertick
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.TextSecondary
+import com.bettertick.ui.theme.TextTertiary
 import android.app.KeyguardManager
 import android.content.Context
 import android.os.Build
@@ -176,7 +179,7 @@ class QuickAddActivity : ComponentActivity() {
                                     selectedTab = selectedTab,
                                     onTabSelected = { selectedTab = it }
                                 )
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                                HorizontalDivider(color = TextPrimary.copy(alpha = 0.06f))
                                 when (selectedTab) {
                                     0 -> TaskInputSheet(
                                         onAddTask = { title, date ->
@@ -226,7 +229,7 @@ private fun QuickAddTabRow(
                     text = label,
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color(0xFF8A8A8E)
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else TextSecondary
                 )
                 Spacer(Modifier.height(4.dp))
                 Box(
@@ -295,13 +298,13 @@ private fun QuickDiarySheet(
                 text = if (isEditing) "오늘의 일기 · 수정 중" else "오늘의 일기",
                 style = MaterialTheme.typography.bodySmall,
                 color = if (isEditing) MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
-                        else Color(0xFF8A8A8E)
+                        else TextSecondary
             )
             Spacer(Modifier.weight(1f))
             Text(
                 text = dateLabel,
                 style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFF8A8A8E)
+                color = TextSecondary
             )
         }
 
@@ -324,7 +327,7 @@ private fun QuickDiarySheet(
                 if (text.isEmpty()) {
                     Text(
                         "오늘 하루는 어땠나요?",
-                        style = TextStyle(fontSize = 16.sp, color = Color(0xFF6B6B6B))
+                        style = TextStyle(fontSize = 16.sp, color = TextTertiary)
                     )
                 }
                 inner()
@@ -339,7 +342,7 @@ private fun QuickDiarySheet(
             verticalAlignment = Alignment.CenterVertically
         ) {
             TextButton(onClick = handleDismiss) {
-                Text("취소", color = Color(0xFF8A8A8E))
+                Text("취소", color = TextSecondary)
             }
             Spacer(Modifier.width(8.dp))
             Button(

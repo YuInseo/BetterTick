@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -108,7 +109,7 @@ fun ShiftRotationDialog(
                 text = "근무 패턴 반복",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = TextPrimary
             )
             Spacer(Modifier.height(8.dp))
             Text(
@@ -181,7 +182,7 @@ fun ShiftRotationDialog(
                             Text(
                                 option.label,
                                 fontSize = 13.sp,
-                                color = if (selected) accent else Color.White
+                                color = if (selected) accent else TextPrimary
                             )
                         }
                     }
@@ -253,7 +254,7 @@ private fun SlotRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.width(64.dp)) {
-            Text("${index + 1}일차", fontSize = 13.sp, color = Color.White)
+            Text("${index + 1}일차", fontSize = 13.sp, color = TextPrimary)
             Text(
                 date.format(DateTimeFormatter.ofPattern("M/d (E)", Locale.KOREAN)),
                 fontSize = 11.sp,
@@ -271,7 +272,7 @@ private fun SlotRow(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = true,
-                textStyle = TextStyle(fontSize = 15.sp, color = Color.White),
+                textStyle = TextStyle(fontSize = 15.sp, color = TextPrimary),
                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 modifier = Modifier.fillMaxWidth()
             )

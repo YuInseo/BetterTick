@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.habits
 
+import com.bettertick.ui.theme.ThemeState
 import android.util.Log
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -70,7 +71,7 @@ import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
-private val HabitBlue = Color(0xFF4A90E2)
+private val HabitBlue: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -174,10 +175,9 @@ fun HabitsScreen(
             )
         },
         floatingActionButton = {
-            AppActionButton(
-                icon = Icons.Default.Add,
-                contentDescription = "습관 추가",
-                onClick = { showGallery = true }
+            com.bettertick.ui.components.TickFab(
+                onClick = { showGallery = true },
+                contentDescription = "습관 추가"
             )
         }
     ) { paddingValues ->
@@ -388,7 +388,7 @@ private fun HabitSummaryRow(
                 modifier = Modifier
                     .matchParentSize()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFF4A90E2))
+                    .background(ThemeState.accentColor)
             )
             Box(
                 modifier = Modifier

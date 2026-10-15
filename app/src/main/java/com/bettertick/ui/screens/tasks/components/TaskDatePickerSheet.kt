@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -508,7 +509,7 @@ private fun MonthNav(
             text = "${month.monthValue}월",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.weight(1f)
         )
         IconButton(onClick = onPrev) {
@@ -606,7 +607,11 @@ private fun DateCell(
         Text(
             text = day.toString(),
             fontSize = 16.sp,
-            color = if (enabled) Color.White else TextTertiary,
+            color = when {
+                selected -> Color.White
+                enabled -> TextPrimary
+                else -> TextTertiary
+            },
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
         )
     }
@@ -699,7 +704,7 @@ private fun OptionRow(
         Text(
             text = label,
             fontSize = 15.sp,
-            color = Color.White,
+            color = TextPrimary,
             modifier = Modifier.weight(1f)
         )
         Text(

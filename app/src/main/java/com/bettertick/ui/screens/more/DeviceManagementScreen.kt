@@ -40,7 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.ui.theme.CompletedGreen
-import com.bettertick.ui.theme.DarkBackground
+import com.bettertick.ui.theme.GroupedBackground
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
 import kotlinx.coroutines.launch
@@ -61,7 +61,7 @@ fun DeviceManagementScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground)
+            .background(GroupedBackground)
     ) {
         TopAppBar(
             title = {
@@ -81,7 +81,7 @@ fun DeviceManagementScreen(
                     )
                 }
             },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = GroupedBackground)
         )
 
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
