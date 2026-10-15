@@ -515,7 +515,13 @@ private fun MainContent(
                     )
                 }
                 composable(BottomNavItem.Focus.route) {
-                    FocusScreen(onOpenStats = { navController.navigate("focusstats") })
+                    FocusScreen(
+                        onOpenStats = { navController.navigate("focusstats") },
+                        onOpenSettings = { navController.navigate("focus_settings") }
+                    )
+                }
+                composable("focus_settings") {
+                    com.bettertick.ui.screens.focus.FocusSettingsScreen(onBack = { navController.popBackStack() })
                 }
                 composable("focusstats") {
                     FocusStatsScreen(onBack = { navController.popBackStack() })

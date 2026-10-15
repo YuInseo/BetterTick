@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.PieChart
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -46,6 +47,7 @@ import com.bettertick.ui.theme.TextSecondary
 @Composable
 fun FocusScreen(
     onOpenStats: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     viewModel: FocusViewModel = hiltViewModel()
 ) {
     val categories by viewModel.categories.collectAsState()
@@ -59,14 +61,17 @@ fun FocusScreen(
     if (timerState.isRunning && timerExpanded) {
         FocusTimerScreen(
             timerState = timerState,
-            timeText = viewModel.formatTime(timerState.elapsedSeconds),
+            timeText = viewModel.formatTime(viewModel.displaySeconds(timerState)),
             onCollapse = { timerExpanded = false },
             onPause = { viewModel.pauseSession() },
             onResume = { viewModel.resumeSession() },
             onStop = {
                 viewModel.stopSession()
                 timerExpanded = false
-            }
+            },
+            onStartNext = { viewModel.startNext() },
+            onSkipBreak = { viewModel.skipBreak() },
+            onOpenSettings = onOpenSettings
         )
         return
     }
@@ -88,11 +93,28 @@ fun FocusScreen(
                 IconButton(onClick = onOpenStats) {
                     Icon(Icons.Outlined.PieChart, contentDescription = "포커스 통계", tint = MaterialTheme.colorScheme.onBackground)
                 }
+                IconButton(onClick = onOpenSettings) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "포커스 설정", tint = MaterialTheme.colorScheme.onBackground)
+                }
                 IconButton(onClick = { showAddDialog = true }) {
                     Icon(Icons.Default.Add, contentDescription = "Add category", tint = MaterialTheme.colorScheme.onBackground)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
+        )
+
+        // 뽀모도로 | 스톱워치 switch + today's progress (TickTick 포커스 header).
+        FocusModeSwitch(
+            mode = FocusPrefs.mode,
+            enabled = !timerState.isRunning,
+            onChange = FocusPrefs::updateMode
+        )
+        val todayFocusMin = todaySessions.filter { it.isCompleted }.sumOf { it.durationSeconds } / 60
+        FocusTodaySummary(
+            pomos = FocusPrefs.pomosToday,
+            goal = FocusPrefs.dailyGoal,
+            focusMinutes = todayFocusMin,
+            showPomos = FocusPrefs.mode == FocusMode.POMO
         )
 
         // Category list
@@ -148,7 +170,7 @@ fun FocusScreen(
             ) {
                 RunningTimerBar(
                     timerState = timerState,
-                    timeText = viewModel.formatTime(timerState.elapsedSeconds),
+                    timeText = viewModel.formatTime(viewModel.displaySeconds(timerState)),
                     onPause = { viewModel.pauseSession() },
                     onResume = { viewModel.resumeSession() },
                     onStop = { viewModel.stopSession() }
