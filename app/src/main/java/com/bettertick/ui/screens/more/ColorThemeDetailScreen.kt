@@ -1,7 +1,9 @@
 package com.bettertick.ui.screens.more
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,6 +59,8 @@ import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import com.bettertick.ui.theme.ThemeState
+import com.bettertick.ui.theme.TickDarkPalette
+import com.bettertick.ui.theme.TickLightPalette
 
 /**
  * Swipeable theme preview. Each page is a calendar mockup tinted with that
@@ -89,7 +93,8 @@ fun ColorThemeDetailScreen(
     val effectiveAccent =
         if (currentTheme.hasCustomAccent) customAccent ?: currentTheme.accentColor
         else currentTheme.accentColor
-    val isCurrentlyApplied = effectiveAccent == ThemeState.accentColor
+    val isCurrentlyApplied = effectiveAccent == ThemeState.accentColor &&
+        currentTheme.name == ThemeState.themeName
 
     Column(
         modifier = Modifier
@@ -192,8 +197,8 @@ fun ColorThemeDetailScreen(
 // Palette shown below the 어둠 preview. User picks any swatch and it becomes
 // the applied accent color while keeping the dark background.
 private val CustomAccentSwatches = listOf(
-    Color(0xFFFF8C00), // Orange (default)
-    Color(0xFF4A8FE3), // Blue
+    Color(0xFF4772FA), // TickTick blue (default)
+    Color(0xFFFF8C00), // Orange
     Color(0xFF7BB7E8), // Sky blue
     Color(0xFF22A6B3), // Teal
     Color(0xFFF0B27A), // Sand
@@ -298,10 +303,13 @@ private fun ThemePreviewCard(theme: ThemeColor, accentOverride: Color = theme.ac
     val backgroundBrush = remember(theme) {
         theme.backgroundColors?.let { Brush.verticalGradient(it) }
     }
-    val cardColor = theme.cardColor ?: DarkSurface
-    val textColor = theme.previewTextColor ?: Color.White
-    val secondaryTextColor = if (isScene) textColor.copy(alpha = 0.6f) else TextSecondary
-    val tertiaryTextColor = if (isScene) textColor.copy(alpha = 0.4f) else TextTertiary
+    // Preview each theme in its own appearance (어둠 dark, everything else
+    // TickTick light) rather than in whatever mode is currently applied.
+    val pal = if (theme.name == ThemeState.DARK_THEME_NAME) TickDarkPalette else TickLightPalette
+    val cardColor = theme.cardColor ?: pal.surfaceVariant
+    val textColor = theme.previewTextColor ?: pal.textPrimary
+    val secondaryTextColor = if (isScene) textColor.copy(alpha = 0.6f) else pal.textSecondary
+    val tertiaryTextColor = if (isScene) textColor.copy(alpha = 0.4f) else pal.textTertiary
 
     Box(
         modifier = Modifier
@@ -310,7 +318,9 @@ private fun ThemePreviewCard(theme: ThemeColor, accentOverride: Color = theme.ac
             .clip(RoundedCornerShape(20.dp))
             .then(
                 if (backgroundBrush != null) Modifier.background(backgroundBrush)
-                else Modifier.background(DarkCard)
+                else Modifier
+                    .background(pal.background)
+                    .border(1.dp, pal.divider, RoundedCornerShape(20.dp))
             )
             .padding(14.dp)
     ) {
@@ -320,7 +330,7 @@ private fun ThemePreviewCard(theme: ThemeColor, accentOverride: Color = theme.ac
             secondaryTextColor = secondaryTextColor,
             tertiaryTextColor = tertiaryTextColor,
             cardColor = cardColor,
-            cardTextColor = if (isScene) Color(0xFF1A1A1A) else Color.White,
+            cardTextColor = if (isScene) Color(0xFF1A1A1A) else pal.textPrimary,
             cityLandmark = theme.cityLandmark,
             landmarkColor = accentOverride
         )

@@ -1,5 +1,8 @@
 package com.bettertick.overlay
 
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.TextSecondary
+import com.bettertick.ui.theme.TextTertiary
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -163,7 +166,7 @@ class QuickOverlayService : Service() {
                                             style = MaterialTheme.typography.labelLarge,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                             color = if (isSelected) MaterialTheme.colorScheme.primary
-                                                    else Color(0xFF8A8A8E)
+                                                    else TextSecondary
                                         )
                                         Spacer(Modifier.height(4.dp))
                                         Box(
@@ -180,7 +183,7 @@ class QuickOverlayService : Service() {
                                 }
                             }
 
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                            HorizontalDivider(color = TextPrimary.copy(alpha = 0.06f))
 
                             // Input area
                             Column(
@@ -207,7 +210,7 @@ class QuickOverlayService : Service() {
                                             Text(
                                                 if (selectedTab == 0) "무엇을 할 예정인가요?"
                                                 else "오늘 하루는 어땠나요?",
-                                                style = TextStyle(fontSize = 16.sp, color = Color(0xFF6B6B6B))
+                                                style = TextStyle(fontSize = 16.sp, color = TextTertiary)
                                             )
                                         }
                                         inner()
@@ -222,7 +225,7 @@ class QuickOverlayService : Service() {
                                 ) {
                                     Spacer(Modifier.weight(1f))
                                     TextButton(onClick = { dismiss() }) {
-                                        Text("취소", color = Color(0xFF8A8A8E))
+                                        Text("취소", color = TextSecondary)
                                     }
                                     Spacer(Modifier.width(8.dp))
                                     Button(

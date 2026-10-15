@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -83,7 +84,7 @@ fun MoveTaskListSheet(
                 Icon(
                     imageVector = Icons.Outlined.Close,
                     contentDescription = "닫기",
-                    tint = Color.White,
+                    tint = TextPrimary,
                     modifier = Modifier
                         .size(26.dp)
                         .clickable { onDismiss() }
@@ -91,7 +92,7 @@ fun MoveTaskListSheet(
                 Spacer(Modifier.width(14.dp))
                 Text(
                     text = "이동",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -113,8 +114,8 @@ fun MoveTaskListSheet(
                     value = query,
                     onValueChange = { query = it },
                     singleLine = true,
-                    textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-                    cursorBrush = SolidColor(Color.White),
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp),
+                    cursorBrush = SolidColor(TextPrimary),
                     modifier = Modifier.fillMaxWidth()
                 )
             }
@@ -205,7 +206,7 @@ private fun ListPickerRow(
         Spacer(Modifier.width(14.dp))
         Text(
             text = label,
-            color = if (selected) PickerAccent else Color.White,
+            color = if (selected) PickerAccent else TextPrimary,
             fontSize = 16.sp,
             modifier = Modifier.weight(1f)
         )
@@ -239,8 +240,8 @@ private fun ListIcon(list: TaskList) {
     Text(
         text = glyph,
         fontSize = 16.sp,
-        color = Color.White
+        color = TextPrimary
     )
 }
 
-private val PickerAccent = Color(0xFF4A90E2)
+private val PickerAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor

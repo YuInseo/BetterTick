@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tasks.components
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -38,7 +39,7 @@ import com.bettertick.ui.theme.TextTertiary
  * Tiny on purpose — one input + two footer buttons, matching the
  * proportions of [TaskDatePickerSheet] without the full picker chrome.
  */
-private val DialogAccent = Color(0xFF4A90E2)
+private val DialogAccent: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
 
 @Composable
 fun NotionUrlDialog(
@@ -64,7 +65,7 @@ fun NotionUrlDialog(
                 text = "노션 링크",
                 fontSize = 17.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White
+                color = TextPrimary
             )
 
             Spacer(Modifier.height(12.dp))
@@ -87,7 +88,7 @@ fun NotionUrlDialog(
                     value = text,
                     onValueChange = { text = it },
                     textStyle = TextStyle(
-                        color = Color.White,
+                        color = TextPrimary,
                         fontSize = 14.sp
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),

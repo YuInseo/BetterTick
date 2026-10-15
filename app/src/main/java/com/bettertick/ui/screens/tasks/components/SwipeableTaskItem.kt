@@ -29,7 +29,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.bettertick.data.model.Task
-import com.bettertick.ui.theme.DarkCard
+import com.bettertick.ui.theme.DarkBackground
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.roundToInt
@@ -57,7 +57,10 @@ fun SwipeableTaskItem(
     modifier: Modifier = Modifier,
     overrideDate: LocalDate? = null,
     listName: String = "기본함",
-    resolvedTags: List<com.bettertick.data.model.Tag> = emptyList()
+    resolvedTags: List<com.bettertick.data.model.Tag> = emptyList(),
+    /** Fill behind the sliding row — page background in plain lists
+     *  (TickTick style), card color when the row sits inside a card. */
+    rowBackground: Color = DarkBackground
 ) {
     val actionWidth = 72.dp
     val actionsWidthPx = with(LocalDensity.current) { (actionWidth * 3).toPx() }
@@ -66,9 +69,8 @@ fun SwipeableTaskItem(
     val scope = rememberCoroutineScope()
 
     // No background on the outer container — it inherits whatever the parent
-    // (DarkCard panel) is painting, so the row blends in when closed. Only
-    // the foreground layer needs a solid background, and it matches DarkCard
-    // so nothing visibly darkens against the panel.
+    // is painting, so the row blends in when closed. Only the foreground
+    // layer needs a solid background, set by [rowBackground].
     Box(modifier = modifier.fillMaxWidth()) {
         // Action strip sits underneath the row, filling the Box so it
         // matches the TaskItem's height. matchParentSize() is required —
@@ -110,15 +112,14 @@ fun SwipeableTaskItem(
             )
         }
 
-        // Foreground row — translates via offset. Background matches the
-        // panel card so the row looks continuous with the surrounding list
-        // (previously painted DarkBackground, which showed as a black block
-        // over the dark-gray panel).
+        // Foreground row — translates via offset. Its fill matches whatever
+        // it sits on (page in the task list, card in the calendar panel) so
+        // the row looks continuous with its surroundings.
         Box(
             modifier = Modifier
                 .offset { IntOffset(offset.value.roundToInt(), 0) }
                 .fillMaxWidth()
-                .background(DarkCard)
+                .background(rowBackground)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -184,6 +185,6 @@ private fun SwipeActionButton(
     }
 }
 
-private val ActionBlue = Color(0xFF2F7CF6)
+private val ActionBlue = Color(0xFF4772FA)
 private val ActionRed = Color(0xFFE5453A)
-private val ActionOrange = Color(0xFFFF9500)
+private val ActionOrange = Color(0xFFFAA80C)

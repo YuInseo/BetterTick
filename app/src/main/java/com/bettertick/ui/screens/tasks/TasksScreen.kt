@@ -1,5 +1,8 @@
 package com.bettertick.ui.screens.tasks
 
+import com.bettertick.ui.theme.TextTertiary
+import com.bettertick.ui.theme.TextPrimary
+import com.bettertick.ui.theme.ThemeState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -467,33 +470,34 @@ private fun SectionHeader(
     expanded: Boolean,
     onToggle: () -> Unit
 ) {
+    // TickTick section header: compact bold label + gray count on the left,
+    // a small collapse chevron on the right. Overdue keeps its red label.
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onToggle() }
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(start = 16.dp, end = 12.dp, top = 14.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Chevron — down when expanded, right when collapsed.
+        Text(
+            text = title,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (color == OverdueRed) OverdueRed else TextPrimary
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = count.toString(),
+            fontSize = 13.sp,
+            color = TextTertiary
+        )
+        Spacer(modifier = Modifier.weight(1f))
         Icon(
             imageVector = if (expanded) Icons.Default.KeyboardArrowDown
                 else Icons.Default.KeyboardArrowRight,
             contentDescription = if (expanded) "접기" else "펼치기",
-            tint = color,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = color
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = count.toString(),
-            style = MaterialTheme.typography.bodyMedium,
-            color = TextSecondary
+            tint = TextTertiary,
+            modifier = Modifier.size(18.dp)
         )
     }
 }
@@ -550,7 +554,7 @@ private fun SectionSettingsDialog(
             Column(modifier = Modifier.padding(vertical = 20.dp)) {
                 Text(
                     text = "섹션 설정",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 20.dp)
@@ -645,7 +649,7 @@ private fun SectionSettingsDialog(
                                 ) {
                                     Text(
                                         text = section.label,
-                                        color = Color.White,
+                                        color = TextPrimary,
                                         fontSize = 15.sp
                                     )
                                     if (tags.isNotEmpty()) {
@@ -673,7 +677,7 @@ private fun SectionSettingsDialog(
                                         imageVector = if (isHidden) Icons.Outlined.VisibilityOff
                                             else Icons.Outlined.Visibility,
                                         contentDescription = if (isHidden) "표시" else "숨기기",
-                                        tint = if (isHidden) TextSecondary else Color.White
+                                        tint = if (isHidden) TextSecondary else TextPrimary
                                     )
                                 }
                             }
@@ -704,7 +708,7 @@ private fun SectionSettingsDialog(
                                                 Text(
                                                     text = tag.name,
                                                     fontSize = 12.sp,
-                                                    color = Color.White
+                                                    color = TextPrimary
                                                 )
                                             }
                                             Spacer(Modifier.weight(1f))
@@ -713,7 +717,7 @@ private fun SectionSettingsDialog(
                                                     imageVector = if (tagHidden) Icons.Outlined.VisibilityOff
                                                         else Icons.Outlined.Visibility,
                                                     contentDescription = if (tagHidden) "표시" else "숨기기",
-                                                    tint = if (tagHidden) TextSecondary else Color.White
+                                                    tint = if (tagHidden) TextSecondary else TextPrimary
                                                 )
                                             }
                                         }
@@ -737,7 +741,7 @@ private fun SectionSettingsDialog(
                     }) {
                         Text(
                             text = "완료",
-                            color = Color(0xFF4A90E2),
+                            color = ThemeState.accentColor,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold
                         )

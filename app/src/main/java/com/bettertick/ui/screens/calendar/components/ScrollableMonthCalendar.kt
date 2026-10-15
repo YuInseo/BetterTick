@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.calendar.components
 
+import com.bettertick.ui.theme.ThemeState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,9 +45,9 @@ import java.time.YearMonth
 
 // File-scope constants — previously allocated on every DayCell recomposition,
 // which added GC churn during scroll.
-private val DayCellBorderColor = TextTertiary.copy(alpha = 0.35f)
-private val TaskChipCompletedColor = Color(0xFF8B6914)
-private val TaskChipActiveColor = Color(0xFFCC7000)
+private val DayCellBorderColor: Color get() = TextTertiary.copy(alpha = 0.35f)
+private val TaskChipCompletedColor: Color get() = ThemeState.accentColor.copy(alpha = 0.45f)
+private val TaskChipActiveColor: Color get() = ThemeState.accentColor
 
 /**
  * Vertically scrollable calendar rendered week-by-week. Borders are drawn per
@@ -292,7 +293,7 @@ private fun DayCell(
                 fontWeight = if (isToday || isSelected || showMonthChip) FontWeight.Bold else FontWeight.Normal,
                 color = when {
                     isSelected -> Color.White
-                    isToday -> Color.White
+                    isToday -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.onBackground
                 },
                 textAlign = TextAlign.Center,

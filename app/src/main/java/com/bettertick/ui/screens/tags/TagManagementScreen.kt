@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.tags
 
+import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -72,7 +73,7 @@ fun TagManagementScreen(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = Color.White
+                    tint = TextPrimary
                 )
             }
             Spacer(modifier = Modifier.width(8.dp))
@@ -86,7 +87,7 @@ fun TagManagementScreen(
             Column {
                 Text(
                     text = "태그",
-                    color = Color.White,
+                    color = TextPrimary,
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -115,13 +116,13 @@ fun TagManagementScreen(
             Icon(
                 imageVector = Icons.Default.Label,
                 contentDescription = null,
-                tint = Color.White,
+                tint = TextPrimary,
                 modifier = Modifier.size(22.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Text(
                 text = "태그",
-                color = Color.White,
+                color = TextPrimary,
                 fontSize = 16.sp,
                 modifier = Modifier.weight(1f)
             )
@@ -190,7 +191,7 @@ fun TagManagementScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = tag.name,
-                            color = Color.White,
+                            color = TextPrimary,
                             fontSize = 16.sp
                         )
                     }

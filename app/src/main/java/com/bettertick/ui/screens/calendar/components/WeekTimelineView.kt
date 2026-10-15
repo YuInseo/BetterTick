@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.calendar.components
 
+import com.bettertick.ui.theme.ThemeState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -208,7 +209,7 @@ private fun DayHeaderRow(
                                 if (d == selectedDate) {
                                     Modifier
                                         .clip(CircleShape)
-                                        .background(Color(0xFF2F7CF6))
+                                        .background(ThemeState.accentColor)
                                 } else Modifier
                             ),
                         contentAlignment = Alignment.Center
@@ -219,7 +220,7 @@ private fun DayHeaderRow(
                             fontWeight = FontWeight.Bold,
                             color = when {
                                 d == selectedDate -> Color.White
-                                d == today -> Color(0xFF2F7CF6)
+                                d == today -> ThemeState.accentColor
                                 else -> MaterialTheme.colorScheme.onBackground
                             }
                         )
@@ -273,7 +274,7 @@ private fun AllDayStrip(
                             .height(rowHeight)
                             .padding(bottom = 2.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(Color(0xFF4257B2).copy(alpha = if (task.isCompleted) 0.35f else 0.9f))
+                            .background(ThemeState.accentColor.copy(alpha = if (task.isCompleted) 0.35f else 0.9f))
                             .clickable { onTaskClick(task) }
                             .padding(horizontal = 4.dp),
                         contentAlignment = Alignment.CenterStart
@@ -441,8 +442,8 @@ private fun DayColumn(
                         .height(blockHeight)
                         .padding(horizontal = 1.dp)
                         .clip(RoundedCornerShape(4.dp))
-                        .background(Color(0xFF4257B2).copy(alpha = 0.45f))
-                        .border(1.dp, Color(0xFF4257B2).copy(alpha = 0.8f), RoundedCornerShape(4.dp))
+                        .background(ThemeState.accentColor.copy(alpha = 0.45f))
+                        .border(1.dp, ThemeState.accentColor.copy(alpha = 0.8f), RoundedCornerShape(4.dp))
                         .padding(horizontal = 4.dp, vertical = 2.dp)
                 ) {
                     Text(
@@ -470,7 +471,7 @@ private fun TimedBlock(task: Task, date: LocalDate, onTaskClick: (Task) -> Unit 
             .fillMaxSize()
             .padding(horizontal = 1.dp, vertical = 1.dp)
             .clip(RoundedCornerShape(4.dp))
-            .background(Color(0xFF4257B2).copy(alpha = alpha))
+            .background(ThemeState.accentColor.copy(alpha = alpha))
             .clickable { onTaskClick(task) }
             .padding(horizontal = 4.dp, vertical = 2.dp)
     ) {
