@@ -17,40 +17,40 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:checkKotlinGradlePluginConfigurationErrors SKIPPED
 > Task :app:generateDebugBuildConfig
 > Task :app:generateDebugResValues
-> Task :app:checkDebugAarMetadata
 > Task :app:processDebugGoogleServices
+> Task :app:checkDebugAarMetadata
 > Task :app:mapDebugSourceSetPaths
 > Task :app:generateDebugResources
 > Task :app:packageDebugResources
-> Task :app:mergeDebugResources
 > Task :app:createDebugCompatibleScreenManifests
 > Task :app:extractDeepLinksDebug
 > Task :app:parseDebugLocalResources
+> Task :app:mergeDebugResources
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
-> Task :app:processDebugManifestForPackage
 > Task :app:javaPreCompileDebug
 > Task :app:mergeDebugShaders
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets
 > Task :app:desugarDebugFileDependencies
-> Task :app:compressDebugAssets
-> Task :app:processDebugResources
-> Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugStartupProfile
+> Task :app:processDebugManifestForPackage
+> Task :app:compressDebugAssets
+> Task :app:checkDebugDuplicateClasses
 > Task :app:mergeDebugJniLibFolders
 > Task :app:mergeLibDexDebug
 > Task :app:validateSigningDebug
 > Task :app:writeDebugAppMetadata
 > Task :app:writeDebugSigningConfigVersions
 > Task :app:mergeDebugNativeLibs
+> Task :app:processDebugResources
 
 > Task :app:stripDebugDebugSymbols
 Unable to strip the following libraries, packaging them as they are: libK3fAndroid.so.
 
-> Task :app:kspDebugKotlin
 > Task :app:mergeExtDexDebug
+> Task :app:kspDebugKotlin
 > Task :app:compileDebugKotlin
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:209:44 '@Deprecated(...) static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:386:20 '@Deprecated(...) @UiThread() static fun setImportantForAccessibility(@NonNull() p0: View, p1: Int): Unit' is deprecated. Deprecated in Java.
@@ -84,12 +84,10 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitIcons.kt:91:45 '@property:Deprecated(...) val Icons.Rounded.MenuBook: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.MenuBook.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitIcons.kt:93:45 '@property:Deprecated(...) val Icons.Rounded.LibraryBooks: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.LibraryBooks.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitIcons.kt:99:45 '@property:Deprecated(...) val Icons.Rounded.Assignment: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Rounded.Assignment.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitOptionsScreen.kt:125:37 '@property:Deprecated(...) val Icons.Outlined.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.ArrowBack.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitSettingsScreen.kt:117:37 '@property:Deprecated(...) val Icons.Outlined.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.ArrowBack.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitSettingsScreen.kt:377:37 '@property:Deprecated(...) val Icons.Outlined.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.ArrowBack.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitOptionsScreen.kt:124:37 '@property:Deprecated(...) val Icons.Outlined.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.ArrowBack.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitsListScreen.kt:72:36 '@property:Deprecated(...) val Icons.Outlined.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.ArrowBack.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitsScreen.kt:168:45 '@property:Deprecated(...) val Icons.Outlined.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.List.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitsScreen.kt:267:56 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitsScreen.kt:165:45 '@property:Deprecated(...) val Icons.Outlined.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.List.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitsScreen.kt:272:60 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/lists/AddListScreen.kt:123:39 Condition is always 'true'.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/LocationHistoryScreen.kt:620:49 '@property:Deprecated(...) val Icons.Outlined.List: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.List.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/location/LocationHistoryScreen.kt:1079:17 Condition is always 'true'.
@@ -102,8 +100,8 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tags/TagManagementScreen.kt:117:45 '@property:Deprecated(...) val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tags/TagManagementScreen.kt:184:57 '@property:Deprecated(...) val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/TaskListMenus.kt:88:93 '@property:Deprecated(...) val Icons.Outlined.Notes: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.Notes.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/TasksScreen.kt:661:36 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/TasksScreen.kt:823:68 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/TasksScreen.kt:690:36 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/TasksScreen.kt:852:68 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
 w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/components/CustomRepeatDialog.kt:251:42 '@property:Deprecated(...) val Icons.Outlined.HelpOutline: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.HelpOutline.
 
 > Task :app:compileDebugJavaWithJavac
@@ -119,5 +117,5 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 2m 37s
+BUILD SUCCESSFUL in 3m 30s
 43 actionable tasks: 43 executed
