@@ -263,52 +263,53 @@ fun TasksScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
             )
-        } else
-        TopAppBar(
-            title = {
-                Text(
-                    text = viewModel.filterTitle,
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            },
-            navigationIcon = {
-                IconButton(onClick = onOpenDrawer) {
-                    Icon(
-                        Icons.Default.Menu,
-                        contentDescription = "Menu",
-                        tint = MaterialTheme.colorScheme.onBackground
+        } else {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = viewModel.filterTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
-                }
-            },
-            actions = {
-                Box {
-                    IconButton(onClick = { showListMenu = true }) {
+                },
+                navigationIcon = {
+                    IconButton(onClick = onOpenDrawer) {
                         Icon(
-                            Icons.Default.MoreVert,
-                            contentDescription = "더보기",
+                            Icons.Default.Menu,
+                            contentDescription = "Menu",
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
-                    TaskListMenu(
-                        expanded = showListMenu,
-                        onDismiss = { showListMenu = false },
-                        onGroupSort = { showGroupSort = true },
-                        onSelect = { selectionMode = true },
-                        onSectionSettings = { showSectionSettings = true },
-                        onShare = {
-                            val groups = currentGroups(
-                                tasks.filter { !it.isCompleted && !it.isAbandoned }, lists, tags
+                },
+                actions = {
+                    Box {
+                        IconButton(onClick = { showListMenu = true }) {
+                            Icon(
+                                Icons.Default.MoreVert,
+                                contentDescription = "더보기",
+                                tint = MaterialTheme.colorScheme.onBackground
                             )
-                            shareText(context, buildTaskListShareText(viewModel.filterTitle, groups))
                         }
-                    )
-                }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(
-                containerColor = DarkBackground
+                        TaskListMenu(
+                            expanded = showListMenu,
+                            onDismiss = { showListMenu = false },
+                            onGroupSort = { showGroupSort = true },
+                            onSelect = { selectionMode = true },
+                            onSectionSettings = { showSectionSettings = true },
+                            onShare = {
+                                val groups = currentGroups(
+                                    tasks.filter { !it.isCompleted && !it.isAbandoned }, lists, tags
+                                )
+                                shareText(context, buildTaskListShareText(viewModel.filterTitle, groups))
+                            }
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = DarkBackground
+                )
             )
-        )
+        }
 
         if (activeListViewType == "timetable") {
             // 시간표 view — reuse the calendar's week timeline to render the
