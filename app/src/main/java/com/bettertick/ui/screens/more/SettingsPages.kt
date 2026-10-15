@@ -130,6 +130,7 @@ fun SmartListSettingsScreen(onBack: () -> Unit) {
 
 @Composable
 fun DateTimeSettingsScreen(onBack: () -> Unit, onOpenTimeZone: () -> Unit) {
+    val context = LocalContext.current
     val zone = remember { ZoneId.systemDefault().id }
     OptionPage(title = "날짜 & 시간", onBack = onBack) {
         OptionCard {
@@ -157,7 +158,46 @@ fun DateTimeSettingsScreen(onBack: () -> Unit, onOpenTimeZone: () -> Unit) {
         OptionCard {
             OptionNavRow("시간대", value = "${zoneCityName(zone)}, ${zoneOffsetLabel(zone)}", onClick = onOpenTimeZone)
         }
+        OptionCard {
+            OptionChoiceRow(
+                title = "기본 알림",
+                subtitle = "시간이 있는 새 할일에 자동으로 설정됩니다.",
+                value = AppPrefs.defaultReminder,
+                options = listOf(-1, 0, 5, 15, 30, 60, 1440),
+                label = ::reminderOffsetLabel,
+                onPick = AppPrefs::updateDefaultReminder
+            )
+            OptionSwitchRow(
+                title = "종일 할일 알림",
+                subtitle = "날짜만 있는 새 할일도 당일에 알려줍니다.",
+                checked = AppPrefs.allDayReminder,
+                onCheckedChange = AppPrefs::updateAllDayReminder
+            )
+            OptionChoiceRow(
+                title = "종일 할일 알림 시간",
+                value = AppPrefs.allDayReminderMinutes,
+                options = (5..22).flatMap { listOf(it * 60, it * 60 + 30) },
+                label = { m -> AppPrefs.formatTime(java.time.LocalTime.of(m / 60, m % 60)) },
+                onPick = { m ->
+                    AppPrefs.updateAllDayReminderMinutes(m)
+                    // Re-arm existing all-day reminders at the new time.
+                    if (com.bettertick.widget.WidgetServiceLocator.isInitialized) runCatching {
+                        com.bettertick.reminder.ReminderScheduler.syncAll(
+                            context, com.bettertick.widget.WidgetServiceLocator.tasksCache.value
+                        )
+                    }
+                }
+            )
+        }
     }
+}
+
+private fun reminderOffsetLabel(m: Int): String = when {
+    m < 0 -> "없음"
+    m == 0 -> "정시"
+    m % 1440 == 0 -> "${m / 1440}일 전"
+    m % 60 == 0 -> "${m / 60}시간 전"
+    else -> "${m}분 전"
 }
 
 // ── 설정 > 사운드 & 알림 ──────────────────────────────────────────────────
