@@ -432,7 +432,9 @@ fun TasksScreen(
                                 onLongClick = {
                                     selectionMode = true
                                     if (task.id !in selectedIds) selectedIds.add(task.id)
-                                }
+                                },
+                                onPin = { viewModel.updateTask(task.copy(isPinned = !task.isPinned)) },
+                                onWontDo = { viewModel.updateTask(task.copy(isAbandoned = true)) }
                             )
                         }
                     }

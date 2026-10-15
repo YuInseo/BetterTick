@@ -41,6 +41,8 @@ import com.bettertick.ui.screens.calendar.zoneOffsetLabel
 import com.bettertick.ui.screens.tasks.SmartList
 import com.bettertick.ui.screens.tasks.SmartListPrefs
 import com.bettertick.ui.screens.tasks.SmartVisibility
+import com.bettertick.ui.screens.tasks.SwipeAction
+import com.bettertick.ui.screens.tasks.TaskListPrefs
 import com.bettertick.ui.theme.AppPrefs
 import com.bettertick.ui.theme.DefaultDueDate
 import com.bettertick.ui.theme.GroupedCard
@@ -242,7 +244,7 @@ private fun ringtoneTitle(context: android.content.Context, uri: String?): Strin
 // ── 설정 > 일반 ──────────────────────────────────────────────────────────
 
 @Composable
-fun GeneralSettingsScreen(onBack: () -> Unit) {
+fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = null) {
     val tabs = listOf(
         "tasks" to "할일", "calendar" to "캘린더", "matrix" to "아이젠하워 매트릭스",
         "focus" to "뽀모도로", "habits" to "습관"
@@ -272,6 +274,38 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                 checked = AppPrefs.newTaskOnTop,
                 onCheckedChange = AppPrefs::updateNewTaskOnTop
             )
+        }
+        Text(
+            "스와이프 동작",
+            fontSize = 13.sp, color = TextSecondary,
+            modifier = Modifier.padding(start = 20.dp)
+        )
+        OptionCard {
+            TaskListPrefs.swipeRight.forEachIndexed { i, a ->
+                OptionChoiceRow(
+                    title = "오른쪽으로 스와이프 ${i + 1}",
+                    subtitle = if (i == 0) "할일을 오른쪽으로 밀면 왼쪽에 나타나는 버튼" else null,
+                    value = a,
+                    options = SwipeAction.entries,
+                    label = { it.label },
+                    onPick = { TaskListPrefs.updateSwipeRight(i, it) }
+                )
+            }
+            TaskListPrefs.swipeLeft.forEachIndexed { i, a ->
+                OptionChoiceRow(
+                    title = "왼쪽으로 스와이프 ${i + 1}",
+                    subtitle = if (i == 0) "할일을 왼쪽으로 밀면 오른쪽에 나타나는 버튼" else null,
+                    value = a,
+                    options = SwipeAction.entries,
+                    label = { it.label },
+                    onPick = { TaskListPrefs.updateSwipeLeft(i, it) }
+                )
+            }
+        }
+        if (onExportTasks != null) {
+            OptionCard {
+                OptionNavRow("할일 내보내기 (CSV)", value = "공유", onClick = onExportTasks)
+            }
         }
         OptionCard {
             Row(
