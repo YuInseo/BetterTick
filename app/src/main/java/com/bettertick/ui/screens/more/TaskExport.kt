@@ -38,7 +38,7 @@ fun buildTasksCsv(tasks: List<Task>, lists: List<TaskList>, tags: List<Tag>): St
             time(t.createdAt)
         ).joinToString(",") { cell(it) }
     }
-    return "﻿" + (listOf(header.joinToString(",")) + rows).joinToString("\r\n")
+    return Char(0xFEFF).toString() + (listOf(header.joinToString(",")) + rows).joinToString("\r\n")
 }
 
 fun shareTasksCsv(context: Context, csv: String) {
