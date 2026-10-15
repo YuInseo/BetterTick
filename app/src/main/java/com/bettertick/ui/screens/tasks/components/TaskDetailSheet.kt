@@ -145,6 +145,7 @@ fun TaskDetailSheet(
     var repeatEnd by remember(task.id) { mutableStateOf(task.repeatEnd) }
     var tagIds by remember(task.id) { mutableStateOf(task.tagIds) }
     var priority by remember(task.id) { mutableStateOf(task.priority) }
+    var reminders by remember(task.id) { mutableStateOf(task.reminders) }
 
     var showDatePicker by remember { mutableStateOf(false) }
     // 반복 > 근무 패턴 반복 — 이 블록 날짜 주변의 근무 입력으로 패턴을 찾아 자동 반복.
@@ -174,6 +175,7 @@ fun TaskDetailSheet(
                 repeatEnd != task.repeatEnd ||
                 tagIds != task.tagIds ||
                 priority != task.priority ||
+                reminders != task.reminders ||
                 attachmentsList != task.attachments
         if (changed) {
             onUpdateTask(
@@ -187,7 +189,8 @@ fun TaskDetailSheet(
                     repeatEnd = repeatEnd,
                     tagIds = tagIds,
                     priority = priority,
-                    attachments = attachmentsList
+                    attachments = attachmentsList,
+                    reminders = reminders
                 )
             )
         }
@@ -487,11 +490,14 @@ fun TaskDetailSheet(
             initialDurationMinutes = duration,
             initialRepeat = parseRepeatRule(repeatRule),
             initialRepeatEnd = parseRepeatEnd(repeatEnd),
+            initialReminders = if (initialTime != null || reminders.isNotEmpty()) reminders else null,
+            onRemindersChosen = { reminders = it },
             onDismiss = { showDatePicker = false },
             onDelete = {
                 dueTimestamp = null
                 repeatRule = null
                 repeatEnd = null
+                reminders = emptyList()
                 showDatePicker = false
             },
             onConfirm = { date, time, durationMinutes, repeat, end ->

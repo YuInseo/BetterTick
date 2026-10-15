@@ -36,5 +36,9 @@ data class Task(
     //   name = display filename shown as caption
     // The URIs point to on-device content — syncing across devices is not
     // attempted here; a future PC companion app will handle that path.
-    val attachments: List<String> = emptyList()
+    val attachments: List<String> = emptyList(),
+    // Reminder offsets in minutes before the task's start (0 = on time).
+    // All-day tasks are reminded relative to 09:00 that day. Scheduled by
+    // ReminderScheduler; empty = no reminder.
+    val reminders: List<Int> = emptyList()
 )

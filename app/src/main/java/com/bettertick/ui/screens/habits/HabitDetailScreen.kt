@@ -498,7 +498,7 @@ private fun MonthCalendarCard(
         Spacer(Modifier.height(4.dp))
         // Day headers
         Row(modifier = Modifier.fillMaxWidth()) {
-            listOf("일", "월", "화", "수", "목", "금", "토").forEach { dow ->
+            com.bettertick.ui.theme.AppPrefs.weekdayLabels().forEach { dow ->
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Text(dow, color = TextSecondary, fontSize = 12.sp)
                 }
@@ -507,7 +507,7 @@ private fun MonthCalendarCard(
         Spacer(Modifier.height(4.dp))
         // Grid
         val firstDay = yearMonth.atDay(1)
-        val startOffset = firstDay.dayOfWeek.value % 7  // Sunday=0
+        val startOffset = com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(firstDay.dayOfWeek)
         val daysInMonth = yearMonth.lengthOfMonth()
         val totalCells = startOffset + daysInMonth
         val rows = (totalCells + 6) / 7

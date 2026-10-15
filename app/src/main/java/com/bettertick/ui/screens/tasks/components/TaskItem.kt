@@ -98,6 +98,8 @@ fun TaskItem(
     val hasTime = startTime != null && startTime != LocalTime.MIDNIGHT
 
     val accent = ThemeState.accentColor
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val dateColor = when {
         isDone -> TextTertiary
         isOverdue -> OverdueRed
@@ -119,7 +121,12 @@ fun TaskItem(
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .clickable { onToggleComplete() },
+                .clickable {
+                    if (!task.isCompleted && !task.isAbandoned) {
+                        com.bettertick.ui.components.CompletionFeedback.play(context, haptic)
+                    }
+                    onToggleComplete()
+                },
             contentAlignment = Alignment.Center
         ) {
             TickCheckbox(
@@ -307,19 +314,16 @@ private fun buildDateLabel(
             else "${date.year}년 ${date.monthValue}월 ${date.dayOfMonth}일"
     }
     if (!hasTime || startTime == null) return dayLabel
-    val start = formatKorean12h(startTime)
+    val p = com.bettertick.ui.theme.AppPrefs
+    val start = p.formatTime(startTime)
     val time = if (durationMinutes > 0) {
         val end = startTime.plusMinutes(durationMinutes.toLong())
         val sameHalf = (startTime.hour < 12) == (end.hour < 12)
-        "$start - ${if (sameHalf) formatClock(end) else formatKorean12h(end)}"
+        "$start - ${if (sameHalf && !p.is24h) formatClock(end) else p.formatTime(end)}"
     } else start
     return if (date == today) time else "$dayLabel, $time"
 }
 
-private fun formatKorean12h(time: LocalTime): String {
-    val ampm = if (time.hour < 12) "오전" else "오후"
-    return "$ampm ${formatClock(time)}"
-}
 
 private fun formatClock(time: LocalTime): String {
     val h = when {

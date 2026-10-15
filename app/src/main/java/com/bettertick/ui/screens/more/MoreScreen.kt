@@ -78,7 +78,11 @@ fun MoreScreen(
     onNavigateToAppearance: () -> Unit,
     onNavigateToTabBar: () -> Unit,
     onNavigateToWidgets: () -> Unit,
-    onNavigateToAccount: () -> Unit
+    onNavigateToAccount: () -> Unit,
+    onNavigateToSmartLists: () -> Unit = {},
+    onNavigateToDateTime: () -> Unit = {},
+    onNavigateToSounds: () -> Unit = {},
+    onNavigateToGeneral: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -219,14 +223,19 @@ fun MoreScreen(
                     onClick = onNavigateToAppearance
                 )
                 SettingsItem(
+                    icon = Icons.Outlined.GridView,
+                    title = "스마트 목록",
+                    onClick = onNavigateToSmartLists
+                )
+                SettingsItem(
                     icon = Icons.Outlined.AccessTime,
                     title = "날짜 & 시간",
-                    onClick = {}
+                    onClick = onNavigateToDateTime
                 )
                 SettingsItem(
                     icon = Icons.Outlined.MusicNote,
                     title = "사운드 & 알림",
-                    onClick = {}
+                    onClick = onNavigateToSounds
                 )
                 SettingsItem(
                     icon = Icons.Outlined.Widgets,
@@ -236,7 +245,7 @@ fun MoreScreen(
                 SettingsItem(
                     icon = Icons.Outlined.Tune,
                     title = "일반",
-                    onClick = {}
+                    onClick = onNavigateToGeneral
                 )
             }
 
