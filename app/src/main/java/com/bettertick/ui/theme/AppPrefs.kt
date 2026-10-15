@@ -53,6 +53,16 @@ object AppPrefs {
     var dailySummaryMinutes by mutableStateOf(8 * 60)
         private set
 
+    /** 기본 알림 for new timed tasks: minutes before start, -1 = 없음. */
+    var defaultReminder by mutableStateOf(0)
+        private set
+    /** Remind new all-day tasks on the day at [allDayReminderMinutes]. */
+    var allDayReminder by mutableStateOf(false)
+        private set
+    /** Time of day (minutes after midnight) all-day task reminders fire at. */
+    var allDayReminderMinutes by mutableStateOf(9 * 60)
+        private set
+
     /** Resolved at init from the device setting for [TimeFormat.SYSTEM]. */
     private var system24h = false
     private var appContext: Context? = null
@@ -70,6 +80,9 @@ object AppPrefs {
         reminderRingtone = if (p.contains("reminder_ringtone")) p.getString("reminder_ringtone", null) else null
         dailySummary = p.getBoolean("daily_summary", false)
         dailySummaryMinutes = p.getInt("daily_summary_minutes", 8 * 60)
+        defaultReminder = p.getInt("default_reminder", 0)
+        allDayReminder = p.getBoolean("all_day_reminder", false)
+        allDayReminderMinutes = p.getInt("all_day_reminder_minutes", 9 * 60)
         system24h = runCatching { android.text.format.DateFormat.is24HourFormat(context) }.getOrDefault(false)
     }
 
@@ -90,6 +103,17 @@ object AppPrefs {
     }
     fun updateDailySummary(v: Boolean) { dailySummary = v; edit { putBoolean("daily_summary", v) } }
     fun updateDailySummaryMinutes(v: Int) { dailySummaryMinutes = v; edit { putInt("daily_summary_minutes", v) } }
+
+    fun updateDefaultReminder(v: Int) { defaultReminder = v; edit { putInt("default_reminder", v) } }
+    fun updateAllDayReminder(v: Boolean) { allDayReminder = v; edit { putBoolean("all_day_reminder", v) } }
+    fun updateAllDayReminderMinutes(v: Int) { allDayReminderMinutes = v; edit { putInt("all_day_reminder_minutes", v) } }
+
+    /** Reminder offsets a new task gets when the user didn't pick any. */
+    fun defaultRemindersFor(hasDate: Boolean, hasTime: Boolean): List<Int> = when {
+        hasTime -> if (defaultReminder >= 0) listOf(defaultReminder) else emptyList()
+        hasDate && allDayReminder -> listOf(0)
+        else -> emptyList()
+    }
 
     val is24h: Boolean
         get() = when (timeFormat) {

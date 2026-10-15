@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
@@ -47,6 +48,7 @@ class BetterTickApplication : Application() {
         com.bettertick.ui.screens.tasks.TaskListPrefs.init(this)
         com.bettertick.ui.screens.tasks.SmartListPrefs.init(this)
         com.bettertick.ui.screens.focus.FocusPrefs.init(this)
+        com.bettertick.ui.screens.habits.HabitPrefs.init(this)
         com.bettertick.reminder.ReminderScheduler.scheduleDailySummary(this)
         KakaoMapSdk.init(this, "36af0c02f9ab81fb67df8c9bbeefc7f1")
         // Initialize widget service locator for AppWidget access
@@ -89,6 +91,16 @@ class BetterTickApplication : Application() {
                 runCatching { ReminderWidget().updateAll(this@BetterTickApplication) }
                 runCatching { WeeklyCalendarWidget().updateAll(this@BetterTickApplication) }
             }
+            .launchIn(appScope)
+        // Habit reminder alarms follow every habit change.
+        authRepository.observeAuthState()
+            .flatMapLatest { user ->
+                if (user == null) emptyFlow() else habitRepository.observeHabits()
+            }
+            .onEach { habits ->
+                runCatching { com.bettertick.reminder.HabitReminderScheduler.syncAll(this@BetterTickApplication, habits) }
+            }
+            .catch { android.util.Log.w("BetterTickApp", "habit reminder sync stopped", it) }
             .launchIn(appScope)
         authRepository.observeAuthState()
             .flatMapLatest { user ->

@@ -127,7 +127,7 @@ fun HabitsScreen(
             return
         }
         showSettings -> {
-            HabitSettingsScreen(onBack = { showSettings = false })
+            HabitSettingsScreen(onBack = { showSettings = false }, onRenameGroup = viewModel::renameGroup)
             return
         }
         showGallery -> {
@@ -145,9 +145,6 @@ fun HabitsScreen(
     // Last 7 days ending today for the week strip
     val today = LocalDate.now()
     val last7Days = remember(today) { (6L downTo 0L).map { today.minusDays(it) } }
-
-    // Expand state per group
-    val expandedGroups = remember { mutableStateMapOf("기타" to true) }
 
     Scaffold(
         containerColor = DarkBackground,
@@ -252,50 +249,58 @@ fun HabitsScreen(
                         .padding(horizontal = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    // "기타" group with expand/collapse
-                    val expanded = expandedGroups["기타"] ?: true
-                    item(key = "group-기타") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { expandedGroups["기타"] = !expanded }
-                                .padding(horizontal = 4.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = if (expanded) Icons.Default.KeyboardArrowDown
-                                    else Icons.Default.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = TextSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                "기타",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                habits.size.toString(),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextSecondary
-                            )
+                    val todayStr = today.toString()
+                    val sections = HabitPrefs.groups.map { g ->
+                        val members = habits.filter { HabitPrefs.groupOf(it) == g }
+                        g to if (HabitPrefs.sortByCheckIn) {
+                            // 체크인 상태별 정렬: not-yet-checked-in habits first.
+                            members.sortedBy { weekLogs[it.id]?.contains(todayStr) == true }
+                        } else members
+                    }.filter { it.second.isNotEmpty() }
+                    sections.forEach { (group, members) ->
+                        val expanded = group !in HabitPrefs.collapsedGroups
+                        item(key = "group-$group") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { HabitPrefs.toggleCollapsed(group) }
+                                    .padding(horizontal = 4.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (expanded) Icons.Default.KeyboardArrowDown
+                                        else Icons.Default.KeyboardArrowRight,
+                                    contentDescription = null,
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    group,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    members.size.toString(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
                         }
-                    }
-                    if (expanded) {
-                        items(habits, key = { it.id }) { habit ->
-                            val count = weekLogs[habit.id]?.size ?: 0
-                            val todayStr = today.toString()
-                            val doneToday = weekLogs[habit.id]?.contains(todayStr) == true
-                            HabitSummaryRow(
-                                habit = habit,
-                                weekCount = count,
-                                isCompletedToday = doneToday,
-                                onClick = { detailHabit = habit },
-                                onSwipeRight = { viewModel.toggleHabit(habit.id, today) },
-                                onSwipeLeft = { logDialogHabit = habit }
-                            )
+                        if (expanded) {
+                            items(members, key = { it.id }) { habit ->
+                                val count = weekLogs[habit.id]?.size ?: 0
+                                val doneToday = weekLogs[habit.id]?.contains(todayStr) == true
+                                HabitSummaryRow(
+                                    habit = habit,
+                                    weekCount = count,
+                                    isCompletedToday = doneToday,
+                                    onClick = { detailHabit = habit },
+                                    onSwipeRight = { viewModel.toggleHabit(habit.id, today) },
+                                    onSwipeLeft = { logDialogHabit = habit }
+                                )
+                            }
                         }
                     }
                 }

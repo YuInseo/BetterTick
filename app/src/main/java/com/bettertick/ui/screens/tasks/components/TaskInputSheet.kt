@@ -162,8 +162,8 @@ fun TaskInputSheet(
                 durationMinutes = duration,
                 repeatRule = effRepeat,
                 repeatEnd = repeatEnd,
-                // Default like TickTick: a timed task reminds on time.
-                reminders = reminders ?: if (effTime != null) listOf(0) else emptyList(),
+                // 설정 > 날짜 & 시간 > 기본 알림 / 종일 할일 알림.
+                reminders = reminders ?: com.bettertick.ui.theme.AppPrefs.defaultRemindersFor(effDate != null, effTime != null),
                 priority = effPriority,
                 tagIds = allTagIds,
                 newTagNames = parsedNewTagNames,

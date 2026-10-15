@@ -174,6 +174,10 @@ class HabitsViewModel @Inject constructor(
         viewModelScope.launch { habitRepository.archiveHabit(habitId) }
     }
 
+    fun renameGroup(old: String, new: String) {
+        viewModelScope.launch { habitRepository.renameGroup(old, new) }
+    }
+
     fun deleteHabit(habitId: String) {
         viewModelScope.launch { habitRepository.deleteHabit(habitId) }
     }
@@ -187,8 +191,8 @@ class HabitsViewModel @Inject constructor(
     }
 
     private fun getWeekStart(date: LocalDate): LocalDate {
-        // Week starts on Monday
-        return date.minusDays((date.dayOfWeek.value - 1).toLong())
+        // 설정 > 날짜 & 시간 > 주 시작 요일
+        return date.minusDays(com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(date.dayOfWeek).toLong())
     }
 
     private fun getWeekDates(date: LocalDate): List<LocalDate> {

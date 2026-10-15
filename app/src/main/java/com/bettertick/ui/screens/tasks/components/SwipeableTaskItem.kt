@@ -4,16 +4,20 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DriveFileMoveRtl
 import androidx.compose.material3.Icon
@@ -29,22 +33,20 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.bettertick.data.model.Task
+import com.bettertick.ui.screens.tasks.SwipeAction
+import com.bettertick.ui.screens.tasks.TaskListPrefs
 import com.bettertick.ui.theme.DarkBackground
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import kotlin.math.roundToInt
 
 /**
- * Task row with swipe-left-to-reveal action buttons (move / delete /
- * reschedule). The row itself is the existing [TaskItem]; this wrapper
- * adds a 3-button action strip underneath that is uncovered as the row
- * translates horizontally.
+ * Task row with TickTick-style swipe buttons on both sides. Which buttons
+ * appear is set in 설정 > 스와이프 동작 ([TaskListPrefs.swipeRight] /
+ * [TaskListPrefs.swipeLeft]); an action whose callback is null is skipped.
  *
- * Drag is implemented via a plain [Animatable] + `detectHorizontalDragGestures`
- * rather than `anchoredDraggable` so we can stay on stable Foundation APIs.
- * The row snaps to one of two positions on release: closed (0) or fully
- * revealed (-actionsWidth). A release past ~40% of the reveal distance
- * counts as "open".
+ * Drag is a plain [Animatable] + `detectHorizontalDragGestures`. The row
+ * snaps closed, or fully open on the dragged side when released past 40%.
  */
 @Composable
 fun SwipeableTaskItem(
@@ -61,74 +63,69 @@ fun SwipeableTaskItem(
     /** Fill behind the sliding row — page background in plain lists
      *  (TickTick style), card color when the row sits inside a card. */
     rowBackground: Color = DarkBackground,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    onPin: (() -> Unit)? = null,
+    onWontDo: (() -> Unit)? = null
 ) {
+    fun handler(a: SwipeAction): (() -> Unit)? = when (a) {
+        SwipeAction.NONE -> null
+        SwipeAction.COMPLETE -> onToggleComplete
+        SwipeAction.DATE -> onReschedule
+        SwipeAction.MOVE -> onMove
+        SwipeAction.DELETE -> onDelete
+        SwipeAction.PIN -> onPin
+        SwipeAction.WONT_DO -> onWontDo
+    }
+    val startActions = TaskListPrefs.swipeRight.filter { handler(it) != null }
+    val endActions = TaskListPrefs.swipeLeft.filter { handler(it) != null }
+
     val actionWidth = 72.dp
-    val actionsWidthPx = with(LocalDensity.current) { (actionWidth * 3).toPx() }
+    val density = LocalDensity.current
+    val startWidthPx = with(density) { (actionWidth * startActions.size).toPx() }
+    val endWidthPx = with(density) { (actionWidth * endActions.size).toPx() }
 
     val offset = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
 
-    // No background on the outer container — it inherits whatever the parent
-    // is painting, so the row blends in when closed. Only the foreground
-    // layer needs a solid background, set by [rowBackground].
     Box(modifier = modifier.fillMaxWidth()) {
-        // Action strip sits underneath the row, filling the Box so it
-        // matches the TaskItem's height. matchParentSize() is required —
-        // fillMaxHeight() on the first child of an unbounded parent (LazyColumn
-        // items have Infinity maxHeight) collapses to the Row's intrinsic
-        // content height (≈ icon size), making the reveal look thin. With
-        // matchParentSize(), the Row measures against the parent Box's final
-        // size (which is driven by the TaskItem sibling).
-        Row(
-            modifier = Modifier.matchParentSize(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            SwipeActionButton(
-                icon = Icons.Outlined.DriveFileMoveRtl,
-                background = ActionBlue,
-                width = actionWidth,
-                onClick = {
-                    scope.launch { offset.animateTo(0f) }
-                    onMove()
-                }
-            )
-            SwipeActionButton(
-                icon = Icons.Outlined.Delete,
-                background = ActionRed,
-                width = actionWidth,
-                onClick = {
-                    scope.launch { offset.animateTo(0f) }
-                    onDelete()
-                }
-            )
-            SwipeActionButton(
-                icon = Icons.Outlined.CalendarMonth,
-                background = ActionOrange,
-                width = actionWidth,
-                onClick = {
-                    scope.launch { offset.animateTo(0f) }
-                    onReschedule()
-                }
-            )
+        // Button strips under the row; matchParentSize() makes them as tall
+        // as the TaskItem sibling (fillMaxHeight collapses inside LazyColumn).
+        Row(modifier = Modifier.matchParentSize()) {
+            startActions.forEach { a ->
+                SwipeActionButton(
+                    icon = a.icon(task), background = a.color(), width = actionWidth,
+                    onClick = {
+                        scope.launch { offset.animateTo(0f) }
+                        handler(a)?.invoke()
+                    }
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            endActions.forEach { a ->
+                SwipeActionButton(
+                    icon = a.icon(task), background = a.color(), width = actionWidth,
+                    onClick = {
+                        scope.launch { offset.animateTo(0f) }
+                        handler(a)?.invoke()
+                    }
+                )
+            }
         }
 
-        // Foreground row — translates via offset. Its fill matches whatever
-        // it sits on (page in the task list, card in the calendar panel) so
-        // the row looks continuous with its surroundings.
         Box(
             modifier = Modifier
                 .offset { IntOffset(offset.value.roundToInt(), 0) }
                 .fillMaxWidth()
                 .background(rowBackground)
-                .pointerInput(Unit) {
+                .pointerInput(startWidthPx, endWidthPx) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
                             scope.launch {
-                                val snapTo = if (offset.value < -actionsWidthPx * 0.4f) {
-                                    -actionsWidthPx
-                                } else {
-                                    0f
+                                val v = offset.value
+                                val snapTo = when {
+                                    v > 0 && v > startWidthPx * 0.4f -> startWidthPx
+                                    v < 0 && v < -endWidthPx * 0.4f -> -endWidthPx
+                                    else -> 0f
                                 }
                                 offset.animateTo(snapTo)
                             }
@@ -138,10 +135,7 @@ fun SwipeableTaskItem(
                         },
                         onHorizontalDrag = { _, dragAmount ->
                             scope.launch {
-                                offset.snapTo(
-                                    (offset.value + dragAmount)
-                                        .coerceIn(-actionsWidthPx, 0f)
-                                )
+                                offset.snapTo((offset.value + dragAmount).coerceIn(-endWidthPx, startWidthPx))
                             }
                         }
                     )
@@ -158,6 +152,26 @@ fun SwipeableTaskItem(
             )
         }
     }
+}
+
+private fun SwipeAction.icon(task: Task): ImageVector = when (this) {
+    SwipeAction.COMPLETE -> Icons.Outlined.Check
+    SwipeAction.DATE -> Icons.Outlined.CalendarMonth
+    SwipeAction.MOVE -> Icons.Outlined.DriveFileMoveRtl
+    SwipeAction.PIN -> if (task.isPinned) Icons.Outlined.PushPin else Icons.Filled.PushPin
+    SwipeAction.WONT_DO -> Icons.Outlined.Block
+    SwipeAction.DELETE -> Icons.Outlined.Delete
+    SwipeAction.NONE -> Icons.Outlined.Check
+}
+
+private fun SwipeAction.color(): Color = when (this) {
+    SwipeAction.COMPLETE -> Color(0xFF35B36A)
+    SwipeAction.DATE -> ActionOrange
+    SwipeAction.MOVE -> ActionBlue
+    SwipeAction.PIN -> Color(0xFF8E6CEF)
+    SwipeAction.WONT_DO -> Color(0xFF8E8E93)
+    SwipeAction.DELETE -> ActionRed
+    SwipeAction.NONE -> Color.Transparent
 }
 
 @Composable

@@ -28,9 +28,23 @@ enum class TaskSortBy(val key: String, val label: String) {
     CREATED("created", "생성 시간")
 }
 
+/** 설정 > 스와이프 동작: what a task row's swipe buttons do. */
+enum class SwipeAction(val key: String, val label: String) {
+    NONE("none", "없음"),
+    COMPLETE("complete", "완료"),
+    DATE("date", "날짜"),
+    MOVE("move", "이동"),
+    PIN("pin", "고정"),
+    WONT_DO("wont_do", "하지 않음"),
+    DELETE("delete", "삭제")
+}
+
 /** TickTick list-view options from the task list's ⋮ menu (persisted). */
 object TaskListPrefs {
     private const val PREFS = "task_list_prefs"
+
+    val DEFAULT_SWIPE_RIGHT = listOf(SwipeAction.COMPLETE, SwipeAction.NONE)
+    val DEFAULT_SWIPE_LEFT = listOf(SwipeAction.MOVE, SwipeAction.DELETE, SwipeAction.DATE)
 
     var showDetails by mutableStateOf(true)
         private set
@@ -39,6 +53,12 @@ object TaskListPrefs {
     var groupBy by mutableStateOf(TaskGroupBy.DATE)
         private set
     var sortBy by mutableStateOf(TaskSortBy.CUSTOM)
+        private set
+
+    /** Buttons uncovered by swiping right (start side) / left (end side). */
+    var swipeRight by mutableStateOf(DEFAULT_SWIPE_RIGHT)
+        private set
+    var swipeLeft by mutableStateOf(DEFAULT_SWIPE_LEFT)
         private set
 
     /** Transient: hides the global + button during multi-select. */
@@ -53,6 +73,23 @@ object TaskListPrefs {
         showCompleted = p.getBoolean("show_completed", true)
         groupBy = TaskGroupBy.entries.firstOrNull { it.key == p.getString("group_by", null) } ?: TaskGroupBy.DATE
         sortBy = TaskSortBy.entries.firstOrNull { it.key == p.getString("sort_by", null) } ?: TaskSortBy.CUSTOM
+        swipeRight = parseSwipe(p.getString("swipe_right", null), 2) ?: DEFAULT_SWIPE_RIGHT
+        swipeLeft = parseSwipe(p.getString("swipe_left", null), 3) ?: DEFAULT_SWIPE_LEFT
+    }
+
+    private fun parseSwipe(raw: String?, size: Int): List<SwipeAction>? {
+        val keys = raw?.split(',') ?: return null
+        if (keys.size != size) return null
+        return keys.map { k -> SwipeAction.entries.firstOrNull { it.key == k } ?: SwipeAction.NONE }
+    }
+
+    fun updateSwipeRight(slot: Int, v: SwipeAction) {
+        swipeRight = swipeRight.toMutableList().also { it[slot] = v }
+        edit { putString("swipe_right", swipeRight.joinToString(",") { it.key }) }
+    }
+    fun updateSwipeLeft(slot: Int, v: SwipeAction) {
+        swipeLeft = swipeLeft.toMutableList().also { it[slot] = v }
+        edit { putString("swipe_left", swipeLeft.joinToString(",") { it.key }) }
     }
 
     private fun edit(block: android.content.SharedPreferences.Editor.() -> Unit) {

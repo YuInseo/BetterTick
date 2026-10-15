@@ -41,6 +41,8 @@ import com.bettertick.ui.screens.calendar.zoneOffsetLabel
 import com.bettertick.ui.screens.tasks.SmartList
 import com.bettertick.ui.screens.tasks.SmartListPrefs
 import com.bettertick.ui.screens.tasks.SmartVisibility
+import com.bettertick.ui.screens.tasks.SwipeAction
+import com.bettertick.ui.screens.tasks.TaskListPrefs
 import com.bettertick.ui.theme.AppPrefs
 import com.bettertick.ui.theme.DefaultDueDate
 import com.bettertick.ui.theme.GroupedCard
@@ -128,6 +130,7 @@ fun SmartListSettingsScreen(onBack: () -> Unit) {
 
 @Composable
 fun DateTimeSettingsScreen(onBack: () -> Unit, onOpenTimeZone: () -> Unit) {
+    val context = LocalContext.current
     val zone = remember { ZoneId.systemDefault().id }
     OptionPage(title = "날짜 & 시간", onBack = onBack) {
         OptionCard {
@@ -155,7 +158,46 @@ fun DateTimeSettingsScreen(onBack: () -> Unit, onOpenTimeZone: () -> Unit) {
         OptionCard {
             OptionNavRow("시간대", value = "${zoneCityName(zone)}, ${zoneOffsetLabel(zone)}", onClick = onOpenTimeZone)
         }
+        OptionCard {
+            OptionChoiceRow(
+                title = "기본 알림",
+                subtitle = "시간이 있는 새 할일에 자동으로 설정됩니다.",
+                value = AppPrefs.defaultReminder,
+                options = listOf(-1, 0, 5, 15, 30, 60, 1440),
+                label = ::reminderOffsetLabel,
+                onPick = AppPrefs::updateDefaultReminder
+            )
+            OptionSwitchRow(
+                title = "종일 할일 알림",
+                subtitle = "날짜만 있는 새 할일도 당일에 알려줍니다.",
+                checked = AppPrefs.allDayReminder,
+                onCheckedChange = AppPrefs::updateAllDayReminder
+            )
+            OptionChoiceRow(
+                title = "종일 할일 알림 시간",
+                value = AppPrefs.allDayReminderMinutes,
+                options = (5..22).flatMap { listOf(it * 60, it * 60 + 30) },
+                label = { m -> AppPrefs.formatTime(java.time.LocalTime.of(m / 60, m % 60)) },
+                onPick = { m ->
+                    AppPrefs.updateAllDayReminderMinutes(m)
+                    // Re-arm existing all-day reminders at the new time.
+                    if (com.bettertick.widget.WidgetServiceLocator.isInitialized) runCatching {
+                        com.bettertick.reminder.ReminderScheduler.syncAll(
+                            context, com.bettertick.widget.WidgetServiceLocator.tasksCache.value
+                        )
+                    }
+                }
+            )
+        }
     }
+}
+
+private fun reminderOffsetLabel(m: Int): String = when {
+    m < 0 -> "없음"
+    m == 0 -> "정시"
+    m % 1440 == 0 -> "${m / 1440}일 전"
+    m % 60 == 0 -> "${m / 60}시간 전"
+    else -> "${m}분 전"
 }
 
 // ── 설정 > 사운드 & 알림 ──────────────────────────────────────────────────
@@ -242,7 +284,7 @@ private fun ringtoneTitle(context: android.content.Context, uri: String?): Strin
 // ── 설정 > 일반 ──────────────────────────────────────────────────────────
 
 @Composable
-fun GeneralSettingsScreen(onBack: () -> Unit) {
+fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = null) {
     val tabs = listOf(
         "tasks" to "할일", "calendar" to "캘린더", "matrix" to "아이젠하워 매트릭스",
         "focus" to "뽀모도로", "habits" to "습관"
@@ -272,6 +314,38 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                 checked = AppPrefs.newTaskOnTop,
                 onCheckedChange = AppPrefs::updateNewTaskOnTop
             )
+        }
+        Text(
+            "스와이프 동작",
+            fontSize = 13.sp, color = TextSecondary,
+            modifier = Modifier.padding(start = 20.dp)
+        )
+        OptionCard {
+            TaskListPrefs.swipeRight.forEachIndexed { i, a ->
+                OptionChoiceRow(
+                    title = "오른쪽으로 스와이프 ${i + 1}",
+                    subtitle = if (i == 0) "할일을 오른쪽으로 밀면 왼쪽에 나타나는 버튼" else null,
+                    value = a,
+                    options = SwipeAction.entries,
+                    label = { it.label },
+                    onPick = { TaskListPrefs.updateSwipeRight(i, it) }
+                )
+            }
+            TaskListPrefs.swipeLeft.forEachIndexed { i, a ->
+                OptionChoiceRow(
+                    title = "왼쪽으로 스와이프 ${i + 1}",
+                    subtitle = if (i == 0) "할일을 왼쪽으로 밀면 오른쪽에 나타나는 버튼" else null,
+                    value = a,
+                    options = SwipeAction.entries,
+                    label = { it.label },
+                    onPick = { TaskListPrefs.updateSwipeLeft(i, it) }
+                )
+            }
+        }
+        if (onExportTasks != null) {
+            OptionCard {
+                OptionNavRow("할일 내보내기 (CSV)", value = "공유", onClick = onExportTasks)
+            }
         }
         OptionCard {
             Row(

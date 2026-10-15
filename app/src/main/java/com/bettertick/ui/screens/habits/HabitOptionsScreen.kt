@@ -72,7 +72,6 @@ private val OptionsBlue: Color get() = com.bettertick.ui.theme.ThemeState.accent
 private val dateFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
 private val displayFormatter = DateTimeFormatter.ofPattern("M월 d일")
 
-private val defaultGroups = listOf("기타", "오전", "오후", "밤")
 private val targetDayPresets = listOf(0, 7, 21, 30, 100, 365)  // 0 = 영원히
 private val dayLabels = listOf("일", "월", "화", "수", "목", "금", "토")
 private val dayValues = listOf(7, 1, 2, 3, 4, 5, 6)  // Sun=7, Mon=1..Sat=6 (to match ISO + custom)
@@ -97,8 +96,8 @@ fun HabitOptionsScreen(
         )
     }
     var targetDayCount by remember { mutableIntStateOf(initialDraft.targetDayCount) }
-    val groups = remember { mutableStateListOf<String>().apply { addAll(defaultGroups) } }
-    var selectedGroup by remember { mutableStateOf(initialDraft.group) }
+    val groups = HabitPrefs.groups
+    var selectedGroup by remember { mutableStateOf(initialDraft.group.takeIf { it in HabitPrefs.groups } ?: HabitPrefs.groups.first()) }
     val reminders = remember { mutableStateListOf<String>().apply { addAll(initialDraft.reminders) } }
     var autoShowLog by remember { mutableStateOf(initialDraft.autoShowLog) }
 
@@ -519,8 +518,8 @@ fun HabitOptionsScreen(
             confirmButton = {
                 TextButton(onClick = {
                     val trimmed = newGroup.trim()
-                    if (trimmed.isNotBlank() && !groups.contains(trimmed)) {
-                        groups.add(trimmed)
+                    if (trimmed.isNotBlank()) {
+                        HabitPrefs.addGroup(trimmed)
                         selectedGroup = trimmed
                     }
                     showAddGroupDialog = false
