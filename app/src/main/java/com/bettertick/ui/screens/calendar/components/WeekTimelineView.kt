@@ -313,7 +313,7 @@ private fun AllDayStrip(
     }
 }
 
-private fun hourLabel(h: Int): String = when {
+private fun hourLabel(h: Int): String = if (com.bettertick.ui.theme.AppPrefs.is24h) "%d:00".format(h % 24) else when {
     h == 0 || h == 24 -> "12 AM"
     h < 12 -> "$h AM"
     h == 12 -> "12 PM"
@@ -601,6 +601,7 @@ private fun TimedBlock(task: Task, date: LocalDate, onTaskClick: (Task) -> Unit 
 }
 
 private fun formatShortTime(t: LocalTime): String {
+    if (com.bettertick.ui.theme.AppPrefs.is24h) return "%d:%02d".format(t.hour, t.minute)
     val ampm = if (t.hour < 12) "오전" else "오후"
     val h = when {
         t.hour == 0 -> 12

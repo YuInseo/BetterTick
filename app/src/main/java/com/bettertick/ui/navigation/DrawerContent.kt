@@ -63,6 +63,15 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import com.bettertick.data.model.Tag
+import com.bettertick.ui.screens.tasks.SmartList
+import com.bettertick.ui.screens.tasks.SmartListPrefs
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Today
+import androidx.compose.material.icons.outlined.WbSunny
+import androidx.compose.material.icons.outlined.DateRange
+import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.TaskAlt
+import androidx.compose.material.icons.outlined.DoNotDisturbOn
 import com.bettertick.data.model.TaskList
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurface
@@ -74,15 +83,15 @@ import com.bettertick.ui.theme.TextSecondary
 fun DrawerContent(
     userName: String,
     userPhotoUrl: String?,
-    todayCount: Int,
-    inboxCount: Int,
+    smartCounts: Map<SmartList, Int>,
     lists: List<TaskList>,
     tags: List<Tag>,
     taskCountByList: Map<String, Int>,
     taskCountByTag: Map<String, Int>,
     selectedFilter: String,
-    onTodayClick: () -> Unit,
-    onInboxClick: () -> Unit,
+    onSmartListClick: (SmartList) -> Unit,
+    onSearchClick: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     onListClick: (TaskList) -> Unit,
     onTagClick: (Tag) -> Unit = {},
     onAddListClick: () -> Unit,
@@ -147,11 +156,11 @@ fun DrawerContent(
                 )
             }
             Row {
-                IconButton(onClick = {}) {
-                    Icon(Icons.Default.Search, contentDescription = "Search", tint = TextSecondary)
+                IconButton(onClick = onSearchClick) {
+                    Icon(Icons.Default.Search, contentDescription = "검색", tint = TextSecondary)
                 }
-                IconButton(onClick = {}) {
-                    Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = TextSecondary)
+                IconButton(onClick = onSettingsClick) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "설정", tint = TextSecondary)
                 }
             }
         }
@@ -178,21 +187,19 @@ fun DrawerContent(
             Spacer(modifier = Modifier.height(4.dp))
         }
 
-        // Smart filters
-        DrawerItem(
-            icon = { Icon(Icons.Default.CalendarToday, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(22.dp)) },
-            label = "오늘",
-            count = todayCount,
-            isSelected = selectedFilter == "today",
-            onClick = onTodayClick
-        )
-        DrawerItem(
-            icon = { Icon(Icons.Default.Inbox, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(22.dp)) },
-            label = "기본함",
-            count = inboxCount,
-            isSelected = selectedFilter == "inbox",
-            onClick = onInboxClick
-        )
+        // Smart lists (설정 > 스마트 목록 decides which ones show).
+        listOf(SmartList.TODAY, SmartList.TOMORROW, SmartList.NEXT7, SmartList.INBOX).forEach { s ->
+            val count = smartCounts[s] ?: 0
+            if (SmartListPrefs.isVisible(s, count)) {
+                DrawerItem(
+                    icon = { SmartListIcon(s) },
+                    label = s.label,
+                    count = count,
+                    isSelected = selectedFilter == s.key,
+                    onClick = { onSmartListClick(s) }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
         Divider(color = DividerColor, thickness = 0.5.dp)
@@ -257,8 +264,11 @@ fun DrawerContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .then(if (selectedFilter == "tag:${tag.id}") Modifier.background(DarkSurfaceVariant) else Modifier)
                         .clickable { onTagClick(tag) }
-                        .padding(start = 40.dp, end = 20.dp, top = 10.dp, bottom = 10.dp),
+                        .padding(start = 32.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -412,6 +422,22 @@ fun DrawerContent(
             }
         }
 
+        // Archive smart lists sit under the user's lists, like TickTick.
+        val archive = listOf(SmartList.COMPLETED, SmartList.WONT_DO)
+            .filter { SmartListPrefs.isVisible(it, smartCounts[it] ?: 0) }
+        if (archive.isNotEmpty()) {
+            Divider(color = DividerColor, thickness = 0.5.dp)
+            archive.forEach { s ->
+                DrawerItem(
+                    icon = { SmartListIcon(s) },
+                    label = s.label,
+                    count = null,
+                    isSelected = selectedFilter == s.key,
+                    onClick = { onSmartListClick(s) }
+                )
+            }
+        }
+
         // Add menu anchor — "추가" row with a floating popup that lets the
         // user pick what to create (목록 / 필터 / 태그).
         Box {
@@ -539,4 +565,17 @@ private fun DrawerItem(
             )
         }
     }
+}
+
+@Composable
+private fun SmartListIcon(s: SmartList) {
+    val icon = when (s) {
+        SmartList.TODAY -> Icons.Outlined.Today
+        SmartList.TOMORROW -> Icons.Outlined.WbSunny
+        SmartList.NEXT7 -> Icons.Outlined.DateRange
+        SmartList.INBOX -> Icons.Outlined.Inbox
+        SmartList.COMPLETED -> Icons.Outlined.TaskAlt
+        SmartList.WONT_DO -> Icons.Outlined.DoNotDisturbOn
+    }
+    Icon(icon, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(22.dp))
 }

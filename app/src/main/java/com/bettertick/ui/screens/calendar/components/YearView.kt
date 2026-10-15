@@ -44,7 +44,7 @@ import java.time.YearMonth
 // File-scope constants — keeping these out of the per-frame render path
 // matters because scroll over ~10 years otherwise allocates thousands of
 // identical Color/TextStyle objects that just churn the GC.
-private val DayHeaderLabels = listOf("S", "M", "T", "W", "T", "F", "S")
+private val DayHeaderLabels: List<String> get() = com.bettertick.ui.theme.AppPrefs.weekdayLabels()
 private val TaskCellBg: Color get() = ThemeState.accentColor.copy(alpha = 0.22f)
 private val DayNumStyle: TextStyle get() = TextStyle(fontSize = 9.sp, color = TextPrimary)
 private val DayNumTodayStyle: TextStyle get() = TextStyle(fontSize = 9.sp, color = TextPrimary, fontWeight = FontWeight.Bold)
@@ -270,7 +270,7 @@ private data class MiniMonthLayout(
 ) {
     companion object {
         fun of(month: YearMonth): MiniMonthLayout {
-            val startOffset = month.atDay(1).dayOfWeek.value % 7
+            val startOffset = com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(month.atDay(1).dayOfWeek)
             val daysInMonth = month.lengthOfMonth()
             val weeks = (startOffset + daysInMonth + 6) / 7
             return MiniMonthLayout(startOffset, daysInMonth, weeks)

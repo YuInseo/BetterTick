@@ -49,8 +49,8 @@ import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.TextSecondary
 
 private val FocusBlue: Color get() = com.bettertick.ui.theme.ThemeState.accentColor
-private val RingTrack = Color(0xFF1F2230)
-private val ControlBg = Color(0xFF1A1C24)
+private val RingTrack: Color get() = DarkSurfaceVariant
+private val ControlBg: Color get() = DarkSurfaceVariant
 
 /**
  * Fullscreen running-timer view shown while a focus session is active.
@@ -69,8 +69,19 @@ fun FocusTimerScreen(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
-    onOpenSounds: () -> Unit = {}
+    onOpenSounds: () -> Unit = {},
+    onStartNext: () -> Unit = {},
+    onSkipBreak: () -> Unit = {},
+    onOpenSettings: () -> Unit = {}
 ) {
+    // 화면 켜짐 유지 while the timer screen is visible.
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.runtime.DisposableEffect(FocusPrefs.keepScreenOn) {
+        view.keepScreenOn = FocusPrefs.keepScreenOn
+        onDispose { view.keepScreenOn = false }
+    }
+    val isBreak = timerState.phase != FocusPhase.FOCUS
+    val ringColor = if (isBreak) com.bettertick.ui.theme.CompletedGreen else FocusBlue
     // 백색소음 picker / 집중 노트 다이얼로그 상태. picker는 풀스크린 오버레이로
     // 갈음, 노트는 AlertDialog로 띄워 입력만 받는다(현재 세션과 결합 X — 추후 작업).
     var showSoundPicker by remember { mutableStateOf(false) }
@@ -94,7 +105,7 @@ fun FocusTimerScreen(
         var draft by remember { mutableStateOf(noteText) }
         AlertDialog(
             onDismissRequest = { showNoteDialog = false },
-            containerColor = Color(0xFF2A2C36),
+            containerColor = com.bettertick.ui.theme.DarkSurface,
             title = {
                 Text(
                     text = "집중 노트",
@@ -115,7 +126,7 @@ fun FocusTimerScreen(
                     minLines = 4,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = Color(0xFF44464F),
+                        unfocusedBorderColor = com.bettertick.ui.theme.DividerColor,
                         cursorColor = MaterialTheme.colorScheme.primary,
                         focusedTextColor = MaterialTheme.colorScheme.onBackground,
                         unfocusedTextColor = MaterialTheme.colorScheme.onBackground
@@ -158,17 +169,17 @@ fun FocusTimerScreen(
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
-            IconButton(onClick = { /* brightness — placeholder */ }) {
+            IconButton(onClick = { FocusPrefs.updateKeepScreenOn(!FocusPrefs.keepScreenOn) }) {
                 Icon(
                     Icons.Outlined.WbSunny,
-                    contentDescription = null,
-                    tint = TextSecondary
+                    contentDescription = "화면 켜짐 유지",
+                    tint = if (FocusPrefs.keepScreenOn) FocusBlue else TextSecondary
                 )
             }
-            IconButton(onClick = { /* more — placeholder */ }) {
+            IconButton(onClick = onOpenSettings) {
                 Icon(
                     Icons.Default.MoreVert,
-                    contentDescription = null,
+                    contentDescription = "타이머 설정",
                     tint = TextSecondary
                 )
             }
@@ -178,7 +189,10 @@ fun FocusTimerScreen(
 
         // Category subtitle ("포커스 >") — picker entry, future: change category mid-session
         Text(
-            text = if (timerState.categoryName.isBlank()) "포커스" else timerState.categoryName,
+            text = buildString {
+                if (timerState.mode == FocusMode.POMO) append(timerState.phase.label).append(" · ")
+                append(if (timerState.categoryName.isBlank()) "포커스" else timerState.categoryName)
+            },
             style = MaterialTheme.typography.titleMedium,
             color = TextSecondary,
             modifier = Modifier
@@ -204,12 +218,25 @@ fun FocusTimerScreen(
                         radius = (size.minDimension - stroke) / 2,
                         style = Stroke(width = stroke)
                     )
-                    // Top-of-ring marker dot
-                    drawCircle(
-                        color = FocusBlue,
-                        radius = 6.dp.toPx(),
-                        center = Offset(size.width / 2, stroke + 2.dp.toPx())
-                    )
+                    if (timerState.targetSeconds > 0) {
+                        // 뽀모도로 — progress arc from 12 o'clock.
+                        drawArc(
+                            color = ringColor,
+                            startAngle = -90f,
+                            sweepAngle = 360f * timerState.progress,
+                            useCenter = false,
+                            topLeft = Offset(stroke / 2, stroke / 2),
+                            size = androidx.compose.ui.geometry.Size(size.width - stroke, size.height - stroke),
+                            style = Stroke(width = stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        )
+                    } else {
+                        // Top-of-ring marker dot
+                        drawCircle(
+                            color = ringColor,
+                            radius = 6.dp.toPx(),
+                            center = Offset(size.width / 2, stroke + 2.dp.toPx())
+                        )
+                    }
                 }
                 Text(
                     text = timeText,
@@ -220,6 +247,44 @@ fun FocusTimerScreen(
             }
         }
 
+        if (timerState.awaitingNext != null) {
+            // Phase finished, waiting for the user (자동 시작 off).
+            val next = timerState.awaitingNext
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    if (next == FocusPhase.FOCUS) "휴식이 끝났어요" else "집중을 마쳤어요! 잠시 쉬어가세요",
+                    color = TextSecondary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(16.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(if (next == FocusPhase.FOCUS) FocusBlue else com.bettertick.ui.theme.CompletedGreen)
+                        .clickable { onStartNext() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        if (next == FocusPhase.FOCUS) "집중 시작" else "${next.label} 시작",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Row(Modifier.padding(top = 8.dp)) {
+                    if (next != FocusPhase.FOCUS) {
+                        TextButton(onClick = onSkipBreak) { Text("휴식 건너뛰기", color = TextSecondary) }
+                    }
+                    TextButton(onClick = onStop) { Text("종료", color = TextSecondary) }
+                }
+            }
+        } else {
         // Controls row
         Row(
             modifier = Modifier
@@ -266,6 +331,14 @@ fun FocusTimerScreen(
                     modifier = Modifier.size(24.dp)
                 )
             }
+        }
+
+        if (isBreak) {
+            TextButton(
+                onClick = onSkipBreak,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) { Text("휴식 건너뛰기", color = TextSecondary) }
+        }
         }
 
         // Footer — 클릭하면 집중 노트 다이얼로그. 입력 후 저장하면 noteText에

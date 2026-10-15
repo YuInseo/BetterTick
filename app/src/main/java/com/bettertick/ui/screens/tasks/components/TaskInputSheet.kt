@@ -112,6 +112,7 @@ fun TaskInputSheet(
     var duration by remember { mutableStateOf(60) }
     var manualRepeat by remember { mutableStateOf<String?>(null) }
     var repeatEnd by remember { mutableStateOf<String?>(null) }
+    var reminders by remember { mutableStateOf<List<Int>?>(null) }
     var manualPriority by remember { mutableStateOf<Int?>(null) }
     var tagIds by remember { mutableStateOf<List<String>>(emptyList()) }
     var manualListId by remember { mutableStateOf<String?>(null) }
@@ -161,6 +162,8 @@ fun TaskInputSheet(
                 durationMinutes = duration,
                 repeatRule = effRepeat,
                 repeatEnd = repeatEnd,
+                // Default like TickTick: a timed task reminds on time.
+                reminders = reminders ?: if (effTime != null) listOf(0) else emptyList(),
                 priority = effPriority,
                 tagIds = allTagIds,
                 newTagNames = parsedNewTagNames,
@@ -409,6 +412,8 @@ fun TaskInputSheet(
             initialDurationMinutes = duration,
             initialRepeat = parseRepeatRule(effRepeat),
             initialRepeatEnd = parseRepeatEnd(repeatEnd),
+            initialReminders = reminders,
+            onRemindersChosen = { reminders = it },
             onDismiss = { showDatePicker = false },
             onDelete = {
                 dateTouched = true

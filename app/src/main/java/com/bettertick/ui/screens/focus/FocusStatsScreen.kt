@@ -537,7 +537,7 @@ private fun TimelineCard(stats: FocusStats) {
         }
         Spacer(Modifier.height(6.dp))
         Row(modifier = Modifier.fillMaxWidth().padding(start = 40.dp)) {
-            listOf("일", "월", "화", "수", "목", "금", "토").forEach { l ->
+            com.bettertick.ui.theme.AppPrefs.weekdayLabels().forEach { l ->
                 Text(l, color = TextTertiary, fontSize = 10.sp, modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
@@ -672,7 +672,7 @@ private fun YearlyGridCard(stats: FocusStats) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val rows = 7
                 val firstDay = LocalDate.of(year, 1, 1)
-                val leadOffset = firstDay.dayOfWeek.value % 7 // Sun=0
+                val leadOffset = com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(firstDay.dayOfWeek)
                 val daysInYear = if (firstDay.isLeapYear) 366 else 365
                 val cells = leadOffset + daysInYear
                 val cols = (cells + rows - 1) / rows

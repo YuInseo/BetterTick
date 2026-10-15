@@ -146,7 +146,7 @@ private fun List<LocalDate>.dominantMonth(): YearMonth {
 
 /** Sunday-starting week (List of 7 LocalDates) containing [date]. */
 fun weekContaining(date: LocalDate): List<LocalDate> {
-    val sundayOffset = date.dayOfWeek.value % 7 // ISO Mon=1..Sun=7; Sun -> 0
+    val sundayOffset = com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(date.dayOfWeek) // offset from the user's week start
     val sunday = date.minusDays(sundayOffset.toLong())
     return (0..6).map { sunday.plusDays(it.toLong()) }
 }
@@ -157,10 +157,10 @@ private fun buildWeeks(months: List<YearMonth>): List<List<LocalDate>> {
     val firstMonth = months.first()
     val lastMonth = months.last()
     val firstDay = firstMonth.atDay(1)
-    val startOffset = firstDay.dayOfWeek.value % 7 // Sun = 0
+    val startOffset = com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(firstDay.dayOfWeek)
     val start = firstDay.minusDays(startOffset.toLong())
     val lastDay = lastMonth.atEndOfMonth()
-    val endOffset = (6 - lastDay.dayOfWeek.value % 7 + 7) % 7
+    val endOffset = (6 - com.bettertick.ui.theme.AppPrefs.dayIndexInWeek(lastDay.dayOfWeek) + 7) % 7
     val end = lastDay.plusDays(endOffset.toLong())
 
     val weeks = mutableListOf<List<LocalDate>>()

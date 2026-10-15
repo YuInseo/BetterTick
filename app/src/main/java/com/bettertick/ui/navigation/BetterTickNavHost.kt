@@ -235,6 +235,17 @@ private fun MainContent(
         }
     }
 
+    // 설정 > 일반 > 시작 화면: open the chosen tab once on launch.
+    LaunchedEffect(Unit) {
+        val start = com.bettertick.ui.theme.AppPrefs.startTab
+        if (start != BottomNavItem.Tasks.route) {
+            navController.navigate(start) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+            }
+        }
+    }
+
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     val isTabRoute = currentRoute == null || currentRoute == "location" ||
@@ -248,17 +259,10 @@ private fun MainContent(
                 drawerContainerColor = DarkSurface,
                 drawerShape = androidx.compose.foundation.shape.RoundedCornerShape(0.dp)
             ) {
-                val today = java.time.LocalDate.now()
-                val todayCount = remember(allTasks, today) {
-                    allTasks.count { t ->
-                        !t.isCompleted && !t.isAbandoned &&
-                            t.dueDate?.toDate()?.toInstant()
-                                ?.atZone(java.time.ZoneId.systemDefault())
-                                ?.toLocalDate() == today
+                val smartCounts = remember(allTasks, lists) {
+                    com.bettertick.ui.screens.tasks.SmartList.entries.associateWith { sl ->
+                        com.bettertick.ui.screens.tasks.smartListCount(sl, allTasks, lists)
                     }
-                }
-                val inboxCount = remember(allTasks) {
-                    allTasks.count { !it.isCompleted && !it.isAbandoned }
                 }
                 val taskCountByList = remember(allTasks) {
                     allTasks.asSequence()
@@ -276,37 +280,37 @@ private fun MainContent(
                     }
                     counts
                 }
-                val selectedFilterId = when (val f = currentFilter) {
-                    is TaskFilter.Today -> "today"
-                    is TaskFilter.Inbox -> "inbox"
-                    is TaskFilter.ByList -> f.listId
-                }
+                val selectedFilterId = currentFilter.key
                 DrawerContent(
                     userName = authViewModel.userName,
                     userPhotoUrl = authViewModel.userPhotoUrl,
-                    todayCount = todayCount,
-                    inboxCount = inboxCount,
+                    smartCounts = smartCounts,
                     lists = lists,
                     tags = tags,
                     taskCountByList = taskCountByList,
                     taskCountByTag = taskCountByTag,
                     selectedFilter = selectedFilterId,
-                    onTodayClick = {
-                        tasksViewModel.setFilter(TaskFilter.Today)
+                    onSmartListClick = { sl ->
+                        tasksViewModel.setFilter(com.bettertick.ui.screens.tasks.toFilterOf(sl))
                         jumpToTasksTab(navController)
                         scope.launch { drawerState.close() }
                     },
-                    onInboxClick = {
-                        tasksViewModel.setFilter(TaskFilter.Inbox)
-                        jumpToTasksTab(navController)
+                    onSearchClick = {
                         scope.launch { drawerState.close() }
+                        navController.navigate("search")
+                    },
+                    onSettingsClick = {
+                        scope.launch { drawerState.close() }
+                        navController.navigate(BottomNavItem.More.route)
                     },
                     onListClick = { list ->
                         tasksViewModel.setFilter(TaskFilter.ByList(list.id, list.name))
                         jumpToTasksTab(navController)
                         scope.launch { drawerState.close() }
                     },
-                    onTagClick = { _ ->
+                    onTagClick = { tag ->
+                        tasksViewModel.setFilter(TaskFilter.ByTag(tag.id, tag.name))
+                        jumpToTasksTab(navController)
                         scope.launch { drawerState.close() }
                     },
                     onAddListClick = {
@@ -449,6 +453,27 @@ private fun MainContent(
                     )
                 }
                 // 캘린더 ⋮ > 옵션 보기 and its sub pages (full screen, no tab bar).
+                composable("search") {
+                    com.bettertick.ui.screens.tasks.SearchScreen(
+                        viewModel = tasksViewModel,
+                        onBack = { navController.popBackStack() }
+                    )
+                }
+                composable("settings_datetime") {
+                    com.bettertick.ui.screens.more.DateTimeSettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenTimeZone = { navController.navigate("calendar_timezone") }
+                    )
+                }
+                composable("settings_sounds") {
+                    com.bettertick.ui.screens.more.SoundSettingsScreen(onBack = { navController.popBackStack() })
+                }
+                composable("settings_general") {
+                    com.bettertick.ui.screens.more.GeneralSettingsScreen(onBack = { navController.popBackStack() })
+                }
+                composable("smartlists") {
+                    com.bettertick.ui.screens.more.SmartListSettingsScreen(onBack = { navController.popBackStack() })
+                }
                 composable("calendar_options") {
                     com.bettertick.ui.screens.calendar.CalendarViewOptionsScreen(
                         onBack = { navController.popBackStack() },
@@ -490,7 +515,13 @@ private fun MainContent(
                     )
                 }
                 composable(BottomNavItem.Focus.route) {
-                    FocusScreen(onOpenStats = { navController.navigate("focusstats") })
+                    FocusScreen(
+                        onOpenStats = { navController.navigate("focusstats") },
+                        onOpenSettings = { navController.navigate("focus_settings") }
+                    )
+                }
+                composable("focus_settings") {
+                    com.bettertick.ui.screens.focus.FocusSettingsScreen(onBack = { navController.popBackStack() })
                 }
                 composable("focusstats") {
                     FocusStatsScreen(onBack = { navController.popBackStack() })
@@ -509,7 +540,11 @@ private fun MainContent(
                         onNavigateToAppearance = { navController.navigate("appearance") },
                         onNavigateToTabBar = { navController.navigate("tabbar") },
                         onNavigateToWidgets = { navController.navigate("widgets") },
-                        onNavigateToAccount = { navController.navigate("account") }
+                        onNavigateToAccount = { navController.navigate("account") },
+                        onNavigateToSmartLists = { navController.navigate("smartlists") },
+                        onNavigateToDateTime = { navController.navigate("settings_datetime") },
+                        onNavigateToSounds = { navController.navigate("settings_sounds") },
+                        onNavigateToGeneral = { navController.navigate("settings_general") }
                     )
                 }
                 composable("appearance") {
@@ -590,7 +625,8 @@ private fun MainContent(
             // 오른쪽 아래, 하단 네비게이션 바 바로 위에 떠 있는 플로팅 버튼.
             if (isTabRoute && currentRoute != "location" && currentRoute != "more" &&
                 currentRoute != BottomNavItem.Habits.route &&
-                !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen
+                !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen &&
+                !com.bettertick.ui.screens.tasks.TaskListPrefs.selectionActive
             ) {
                 Box(
                     modifier = Modifier
@@ -738,7 +774,12 @@ private fun MainContent(
                                 isKanbanContext -> null
                                 currentRoute == BottomNavItem.Calendar.route ->
                                     calendarSelectedDate ?: java.time.LocalDate.now()
-                                else -> java.time.LocalDate.now()
+                                // 설정 > 일반 > 새 할일의 기본 날짜
+                                else -> when (com.bettertick.ui.theme.AppPrefs.defaultDueDate) {
+                                    com.bettertick.ui.theme.DefaultDueDate.TODAY -> java.time.LocalDate.now()
+                                    com.bettertick.ui.theme.DefaultDueDate.TOMORROW -> java.time.LocalDate.now().plusDays(1)
+                                    com.bettertick.ui.theme.DefaultDueDate.NONE -> null
+                                }
                             },
                             lists = qaLists,
                             tags = qaTags,

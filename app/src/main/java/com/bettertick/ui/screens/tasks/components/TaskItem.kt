@@ -3,6 +3,7 @@ package com.bettertick.ui.screens.tasks.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -60,7 +62,7 @@ import java.time.ZoneId
  *   gray otherwise,
  * - completed / won't-do rows fade their title to the tertiary text color.
  */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun TaskItem(
     task: Task,
@@ -75,7 +77,11 @@ fun TaskItem(
      */
     overrideDate: LocalDate? = null,
     listName: String = "기본함",
-    resolvedTags: List<Tag> = emptyList()
+    resolvedTags: List<Tag> = emptyList(),
+    /** 목록 ⋮ > 세부 정보 표시 — notes preview + tag pills. */
+    showDetails: Boolean = com.bettertick.ui.screens.tasks.TaskListPrefs.showDetails,
+    /** Long-press — enters multi-select in the task list. */
+    onLongClick: (() -> Unit)? = null
 ) {
     val shownDate = overrideDate ?: task.dueDate?.toLocalDate()
     // Recurring tasks aren't really "overdue" — even when their stored
@@ -93,6 +99,8 @@ fun TaskItem(
     val hasTime = startTime != null && startTime != LocalTime.MIDNIGHT
 
     val accent = ThemeState.accentColor
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
     val dateColor = when {
         isDone -> TextTertiary
         isOverdue -> OverdueRed
@@ -105,7 +113,7 @@ fun TaskItem(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 52.dp)
-            .clickable { onClick() }
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(start = 4.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -114,7 +122,12 @@ fun TaskItem(
         Box(
             modifier = Modifier
                 .size(44.dp)
-                .clickable { onToggleComplete() },
+                .clickable {
+                    if (!task.isCompleted && !task.isAbandoned) {
+                        com.bettertick.ui.components.CompletionFeedback.play(context, haptic)
+                    }
+                    onToggleComplete()
+                },
             contentAlignment = Alignment.Center
         ) {
             TickCheckbox(
@@ -135,7 +148,7 @@ fun TaskItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (task.notes.isNotBlank()) {
+            if (showDetails && task.notes.isNotBlank()) {
                 MarkdownText(
                     text = task.notes,
                     color = TextSecondary,
@@ -144,7 +157,7 @@ fun TaskItem(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (resolvedTags.isNotEmpty()) {
+            if (showDetails && resolvedTags.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -160,10 +173,19 @@ fun TaskItem(
             }
         }
 
-        if (shownDate != null || !task.repeatRule.isNullOrBlank()) {
+        if (shownDate != null || !task.repeatRule.isNullOrBlank() || task.isPinned) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (task.isPinned) {
+                        Icon(
+                            imageVector = Icons.Outlined.PushPin,
+                            contentDescription = "고정됨",
+                            tint = accent,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
                     if (task.notes.isNotBlank()) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.Notes,
@@ -302,19 +324,16 @@ private fun buildDateLabel(
             else "${date.year}년 ${date.monthValue}월 ${date.dayOfMonth}일"
     }
     if (!hasTime || startTime == null) return dayLabel
-    val start = formatKorean12h(startTime)
+    val p = com.bettertick.ui.theme.AppPrefs
+    val start = p.formatTime(startTime)
     val time = if (durationMinutes > 0) {
         val end = startTime.plusMinutes(durationMinutes.toLong())
         val sameHalf = (startTime.hour < 12) == (end.hour < 12)
-        "$start - ${if (sameHalf) formatClock(end) else formatKorean12h(end)}"
+        "$start - ${if (sameHalf && !p.is24h) formatClock(end) else p.formatTime(end)}"
     } else start
     return if (date == today) time else "$dayLabel, $time"
 }
 
-private fun formatKorean12h(time: LocalTime): String {
-    val ampm = if (time.hour < 12) "오전" else "오후"
-    return "$ampm ${formatClock(time)}"
-}
 
 private fun formatClock(time: LocalTime): String {
     val h = when {

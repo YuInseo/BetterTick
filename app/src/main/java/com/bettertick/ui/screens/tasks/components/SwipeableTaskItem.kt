@@ -60,7 +60,8 @@ fun SwipeableTaskItem(
     resolvedTags: List<com.bettertick.data.model.Tag> = emptyList(),
     /** Fill behind the sliding row — page background in plain lists
      *  (TickTick style), card color when the row sits inside a card. */
-    rowBackground: Color = DarkBackground
+    rowBackground: Color = DarkBackground,
+    onLongClick: (() -> Unit)? = null
 ) {
     val actionWidth = 72.dp
     val actionsWidthPx = with(LocalDensity.current) { (actionWidth * 3).toPx() }
@@ -152,7 +153,8 @@ fun SwipeableTaskItem(
                 onClick = onClick,
                 overrideDate = overrideDate,
                 listName = listName,
-                resolvedTags = resolvedTags
+                resolvedTags = resolvedTags,
+                onLongClick = onLongClick
             )
         }
     }
