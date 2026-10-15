@@ -206,7 +206,10 @@ fun SearchScreen(
             onUpdateTask = { viewModel.updateTask(it); detailFor = null },
             onToggleComplete = { viewModel.toggleComplete(task.id, !task.isCompleted); detailFor = null },
             tags = tags,
-            onCreateTag = { viewModel.createTag(it) }
+            onCreateTag = { viewModel.createTag(it) },
+            lists = lists,
+            onDuplicate = { viewModel.duplicateTask(it) },
+            onDelete = { viewModel.deleteTask(it.id) }
         )
     }
 }

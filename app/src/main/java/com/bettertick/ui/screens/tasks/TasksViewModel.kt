@@ -100,6 +100,22 @@ class TasksViewModel @Inject constructor(
         }
     }
 
+    /** 상세 ⋯ > 복제. */
+    fun duplicateTask(task: Task) {
+        viewModelScope.launch {
+            taskRepository.addTask(
+                task.copy(
+                    id = "",
+                    isCompleted = false,
+                    completedAt = null,
+                    createdAt = Timestamp.now(),
+                    updatedAt = Timestamp.now(),
+                    sortOrder = task.sortOrder + 1
+                )
+            )
+        }
+    }
+
     fun toggleComplete(taskId: String, isCompleted: Boolean) {
         viewModelScope.launch {
             taskRepository.toggleComplete(taskId, isCompleted)

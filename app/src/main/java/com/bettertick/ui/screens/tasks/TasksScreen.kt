@@ -617,7 +617,10 @@ fun TasksScreen(
                 detailFor = null
             },
             tags = tags,
-            onCreateTag = { viewModel.createTag(it) }
+            onCreateTag = { viewModel.createTag(it) },
+            lists = lists,
+            onDuplicate = { viewModel.duplicateTask(it) },
+            onDelete = { viewModel.deleteTask(it.id) }
         )
     }
 }

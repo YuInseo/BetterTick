@@ -65,7 +65,9 @@ object TaskListPrefs {
     fun updateSortBy(v: TaskSortBy) { sortBy = v; edit { putString("sort_by", v.key) } }
 
     /** Comparator for the chosen 정렬; repeats first within 사용자 지정 like before. */
-    fun comparator(): Comparator<Task> = when (sortBy) {
+    fun comparator(): Comparator<Task> = compareByDescending<Task> { it.isPinned }.then(baseComparator())
+
+    private fun baseComparator(): Comparator<Task> = when (sortBy) {
         TaskSortBy.CUSTOM -> compareByDescending<Task> { !it.repeatRule.isNullOrBlank() }.thenBy { it.sortOrder }
         TaskSortBy.DATE -> compareBy<Task> { it.dueDate?.toDate()?.time ?: Long.MAX_VALUE }.thenByDescending { it.priority }
         TaskSortBy.TITLE -> compareBy { it.title.lowercase() }

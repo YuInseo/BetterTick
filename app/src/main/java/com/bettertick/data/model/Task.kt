@@ -40,5 +40,7 @@ data class Task(
     // Reminder offsets in minutes before the task's start (0 = on time).
     // All-day tasks are reminded relative to 09:00 that day. Scheduled by
     // ReminderScheduler; empty = no reminder.
-    val reminders: List<Int> = emptyList()
+    val reminders: List<Int> = emptyList(),
+    // 고정 — pinned tasks sort to the top of their list (TickTick 'Pin').
+    val isPinned: Boolean = false
 )

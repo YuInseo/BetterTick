@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -172,10 +173,19 @@ fun TaskItem(
             }
         }
 
-        if (shownDate != null || !task.repeatRule.isNullOrBlank()) {
+        if (shownDate != null || !task.repeatRule.isNullOrBlank() || task.isPinned) {
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (task.isPinned) {
+                        Icon(
+                            imageVector = Icons.Outlined.PushPin,
+                            contentDescription = "고정됨",
+                            tint = accent,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
                     if (task.notes.isNotBlank()) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.Notes,

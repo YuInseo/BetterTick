@@ -681,7 +681,10 @@ fun CalendarScreen(
             onUpdateTask = { updated -> viewModel.updateTask(updated); selectedTask = null },
             onToggleComplete = { viewModel.toggleTaskComplete(task.id, !task.isCompleted) },
             tags = tags,
-            onCreateTag = { name -> viewModel.createTag(name) }
+            onCreateTag = { name -> viewModel.createTag(name) },
+            lists = calLists,
+            onDuplicate = { viewModel.duplicateTask(it) },
+            onDelete = { viewModel.deleteTask(it.id) }
         )
     }
 
