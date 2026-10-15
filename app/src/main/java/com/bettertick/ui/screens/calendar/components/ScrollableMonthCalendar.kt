@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +36,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Task
+import com.bettertick.ui.screens.calendar.CalendarPrefs
+import com.bettertick.ui.screens.calendar.LocalTaskColor
+import com.bettertick.ui.screens.calendar.chipColors
 import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
@@ -46,8 +50,6 @@ import java.time.YearMonth
 // File-scope constants — previously allocated on every DayCell recomposition,
 // which added GC churn during scroll.
 private val DayCellBorderColor: Color get() = TextTertiary.copy(alpha = 0.35f)
-private val TaskChipCompletedColor: Color get() = ThemeState.accentColor.copy(alpha = 0.45f)
-private val TaskChipActiveColor: Color get() = ThemeState.accentColor
 
 /**
  * Vertically scrollable calendar rendered week-by-week. Borders are drawn per
@@ -318,8 +320,7 @@ private fun DayCell(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         TaskChip(
-                            title = task.title,
-                            isCompleted = task.isCompleted,
+                            task = task,
                             modifier = Modifier.weight(1f)
                         )
                         Spacer(modifier = Modifier.size(2.dp))
@@ -331,10 +332,7 @@ private fun DayCell(
                         )
                     }
                 } else {
-                    TaskChip(
-                        title = task.title,
-                        isCompleted = task.isCompleted
-                    )
+                    TaskChip(task = task)
                 }
                 Spacer(modifier = Modifier.height(1.dp))
             }
@@ -344,22 +342,46 @@ private fun DayCell(
 
 @Composable
 private fun TaskChip(
-    title: String,
-    isCompleted: Boolean,
+    task: Task,
     modifier: Modifier = Modifier.fillMaxWidth()
 ) {
-    val chipColor = if (isCompleted) TaskChipCompletedColor else TaskChipActiveColor
+    CalendarTaskChip(task = task, modifier = modifier)
+}
 
-    Text(
-        text = if (isCompleted) "\u2715 $title" else title,
-        fontSize = 9.sp,
-        lineHeight = 11.sp,
-        color = Color.White,
-        maxLines = 1,
-        overflow = TextOverflow.Clip,
+/**
+ * Month-grid / week-strip chip. Color comes from 옵션 보기 > 색상 (via
+ * [LocalTaskColor]) and its paint from 스타일; 자세히 보기 prefixes the start
+ * time of timed tasks.
+ */
+@Composable
+fun CalendarTaskChip(
+    task: Task,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    val colors = chipColors(LocalTaskColor.current(task), task.isCompleted)
+    val time = if (CalendarPrefs.showDetails) {
+        task.dueDate?.toDate()?.toInstant()?.atZone(java.time.ZoneId.systemDefault())?.toLocalTime()
+            ?.takeIf { it != java.time.LocalTime.MIDNIGHT }
+            ?.let { "%d:%02d ".format(it.hour, it.minute) } ?: ""
+    } else ""
+    Row(
         modifier = modifier
             .clip(RoundedCornerShape(2.dp))
-            .background(chipColor)
-            .padding(horizontal = 2.dp, vertical = 1.dp)
-    )
+            .background(colors.background),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (colors.bar != null) {
+            Box(Modifier.width(2.dp).height(13.dp).background(colors.bar))
+        }
+        Text(
+            text = time + task.title,
+            fontSize = 9.sp,
+            lineHeight = 11.sp,
+            color = colors.content,
+            maxLines = 1,
+            overflow = TextOverflow.Clip,
+            textDecoration = if (task.isCompleted) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+            modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp)
+        )
+    }
 }

@@ -45,6 +45,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.FocusSession
+import com.bettertick.ui.screens.calendar.CalendarPrefs
+import com.bettertick.ui.screens.calendar.LocalTaskColor
+import com.bettertick.ui.screens.calendar.chipColors
+import com.bettertick.ui.screens.calendar.parseColorOrNull
+import com.bettertick.ui.screens.calendar.zoneOffsetLabel
+import androidx.compose.runtime.snapshotFlow
 import com.bettertick.data.model.occursOn
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextSecondary
@@ -76,18 +83,30 @@ fun WeekTimelineView(
     hourHeight: Dp = 52.dp,
     onCreateTask: ((date: LocalDate, startTime: LocalTime, durationMinutes: Int) -> Unit)? = null,
     onTaskClick: (Task) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 전념 기록 보기 — focus sessions drawn as background blocks. */
+    focusSessions: List<FocusSession> = emptyList(),
+    /** 보조 시간대 — extra hour axis for this zone id. */
+    secondaryZoneId: String? = null,
+    /** Shared vertical position so paging between weeks keeps the hour. */
+    initialScrollPx: Int? = null,
+    onScrollChanged: (Int) -> Unit = {},
+    /** 반복 주기 표시 off → hides recurring occurrences other than the current one. */
+    occurrenceFilter: (Task, LocalDate) -> Boolean = { _, _ -> true }
 ) {
     val density = LocalDensity.current
 
-    val scrollState = rememberScrollState()
-    val timeGutter = 52.dp
+    val scrollState = rememberScrollState(initialScrollPx ?: 0)
+    val timeGutter = if (secondaryZoneId != null) 84.dp else 52.dp
+    LaunchedEffect(scrollState) {
+        snapshotFlow { scrollState.value }.collect { onScrollChanged(it) }
+    }
 
     // Partition tasks into all-day (midnight dueDate) vs timed.
     data class PerDay(val allDay: List<Task>, val timed: List<Task>)
     val byDay: Map<LocalDate, PerDay> = remember(weekDates, allTasks) {
         weekDates.associateWith { d ->
-            val dayTasks = allTasks.filter { it.occursOn(d) && !it.isAbandoned }
+            val dayTasks = allTasks.filter { it.occursOn(d) && !it.isAbandoned && occurrenceFilter(it, d) }
             val (allDay, timed) = dayTasks.partition { task ->
                 val lt = task.dueDate?.toDate()?.toInstant()
                     ?.atZone(ZoneId.systemDefault())?.toLocalTime()
@@ -101,8 +120,10 @@ fun WeekTimelineView(
     val allDayBandHeight = (allDayRowHeight + 2.dp) * maxAllDayRows
     val gridHeight = hourHeight * 24
 
-    // Jump to ~8 AM on first composition so the user lands in daytime hours.
+    // Jump to ~8 AM on first composition so the user lands in daytime hours
+    // (unless a shared scroll position was handed in by the pager).
     LaunchedEffect(Unit) {
+        if (initialScrollPx != null) return@LaunchedEffect
         val target = with(density) { (hourHeight * 8).toPx() }.roundToInt()
         scrollState.scrollTo(target)
     }
@@ -131,8 +152,11 @@ fun WeekTimelineView(
                 rowHeight = allDayRowHeight,
                 timeGutter = timeGutter,
                 height = allDayBandHeight,
+                secondaryZoneId = secondaryZoneId,
                 onTaskClick = onTaskClick
             )
+        } else if (secondaryZoneId != null) {
+            ZoneLabelRow(timeGutter = timeGutter, secondaryZoneId = secondaryZoneId)
         }
 
         // Scrollable time grid
@@ -143,7 +167,7 @@ fun WeekTimelineView(
         ) {
             Row(modifier = Modifier.height(gridHeight)) {
                 // Time gutter
-                HourGutter(hourHeight = hourHeight, width = timeGutter)
+                HourGutter(hourHeight = hourHeight, width = timeGutter, secondaryZoneId = secondaryZoneId)
 
                 // Day columns
                 Row(modifier = Modifier.fillMaxWidth()) {
@@ -152,6 +176,9 @@ fun WeekTimelineView(
                             date = date,
                             today = today,
                             timed = byDay[date]?.timed ?: emptyList(),
+                            focus = focusSessions.filter { s ->
+                                s.startedAt.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalDate() == date
+                            },
                             hourHeight = hourHeight,
                             onCreateTask = onCreateTask?.let { cb -> { st, dur -> cb(date, st, dur) } },
                             onTaskClick = onTaskClick,
@@ -239,25 +266,15 @@ private fun AllDayStrip(
     rowHeight: Dp,
     timeGutter: Dp,
     height: Dp,
+    secondaryZoneId: String? = null,
     onTaskClick: (Task) -> Unit = {}
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(height)
+            .height(height.coerceAtLeast(if (secondaryZoneId != null) 24.dp else 0.dp))
     ) {
-        // Gutter label: GMT+9
-        Box(
-            modifier = Modifier.width(timeGutter).fillMaxHeight(),
-            contentAlignment = Alignment.CenterEnd
-        ) {
-            Text(
-                text = "GMT+9",
-                fontSize = 9.sp,
-                color = TextTertiary,
-                modifier = Modifier.padding(end = 6.dp)
-            )
-        }
+        ZoneLabels(timeGutter = timeGutter, secondaryZoneId = secondaryZoneId)
         weekDates.forEach { d ->
             val tasks = byDay[d] ?: emptyList()
             Column(
@@ -268,22 +285,26 @@ private fun AllDayStrip(
                 verticalArrangement = Arrangement.Top
             ) {
                 tasks.take(rows).forEach { task ->
-                    Box(
+                    val colors = chipColors(LocalTaskColor.current(task), task.isCompleted)
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(rowHeight)
                             .padding(bottom = 2.dp)
                             .clip(RoundedCornerShape(4.dp))
-                            .background(ThemeState.accentColor.copy(alpha = if (task.isCompleted) 0.35f else 0.9f))
-                            .clickable { onTaskClick(task) }
-                            .padding(horizontal = 4.dp),
-                        contentAlignment = Alignment.CenterStart
+                            .background(colors.background)
+                            .clickable { onTaskClick(task) },
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        if (colors.bar != null) {
+                            Box(Modifier.width(3.dp).fillMaxHeight().background(colors.bar))
+                        }
                         Text(
                             text = task.title,
                             fontSize = 10.sp,
-                            color = Color.White,
-                            maxLines = 1
+                            color = colors.content,
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 4.dp)
                         )
                     }
                 }
@@ -292,28 +313,82 @@ private fun AllDayStrip(
     }
 }
 
+private fun hourLabel(h: Int): String = when {
+    h == 0 || h == 24 -> "12 AM"
+    h < 12 -> "$h AM"
+    h == 12 -> "12 PM"
+    else -> "${h - 12} PM"
+}
+
+/** Hour of [secondaryZoneId] at local hour [h] today (minutes kept when the
+ *  offsets differ by a half hour). */
+private fun secondaryHourLabel(h: Int, secondaryZoneId: String): String {
+    val local = java.time.LocalDate.now().atStartOfDay(ZoneId.systemDefault()).plusHours(h.toLong())
+    val other = local.withZoneSameInstant(ZoneId.of(secondaryZoneId)).toLocalTime()
+    val base = hourLabel(other.hour)
+    return if (other.minute == 0) base else base.replace(" ", ":%02d ".format(other.minute))
+}
+
 @Composable
-private fun HourGutter(hourHeight: Dp, width: Dp) {
-    val now = LocalTime.now()
+private fun ZoneLabels(timeGutter: Dp, secondaryZoneId: String?) {
+    Row(
+        modifier = Modifier.width(timeGutter).fillMaxHeight(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (secondaryZoneId != null) {
+            Text(
+                text = zoneOffsetLabel(secondaryZoneId),
+                fontSize = 8.sp,
+                color = TextTertiary,
+                modifier = Modifier.weight(1f).padding(start = 2.dp),
+                maxLines = 1
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
+        Text(
+            text = zoneOffsetLabel(ZoneId.systemDefault().id),
+            fontSize = 9.sp,
+            color = TextTertiary,
+            modifier = Modifier.padding(end = 6.dp),
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun ZoneLabelRow(timeGutter: Dp, secondaryZoneId: String) {
+    Row(Modifier.fillMaxWidth().height(20.dp)) {
+        ZoneLabels(timeGutter = timeGutter, secondaryZoneId = secondaryZoneId)
+    }
+}
+
+@Composable
+private fun HourGutter(hourHeight: Dp, width: Dp, secondaryZoneId: String? = null) {
     Column(modifier = Modifier.width(width)) {
         for (h in 0..24) {
-            Box(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(hourHeight),
-                contentAlignment = Alignment.TopEnd
+                    .height(hourHeight)
             ) {
-                val label = when {
-                    h == 0 || h == 24 -> "12 AM"
-                    h < 12 -> "$h AM"
-                    h == 12 -> "12 PM"
-                    else -> "${h - 12} PM"
+                if (secondaryZoneId != null) {
+                    Text(
+                        text = secondaryHourLabel(h, secondaryZoneId),
+                        fontSize = 9.sp,
+                        color = TextTertiary.copy(alpha = 0.8f),
+                        modifier = Modifier.weight(1f).padding(start = 2.dp),
+                        maxLines = 1
+                    )
+                } else {
+                    Spacer(Modifier.weight(1f))
                 }
                 Text(
-                    text = label,
+                    text = hourLabel(h),
                     fontSize = 10.sp,
                     color = TextTertiary,
-                    modifier = Modifier.padding(end = 6.dp, top = 0.dp)
+                    modifier = Modifier.padding(end = 6.dp, top = 0.dp),
+                    maxLines = 1
                 )
             }
         }
@@ -325,6 +400,7 @@ private fun DayColumn(
     date: LocalDate,
     today: LocalDate,
     timed: List<Task>,
+    focus: List<FocusSession> = emptyList(),
     hourHeight: Dp,
     onCreateTask: ((startTime: LocalTime, durationMinutes: Int) -> Unit)? = null,
     onTaskClick: (Task) -> Unit = {},
@@ -341,6 +417,33 @@ private fun DayColumn(
     var isDragging by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
+        // 전념 기록 — focus sessions sit behind the task blocks.
+        focus.forEach { s ->
+            val start = s.startedAt.toDate().toInstant().atZone(ZoneId.systemDefault()).toLocalTime()
+            val startMin = start.hour * 60 + start.minute
+            val durMin = (s.durationSeconds / 60f).coerceAtLeast(5f)
+            val top = with(density) { (startMin / 60f * hourHeightPx).toDp() }
+            val h = with(density) { (durMin / 60f * hourHeightPx).toDp() }.coerceAtLeast(14.dp)
+            val focusColor = parseColorOrNull(s.activityColor) ?: TextTertiary
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .offset(y = top)
+                    .height(h)
+                    .padding(horizontal = 1.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(focusColor.copy(alpha = 0.16f))
+            ) {
+                Box(Modifier.width(2.dp).fillMaxHeight().background(focusColor.copy(alpha = 0.7f)))
+                Text(
+                    text = "\uD83C\uDF45 ${s.activityName.ifBlank { "집중" }}",
+                    fontSize = 9.sp,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    modifier = Modifier.padding(horizontal = 3.dp)
+                )
+            }
+        }
         Layout(
             modifier = Modifier
                 .fillMaxSize()
@@ -465,30 +568,34 @@ private fun TimedBlock(task: Task, date: LocalDate, onTaskClick: (Task) -> Unit 
     val startLabel = lt?.let { formatShortTime(it.toLocalTime()) } ?: ""
     val endLabel = lt?.plusMinutes(task.durationMinutes.toLong())
         ?.let { formatShortTime(it.toLocalTime()) } ?: ""
-    val alpha = if (task.isCompleted) 0.35f else 0.85f
-    Column(
+    val colors = chipColors(LocalTaskColor.current(task), task.isCompleted)
+    Row(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 1.dp, vertical = 1.dp)
             .clip(RoundedCornerShape(4.dp))
-            .background(ThemeState.accentColor.copy(alpha = alpha))
+            .background(colors.background)
             .clickable { onTaskClick(task) }
-            .padding(horizontal = 4.dp, vertical = 2.dp)
     ) {
-        Text(
-            text = task.title,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White,
-            maxLines = 1
-        )
-        if (startLabel.isNotEmpty()) {
+        if (colors.bar != null) {
+            Box(Modifier.width(3.dp).fillMaxHeight().background(colors.bar))
+        }
+        Column(Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
             Text(
-                text = "$startLabel-$endLabel",
-                fontSize = 9.sp,
-                color = Color.White.copy(alpha = 0.85f),
+                text = task.title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.content,
                 maxLines = 1
             )
+            if (startLabel.isNotEmpty() && CalendarPrefs.showDetails) {
+                Text(
+                    text = "$startLabel-$endLabel",
+                    fontSize = 9.sp,
+                    color = colors.content.copy(alpha = 0.85f),
+                    maxLines = 1
+                )
+            }
         }
     }
 }

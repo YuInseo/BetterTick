@@ -26,8 +26,27 @@ import javax.inject.Inject
 class CalendarViewModel @Inject constructor(
     private val taskRepository: TaskRepository,
     private val listRepository: ListRepository,
-    private val tagRepository: TagRepository
+    private val tagRepository: TagRepository,
+    private val focusRepository: com.bettertick.data.repository.FocusRepository
 ) : ViewModel() {
+
+    /** Focus sessions, drawn on the timeline when 전념 기록 보기 is on. */
+    val focusSessions: StateFlow<List<com.bettertick.data.model.FocusSession>> =
+        focusRepository.observeAllSessions()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** 할 일 배정하기 — open tasks that have no date yet. */
+    val undatedTasks: StateFlow<List<Task>> = taskRepository.observeAllTasks()
+        .map { all -> all.filter { it.dueDate == null && !it.isCompleted && !it.isAbandoned } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun updateList(list: TaskList) {
+        viewModelScope.launch { listRepository.updateList(list) }
+    }
+
+    fun updateTag(tag: Tag) {
+        viewModelScope.launch { tagRepository.updateTag(tag) }
+    }
 
     val tags: StateFlow<List<Tag>> = tagRepository.observeTags()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -112,6 +131,15 @@ class CalendarViewModel @Inject constructor(
             if (YearMonth.from(date) != _selectedMonth.value) {
                 _selectedMonth.value = YearMonth.from(date)
             }
+        }
+    }
+
+    /** Non-toggling select — used by timeline paging, where landing on the
+     *  same date must not clear the selection. */
+    fun setSelectedDate(date: LocalDate) {
+        _selectedDate.value = date
+        if (YearMonth.from(date) != _selectedMonth.value) {
+            _selectedMonth.value = YearMonth.from(date)
         }
     }
 
