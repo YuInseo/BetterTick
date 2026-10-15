@@ -158,8 +158,13 @@ class HabitRepository @Inject constructor(
                 firestoreProvider.habitLogsCollection().add(
                     HabitLog(habitId = habitId, date = date, isCompleted = true, completedAt = Timestamp.now())
                 )
-            } else if (doc.getBoolean("isCompleted") != true) {
-                doc.reference.update(mapOf("isCompleted" to true, "completedAt" to Timestamp.now()))
+            } else {
+                // Go through the POJO mapper so the field names match what
+                // toObject() reads (Kotlin "isX" booleans are renamed).
+                val log = doc.toObject(HabitLog::class.java) ?: HabitLog(habitId = habitId, date = date)
+                if (!log.isCompleted) {
+                    doc.reference.set(log.copy(id = doc.id, isCompleted = true, completedAt = Timestamp.now()))
+                }
             }
         }.onFailure { Log.e("HabitRepo", "checkIn failed", it) }
     }
