@@ -80,31 +80,59 @@ object WidgetServiceLocator {
     // ── Widget settings ────────────────────────────────────────────────────
     // Fields here mirror the settings screen. All have sensible defaults so
     // the widget renders correctly before the user ever opens settings.
-    private const val KEY_THEME = "widget_theme"              // "black" | "white"
+    private const val KEY_THEME = "widget_theme"              // "black" | "gray" | "white"
     private const val KEY_FONT_SIZE = "widget_font_size"      // "small" | "normal" | "large"
     private const val KEY_OPACITY = "widget_opacity"          // 0..100
-    private const val KEY_FILTER = "widget_filter"            // "all" | list id
+    private const val KEY_FILTER = "widget_filter"            // legacy: "all" | list id
+    private const val KEY_FILTER_LISTS = "widget_filter_lists" // list ids ("" = 기본함)
+    private const val KEY_FILTER_TAGS = "widget_filter_tags"
+    private const val KEY_MIN_PRIORITY = "widget_min_priority" // 0 = 전체
     private const val KEY_SHOW_COMPLETED = "widget_show_completed"
     private const val KEY_SHOW_DETAIL = "widget_show_detail"
+    private const val KEY_SHOW_OVERDUE = "widget_show_overdue"
+    private const val KEY_SHOW_WEEK = "widget_show_week"
+    private const val KEY_SORT = "widget_sort"                // "time" | "priority" | "title"
 
     data class ReminderSettings(
         val theme: String = "black",
         val fontSize: String = "normal",
         val opacity: Int = 100,
-        val filter: String = "all",
+        /** 필터 보기 범위: empty sets = 전체. "" in [lists] means 기본함. */
+        val lists: Set<String> = emptySet(),
+        val tags: Set<String> = emptySet(),
+        val minPriority: Int = 0,
         val showCompleted: Boolean = true,
-        val showDetail: Boolean = true
-    )
+        val showDetail: Boolean = true,
+        val showOverdue: Boolean = false,
+        val showWeek: Boolean = true,
+        val sort: String = "time"
+    ) {
+        val isFiltered: Boolean get() = lists.isNotEmpty() || tags.isNotEmpty() || minPriority > 0
+
+        /** Whether [task] falls inside 필터 보기 범위. */
+        fun accepts(task: Task): Boolean =
+            (lists.isEmpty() || task.listId in lists) &&
+                (tags.isEmpty() || task.tagIds.any { it in tags }) &&
+                task.priority >= minPriority
+    }
 
     fun reminderSettings(context: Context): ReminderSettings {
         val p = prefs(context)
+        val legacy = p.getString(KEY_FILTER, "all") ?: "all"
+        val lists = p.getStringSet(KEY_FILTER_LISTS, null)?.toSet()
+            ?: if (legacy != "all") setOf(legacy) else emptySet()
         return ReminderSettings(
             theme = p.getString(KEY_THEME, "black") ?: "black",
             fontSize = p.getString(KEY_FONT_SIZE, "normal") ?: "normal",
             opacity = p.getInt(KEY_OPACITY, 100),
-            filter = p.getString(KEY_FILTER, "all") ?: "all",
+            lists = lists,
+            tags = p.getStringSet(KEY_FILTER_TAGS, emptySet()).orEmpty().toSet(),
+            minPriority = p.getInt(KEY_MIN_PRIORITY, 0),
             showCompleted = p.getBoolean(KEY_SHOW_COMPLETED, true),
-            showDetail = p.getBoolean(KEY_SHOW_DETAIL, true)
+            showDetail = p.getBoolean(KEY_SHOW_DETAIL, true),
+            showOverdue = p.getBoolean(KEY_SHOW_OVERDUE, false),
+            showWeek = p.getBoolean(KEY_SHOW_WEEK, true),
+            sort = p.getString(KEY_SORT, "time") ?: "time"
         )
     }
 
@@ -113,10 +141,18 @@ object WidgetServiceLocator {
             .putString(KEY_THEME, s.theme)
             .putString(KEY_FONT_SIZE, s.fontSize)
             .putInt(KEY_OPACITY, s.opacity)
-            .putString(KEY_FILTER, s.filter)
+            .remove(KEY_FILTER)
+            .putStringSet(KEY_FILTER_LISTS, s.lists)
+            .putStringSet(KEY_FILTER_TAGS, s.tags)
+            .putInt(KEY_MIN_PRIORITY, s.minPriority)
             .putBoolean(KEY_SHOW_COMPLETED, s.showCompleted)
             .putBoolean(KEY_SHOW_DETAIL, s.showDetail)
-            .apply()
+            .putBoolean(KEY_SHOW_OVERDUE, s.showOverdue)
+            .putBoolean(KEY_SHOW_WEEK, s.showWeek)
+            .putString(KEY_SORT, s.sort)
+            // commit(): the widget re-reads these right after the activity
+            // closes, so the write must land before the refresh starts.
+            .commit()
     }
 
     val taskRepository: TaskRepository

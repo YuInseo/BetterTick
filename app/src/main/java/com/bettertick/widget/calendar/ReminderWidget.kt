@@ -64,6 +64,30 @@ import java.util.Locale
  * Samsung Reminder-style widget: week strip with event dots + today's task list.
  * Each task row shows a checkbox, title, time info, and list name.
  */
+/** Colors for 위젯 설정 > 테마. */
+private data class WidgetPalette(
+    val background: Color,
+    val text: Color,
+    val text2: Color,
+    val text3: Color,
+    val menu: Color
+) {
+    companion object {
+        fun of(theme: String): WidgetPalette = when (theme) {
+            "white" -> WidgetPalette(Color.White, Color(0xFF191919), Color(0xFF7F7F7F), Color(0xFFADADAD), Color(0xFFF2F3F5))
+            "gray" -> WidgetPalette(Color(0xFF2C2C2E), Color.White, Color(0xFFB0B0B0), Color(0xFF8E8E93), Color(0xFF3A3A3C))
+            else -> WidgetPalette(Color(0xFF1C1C1E), Color.White, Color(0xFFB0B0B0), Color(0xFF707070), Color(0xFF2C2C2E))
+        }
+    }
+}
+
+/** 위젯 설정 > 글자 크기. */
+private fun fontScale(size: String): Float = when (size) {
+    "small" -> 0.88f
+    "large" -> 1.15f
+    else -> 1f
+}
+
 class ReminderWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -109,22 +133,32 @@ class ReminderWidget : GlanceAppWidget() {
             // `occursOn` expands each task's repeat rule so the dot/filter
             // reflects every date the task applies to — not just the due
             // date. Daily/weekly/monthly/yearly/weekdays all handled.
-            val datesWithEvents = weekDates.associateWith { d ->
-                tasks.any {
-                    (settings.showCompleted || (!it.isCompleted && !it.isAbandoned)) && it.occursOn(d)
-                }
+            val visible = tasks.filter {
+                settings.accepts(it) &&
+                    (settings.showCompleted || (!it.isCompleted && !it.isAbandoned))
             }
-            val dayTasks = tasks
-                .filter {
-                    it.occursOn(selectedDate) &&
-                        (settings.showCompleted || (!it.isCompleted && !it.isAbandoned))
+            val datesWithEvents = weekDates.associateWith { d -> visible.any { it.occursOn(d) } }
+            // 기한 지난 할일 포함: unfinished one-off tasks from earlier days
+            // are listed under today, like TickTick's 오늘 view.
+            val overdue = if (settings.showOverdue && selectedDate == today) {
+                visible.filter { t ->
+                    !t.isCompleted && !t.isAbandoned && t.repeatRule.isNullOrBlank() &&
+                        (t.localDueDate()?.isBefore(today) == true)
                 }
+            } else emptyList()
+            val comparator: Comparator<Task> = when (settings.sort) {
+                "priority" -> compareByDescending<Task> { it.priority }
+                    .thenBy { it.dueDate?.toDate()?.time ?: Long.MAX_VALUE }
+                "title" -> compareBy<Task> { it.title.lowercase() }
                 // Repeating first, then by due time — matches the in-app
                 // calendar panel's ordering so widget and app stay in sync.
-                .sortedWith(
-                    compareByDescending<Task> { !it.repeatRule.isNullOrBlank() }
-                        .thenBy { it.dueDate?.toDate()?.time ?: Long.MAX_VALUE }
-                )
+                else -> compareByDescending<Task> { !it.repeatRule.isNullOrBlank() }
+                    .thenBy { it.dueDate?.toDate()?.time ?: Long.MAX_VALUE }
+            }
+            val dayTasks = (overdue + visible.filter { it.occursOn(selectedDate) })
+                .distinctBy { it.id }
+                // Finished tasks sink to the bottom.
+                .sortedWith(compareBy<Task> { it.isCompleted || it.isAbandoned }.then(comparator))
 
             ReminderContent(today, selectedDate, weekDates, datesWithEvents, dayTasks, listById, settings, menuOpen)
         }
@@ -149,7 +183,9 @@ class ReminderWidget : GlanceAppWidget() {
         settings: WidgetServiceLocator.ReminderSettings,
         menuOpen: Boolean
     ) {
-        val baseBg = Color(0xFF1C1C1E).copy(alpha = (settings.opacity / 100f).coerceIn(0f, 1f))
+        val pal = WidgetPalette.of(settings.theme)
+        val fs = fontScale(settings.fontSize)
+        val baseBg = pal.background.copy(alpha = (settings.opacity / 100f).coerceIn(0f, 1f))
         val context = LocalContext.current
         // Outer Box stacks the menu overlay on top of the main Column.
         // NOTE: do not set `contentAlignment` on this Box — Glance applies
@@ -176,14 +212,16 @@ class ReminderWidget : GlanceAppWidget() {
                 // below can reach the widget's right edge — otherwise its
                 // ListView scrollbar ends up ~12dp inside the widget chrome.
                 Column(modifier = GlanceModifier.padding(horizontal = 12.dp)) {
-                    HeaderRow(today, selectedDate)
+                    HeaderRow(today, selectedDate, pal, fs)
                     Spacer(GlanceModifier.height(8.dp))
-                    DayOfWeekRow()
-                    Spacer(GlanceModifier.height(4.dp))
-                    DatesRow(today, selectedDate, weekDates)
-                    Spacer(GlanceModifier.height(4.dp))
-                    DotsRow(weekDates, datesWithEvents)
-                    Spacer(GlanceModifier.height(8.dp))
+                    if (settings.showWeek) {
+                        DayOfWeekRow(pal, fs)
+                        Spacer(GlanceModifier.height(4.dp))
+                        DatesRow(today, selectedDate, weekDates, pal, fs)
+                        Spacer(GlanceModifier.height(4.dp))
+                        DotsRow(weekDates, datesWithEvents)
+                        Spacer(GlanceModifier.height(8.dp))
+                    }
                 }
 
                 if (tasks.isEmpty()) {
@@ -196,10 +234,10 @@ class ReminderWidget : GlanceAppWidget() {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = "할일이 없어요",
+                            text = if (settings.isFiltered) "필터에 맞는 할일이 없어요" else "할일이 없어요",
                             style = TextStyle(
-                                color = WidgetColors.textSecondary,
-                                fontSize = 12.sp
+                                color = ColorProvider(pal.text2),
+                                fontSize = (12 * fs).sp
                             )
                         )
                     }
@@ -211,7 +249,7 @@ class ReminderWidget : GlanceAppWidget() {
                                     .padding(horizontal = 12.dp)
                                     .clickable(actionStartActivity<MainActivity>())
                             ) {
-                                TaskRow(task, listById, settings.showDetail)
+                                TaskRow(task, listById, settings.showDetail, pal, fs, today)
                                 Spacer(GlanceModifier.height(10.dp))
                             }
                         }
@@ -231,10 +269,11 @@ class ReminderWidget : GlanceAppWidget() {
                     Column(
                         modifier = GlanceModifier
                             .padding(top = 44.dp, end = 10.dp)
-                            .background(ColorProvider(Color(0xFF2C2C2E)))
+                            .background(ColorProvider(pal.menu))
                             .cornerRadius(14.dp)
                     ) {
                         MenuItem(
+                            pal = pal,
                             label = "새로 고침",
                             intent = dispatcherIntent(
                                 context,
@@ -242,6 +281,7 @@ class ReminderWidget : GlanceAppWidget() {
                             )
                         )
                         MenuItem(
+                            pal = pal,
                             label = "설정",
                             intent = dispatcherIntent(
                                 context,
@@ -255,7 +295,7 @@ class ReminderWidget : GlanceAppWidget() {
     }
 
     @androidx.compose.runtime.Composable
-    private fun MenuItem(label: String, intent: Intent) {
+    private fun MenuItem(pal: WidgetPalette, label: String, intent: Intent) {
         Box(
             modifier = GlanceModifier
                 .clickable(actionStartActivityWithIntent(intent))
@@ -264,7 +304,7 @@ class ReminderWidget : GlanceAppWidget() {
             Text(
                 text = label,
                 style = TextStyle(
-                    color = WidgetColors.textPrimary,
+                    color = ColorProvider(pal.text),
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium
                 )
@@ -273,7 +313,7 @@ class ReminderWidget : GlanceAppWidget() {
     }
 
     @androidx.compose.runtime.Composable
-    private fun HeaderRow(today: LocalDate, selectedDate: LocalDate) {
+    private fun HeaderRow(today: LocalDate, selectedDate: LocalDate, pal: WidgetPalette, fs: Float) {
         val context = LocalContext.current
         val prevWeek = selectedDate.minusWeeks(1)
         val nextWeek = selectedDate.plusWeeks(1)
@@ -299,7 +339,7 @@ class ReminderWidget : GlanceAppWidget() {
                 modifier = GlanceModifier.defaultWeight(),
                 contentAlignment = Alignment.CenterStart
             ) {
-                AppBadge(today, jumpToTodayIntent)
+                AppBadge(today, jumpToTodayIntent, pal)
             }
 
             // Center group — `‹ 4월 ›` with clickable arrows.
@@ -312,8 +352,8 @@ class ReminderWidget : GlanceAppWidget() {
                 Text(
                     text = "‹",
                     style = TextStyle(
-                        color = WidgetColors.textPrimary,
-                        fontSize = 20.sp,
+                        color = ColorProvider(pal.text),
+                        fontSize = (20 * fs).sp,
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -321,8 +361,8 @@ class ReminderWidget : GlanceAppWidget() {
             Text(
                 text = "${selectedDate.monthValue}월",
                 style = TextStyle(
-                    color = WidgetColors.textPrimary,
-                    fontSize = 15.sp,
+                    color = ColorProvider(pal.text),
+                    fontSize = (15 * fs).sp,
                     fontWeight = FontWeight.Bold
                 )
             )
@@ -335,8 +375,8 @@ class ReminderWidget : GlanceAppWidget() {
                 Text(
                     text = "›",
                     style = TextStyle(
-                        color = WidgetColors.textPrimary,
-                        fontSize = 20.sp,
+                        color = ColorProvider(pal.text),
+                        fontSize = (20 * fs).sp,
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -357,8 +397,8 @@ class ReminderWidget : GlanceAppWidget() {
                         Text(
                             text = "+",
                             style = TextStyle(
-                                color = WidgetColors.textPrimary,
-                                fontSize = 22.sp,
+                                color = ColorProvider(pal.text),
+                                fontSize = (22 * fs).sp,
                                 fontWeight = FontWeight.Normal
                             )
                         )
@@ -372,8 +412,8 @@ class ReminderWidget : GlanceAppWidget() {
                         Text(
                             text = "⋮",
                             style = TextStyle(
-                                color = WidgetColors.textPrimary,
-                                fontSize = 18.sp,
+                                color = ColorProvider(pal.text),
+                                fontSize = (18 * fs).sp,
                                 fontWeight = FontWeight.Bold
                             )
                         )
@@ -384,14 +424,14 @@ class ReminderWidget : GlanceAppWidget() {
     }
 
     @androidx.compose.runtime.Composable
-    private fun AppBadge(today: LocalDate, onTapIntent: Intent) {
+    private fun AppBadge(today: LocalDate, onTapIntent: Intent, pal: WidgetPalette) {
         // Outlined rounded-square badge that always shows TODAY's day-of-
         // month (unrelated to the selected date). Tapping it jumps the
         // week strip back to today — Samsung Reminder widget parity.
         Box(
             modifier = GlanceModifier
                 .size(24.dp)
-                .background(ColorProvider(WidgetColorValues.textPrimary.copy(alpha = 0.15f)))
+                .background(ColorProvider(pal.text.copy(alpha = 0.15f)))
                 .cornerRadius(6.dp)
                 .clickable(actionStartActivityWithIntent(onTapIntent)),
             contentAlignment = Alignment.Center
@@ -399,7 +439,7 @@ class ReminderWidget : GlanceAppWidget() {
             Text(
                 text = today.dayOfMonth.toString(),
                 style = TextStyle(
-                    color = WidgetColors.textPrimary,
+                    color = ColorProvider(pal.text),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -408,7 +448,7 @@ class ReminderWidget : GlanceAppWidget() {
     }
 
     @androidx.compose.runtime.Composable
-    private fun DayOfWeekRow() {
+    private fun DayOfWeekRow(pal: WidgetPalette, fs: Float) {
         Row(modifier = GlanceModifier.fillMaxWidth()) {
             for (i in 0..6) {
                 Box(
@@ -418,8 +458,8 @@ class ReminderWidget : GlanceAppWidget() {
                     Text(
                         text = WidgetDateUtils.dayOfWeekKoreanSunFirst(i),
                         style = TextStyle(
-                            color = WidgetColors.textTertiary,
-                            fontSize = 11.sp
+                            color = ColorProvider(pal.text3),
+                            fontSize = (11 * fs).sp
                         )
                     )
                 }
@@ -428,7 +468,7 @@ class ReminderWidget : GlanceAppWidget() {
     }
 
     @androidx.compose.runtime.Composable
-    private fun DatesRow(today: LocalDate, selectedDate: LocalDate, weekDates: List<LocalDate>) {
+    private fun DatesRow(today: LocalDate, selectedDate: LocalDate, weekDates: List<LocalDate>, pal: WidgetPalette, fs: Float) {
         val context = LocalContext.current
         Row(modifier = GlanceModifier.fillMaxWidth()) {
             weekDates.forEach { date ->
@@ -452,8 +492,8 @@ class ReminderWidget : GlanceAppWidget() {
                                 Text(
                                     text = date.dayOfMonth.toString(),
                                     style = TextStyle(
-                                        color = WidgetColors.textPrimary,
-                                        fontSize = 14.sp,
+                                        color = ColorProvider(Color.White),
+                                        fontSize = (14 * fs).sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 )
@@ -465,7 +505,7 @@ class ReminderWidget : GlanceAppWidget() {
                                 text = date.dayOfMonth.toString(),
                                 style = TextStyle(
                                     color = ColorProvider(WidgetColorValues.blue),
-                                    fontSize = 14.sp,
+                                    fontSize = (14 * fs).sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             )
@@ -474,8 +514,8 @@ class ReminderWidget : GlanceAppWidget() {
                             Text(
                                 text = date.dayOfMonth.toString(),
                                 style = TextStyle(
-                                    color = WidgetColors.textPrimary,
-                                    fontSize = 14.sp
+                                    color = ColorProvider(pal.text),
+                                    fontSize = (14 * fs).sp
                                 )
                             )
                         }
@@ -513,26 +553,45 @@ class ReminderWidget : GlanceAppWidget() {
     private fun TaskRow(
         task: Task,
         listById: Map<String, TaskList>,
-        showDetail: Boolean
+        showDetail: Boolean,
+        pal: WidgetPalette,
+        fs: Float,
+        today: LocalDate
     ) {
+        val done = task.isCompleted || task.isAbandoned
+        val ring = when {
+            done -> pal.text3
+            task.priority == 3 -> Color(0xFFD52B24)
+            task.priority == 2 -> Color(0xFFFAA80C)
+            task.priority == 1 -> Color(0xFF4772FA)
+            else -> pal.text3
+        }
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Outlined square checkbox (ring effect via nested Box)
+            // Priority-colored ring (TickTick); filled when finished.
             Box(
                 modifier = GlanceModifier
                     .size(20.dp)
-                    .background(ColorProvider(WidgetColorValues.textTertiary.copy(alpha = 0.8f)))
+                    .background(ColorProvider(ring.copy(alpha = 0.9f)))
                     .cornerRadius(6.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = GlanceModifier
-                        .size(16.dp)
-                        .background(ColorProvider(Color(0xFF1C1C1E)))
-                        .cornerRadius(4.dp)
-                ) {}
+                if (done) {
+                    Text(
+                        text = if (task.isAbandoned) "✕" else "✓",
+                        style = TextStyle(color = ColorProvider(pal.background), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    )
+                } else {
+                    Box(
+                        modifier = GlanceModifier
+                            .size(16.dp)
+                            .background(ColorProvider(pal.background))
+                            .cornerRadius(4.dp)
+                    ) {}
+                }
             }
             Spacer(GlanceModifier.width(10.dp))
 
@@ -543,9 +602,10 @@ class ReminderWidget : GlanceAppWidget() {
                 Text(
                     text = task.title,
                     style = TextStyle(
-                        color = WidgetColors.textPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
+                        color = ColorProvider(if (done) pal.text3 else pal.text),
+                        fontSize = (13 * fs).sp,
+                        fontWeight = FontWeight.Medium,
+                        textDecoration = if (done) androidx.glance.text.TextDecoration.LineThrough else null
                     ),
                     maxLines = 1
                 )
@@ -562,7 +622,7 @@ class ReminderWidget : GlanceAppWidget() {
                                         if (isOverdue) WidgetColorValues.red
                                         else WidgetColorValues.accent
                                     ),
-                                    fontSize = 11.sp
+                                    fontSize = (11 * fs).sp
                                 ),
                                 maxLines = 1
                             )
@@ -574,7 +634,7 @@ class ReminderWidget : GlanceAppWidget() {
                                     provider = ImageProvider(R.drawable.ic_widget_alarm),
                                     contentDescription = null,
                                     modifier = GlanceModifier.size(12.dp),
-                                    colorFilter = ColorFilter.tint(WidgetColors.textTertiary)
+                                    colorFilter = ColorFilter.tint(ColorProvider(pal.text3))
                                 )
                             }
                             // Repeat icon — shown when repeatRule is set.
@@ -584,7 +644,7 @@ class ReminderWidget : GlanceAppWidget() {
                                     provider = ImageProvider(R.drawable.ic_widget_repeat),
                                     contentDescription = null,
                                     modifier = GlanceModifier.size(12.dp),
-                                    colorFilter = ColorFilter.tint(WidgetColors.textTertiary)
+                                    colorFilter = ColorFilter.tint(ColorProvider(pal.text3))
                                 )
                             }
                         }
@@ -598,8 +658,8 @@ class ReminderWidget : GlanceAppWidget() {
                 Text(
                     text = listName,
                     style = TextStyle(
-                        color = WidgetColors.textTertiary,
-                        fontSize = 10.sp
+                        color = ColorProvider(pal.text3),
+                        fontSize = (10 * fs).sp
                     ),
                     maxLines = 1
                 )
