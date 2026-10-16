@@ -222,8 +222,14 @@ private fun filterSummary(s: WidgetServiceLocator.ReminderSettings, lists: List<
         val names = s.tags.map { id -> "#" + (tags.firstOrNull { it.id == id }?.name ?: "태그") }
         parts += if (names.size <= 2) names.joinToString(" ") else "태그 ${names.size}개"
     }
-    if (s.minPriority > 0) parts += priorityLabel(s.minPriority)
-    return parts.joinToString(" · ")
+    val picked = parts.joinToString(" · ")
+    val prio = if (s.minPriority > 0) priorityLabel(s.minPriority) else null
+    val scope = when {
+        picked.isEmpty() -> null
+        s.exclude -> "숨김: $picked"
+        else -> picked
+    }
+    return listOfNotNull(scope, prio).joinToString(" · ")
 }
 
 private fun priorityLabel(p: Int) = when (p) {
@@ -263,17 +269,26 @@ private fun FilterScopePage(
         Spacer(Modifier.height(8.dp))
         Card {
             CheckRow("전체", null, checked = !settings.isFiltered) {
-                onChange(settings.copy(lists = emptySet(), tags = emptySet(), minPriority = 0))
+                onChange(settings.copy(lists = emptySet(), tags = emptySet(), minPriority = 0, exclude = false))
             }
         }
 
+        SectionLabel("보기 방식")
+        ModeSwitch(exclude = settings.exclude, onChange = { onChange(settings.copy(exclude = it)) })
+        Text(
+            if (settings.exclude) "체크한 목록과 태그의 할일을 위젯에서 숨깁니다."
+            else "체크한 목록과 태그의 할일만 위젯에 보여 줍니다.",
+            fontSize = 12.sp, color = TextTertiary, lineHeight = 16.sp,
+            modifier = Modifier.padding(start = 4.dp, top = 8.dp)
+        )
+
         SectionLabel("목록")
         Card {
-            CheckRow("기본함", "#4772FA", checked = "" in settings.lists) {
+            CheckRow("기본함", "#4772FA", checked = "" in settings.lists, hide = settings.exclude) {
                 onChange(settings.copy(lists = settings.lists.toggle("")))
             }
             lists.sortedBy { it.sortOrder }.forEach { l ->
-                CheckRow(l.name, l.color, checked = l.id in settings.lists) {
+                CheckRow(l.name, l.color, checked = l.id in settings.lists, hide = settings.exclude) {
                     onChange(settings.copy(lists = settings.lists.toggle(l.id)))
                 }
             }
@@ -288,7 +303,7 @@ private fun FilterScopePage(
                 )
             }
             tags.sortedBy { it.name.lowercase() }.forEach { t ->
-                CheckRow("#${t.name}", t.color, checked = t.id in settings.tags) {
+                CheckRow("#${t.name}", t.color, checked = t.id in settings.tags, hide = settings.exclude) {
                     onChange(settings.copy(tags = settings.tags.toggle(t.id)))
                 }
             }
@@ -303,11 +318,44 @@ private fun FilterScopePage(
             }
         }
         Text(
-            "목록과 태그를 여러 개 고를 수 있습니다. 목록·태그·우선순위를 함께 고르면 모두 만족하는 할일만 보입니다.",
+            "목록과 태그를 여러 개 고를 수 있습니다. 우선순위는 보기 방식과 관계없이 항상 함께 적용됩니다.",
             fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
         )
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+private val HideRed = Color(0xFFE5483F)
+
+/** 보기 방식: 선택한 항목만 보기 / 선택한 항목 숨기기. */
+@Composable
+private fun ModeSwitch(exclude: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(GroupedCard)
+            .padding(4.dp)
+    ) {
+        listOf(false to "선택한 항목만 보기", true to "선택한 항목 숨기기").forEach { (value, label) ->
+            val sel = value == exclude
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (sel) (if (value) HideRed else ThemeState.accentColor) else Color.Transparent)
+                    .clickable { onChange(value) }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    label, fontSize = 14.sp,
+                    fontWeight = if (sel) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (sel) Color.White else TextSecondary
+                )
+            }
+        }
     }
 }
 
@@ -322,12 +370,19 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun CheckRow(title: String, colorHex: String?, checked: Boolean, radio: Boolean = false, onClick: () -> Unit) {
+private fun CheckRow(
+    title: String,
+    colorHex: String?,
+    checked: Boolean,
+    radio: Boolean = false,
+    hide: Boolean = false,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
+            .padding(start = 18.dp, end = 6.dp, top = if (radio) 14.dp else 2.dp, bottom = if (radio) 14.dp else 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (colorHex != null) {
@@ -335,15 +390,23 @@ private fun CheckRow(title: String, colorHex: String?, checked: Boolean, radio: 
             Box(Modifier.size(10.dp).clip(CircleShape).background(c))
             Spacer(Modifier.width(12.dp))
         }
-        Text(title, fontSize = 16.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+        Text(
+            title, fontSize = 16.sp,
+            color = if (hide && checked) TextTertiary else TextPrimary,
+            textDecoration = if (hide && checked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null,
+            modifier = Modifier.weight(1f)
+        )
+        if (hide && checked) {
+            Text("숨김", fontSize = 12.sp, color = HideRed, modifier = Modifier.padding(end = 4.dp))
+        }
         if (radio) {
-            if (checked) Icon(Icons.Default.Check, null, tint = ThemeState.accentColor)
+            if (checked) Icon(Icons.Default.Check, null, tint = ThemeState.accentColor, modifier = Modifier.padding(end = 12.dp))
         } else {
             Checkbox(
                 checked = checked,
                 onCheckedChange = { onClick() },
                 colors = CheckboxDefaults.colors(
-                    checkedColor = ThemeState.accentColor,
+                    checkedColor = if (hide) HideRed else ThemeState.accentColor,
                     uncheckedColor = TextTertiary
                 )
             )
