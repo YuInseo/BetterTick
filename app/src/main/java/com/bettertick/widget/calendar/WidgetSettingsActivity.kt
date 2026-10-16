@@ -89,15 +89,17 @@ class WidgetSettingsActivity : ComponentActivity() {
         enableEdgeToEdge()
         val listsFlow = runCatching { listRepository.observeLists() }.getOrNull()
         val tagsFlow = runCatching { tagRepository.observeTags() }.getOrNull()
+        // Snapshot taken outside composition; the live flow below takes over.
+        val cachedLists: List<TaskList> = WidgetServiceLocator.listsCache.value
         setContent {
             BetterTickTheme {
                 val ctx = this
                 var settings by remember { mutableStateOf(WidgetServiceLocator.reminderSettings(ctx)) }
                 var filterPage by remember { mutableStateOf(false) }
                 val lists by remember {
-                    (listsFlow ?: kotlinx.coroutines.flow.flowOf(WidgetServiceLocator.listsCache.value))
-                        .catch { emit(WidgetServiceLocator.listsCache.value) }
-                }.collectAsState(initial = WidgetServiceLocator.listsCache.value)
+                    (listsFlow ?: kotlinx.coroutines.flow.flowOf(cachedLists))
+                        .catch { emit(cachedLists) }
+                }.collectAsState(initial = cachedLists)
                 val tags by remember {
                     (tagsFlow ?: kotlinx.coroutines.flow.flowOf(emptyList<Tag>()))
                         .catch { emit(emptyList()) }
