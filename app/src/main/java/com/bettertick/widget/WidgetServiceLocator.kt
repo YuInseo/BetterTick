@@ -87,6 +87,7 @@ object WidgetServiceLocator {
     private const val KEY_FILTER_LISTS = "widget_filter_lists" // list ids ("" = 기본함)
     private const val KEY_FILTER_TAGS = "widget_filter_tags"
     private const val KEY_MIN_PRIORITY = "widget_min_priority" // 0 = 전체
+    private const val KEY_EXCLUDE = "widget_filter_exclude"   // true = 선택 항목 숨기기
     private const val KEY_SHOW_COMPLETED = "widget_show_completed"
     private const val KEY_SHOW_DETAIL = "widget_show_detail"
     private const val KEY_SHOW_OVERDUE = "widget_show_overdue"
@@ -101,6 +102,8 @@ object WidgetServiceLocator {
         val lists: Set<String> = emptySet(),
         val tags: Set<String> = emptySet(),
         val minPriority: Int = 0,
+        /** false: show only the checked lists/tags. true: hide them. */
+        val exclude: Boolean = false,
         val showCompleted: Boolean = true,
         val showDetail: Boolean = true,
         val showOverdue: Boolean = false,
@@ -110,10 +113,15 @@ object WidgetServiceLocator {
         val isFiltered: Boolean get() = lists.isNotEmpty() || tags.isNotEmpty() || minPriority > 0
 
         /** Whether [task] falls inside 필터 보기 범위. */
-        fun accepts(task: Task): Boolean =
-            (lists.isEmpty() || task.listId in lists) &&
-                (tags.isEmpty() || task.tagIds.any { it in tags }) &&
-                task.priority >= minPriority
+        fun accepts(task: Task): Boolean {
+            if (task.priority < minPriority) return false
+            return if (exclude) {
+                task.listId !in lists && task.tagIds.none { it in tags }
+            } else {
+                (lists.isEmpty() || task.listId in lists) &&
+                    (tags.isEmpty() || task.tagIds.any { it in tags })
+            }
+        }
     }
 
     fun reminderSettings(context: Context): ReminderSettings {
@@ -128,6 +136,7 @@ object WidgetServiceLocator {
             lists = lists,
             tags = p.getStringSet(KEY_FILTER_TAGS, emptySet()).orEmpty().toSet(),
             minPriority = p.getInt(KEY_MIN_PRIORITY, 0),
+            exclude = p.getBoolean(KEY_EXCLUDE, false),
             showCompleted = p.getBoolean(KEY_SHOW_COMPLETED, true),
             showDetail = p.getBoolean(KEY_SHOW_DETAIL, true),
             showOverdue = p.getBoolean(KEY_SHOW_OVERDUE, false),
@@ -145,6 +154,7 @@ object WidgetServiceLocator {
             .putStringSet(KEY_FILTER_LISTS, s.lists)
             .putStringSet(KEY_FILTER_TAGS, s.tags)
             .putInt(KEY_MIN_PRIORITY, s.minPriority)
+            .putBoolean(KEY_EXCLUDE, s.exclude)
             .putBoolean(KEY_SHOW_COMPLETED, s.showCompleted)
             .putBoolean(KEY_SHOW_DETAIL, s.showDetail)
             .putBoolean(KEY_SHOW_OVERDUE, s.showOverdue)
