@@ -179,7 +179,7 @@ fun Task.isShiftRotationOf(labels: Set<String>): Boolean {
 val SHIFT_LABELS: Set<String> = setOf("주", "주간", "야", "야간", "비", "비번", "휴", "휴무", "당직")
 
 /** Leave kinds a shift can be marked with. */
-val LEAVE_TYPES: List<String> = listOf("병가", "지휴")
+val LEAVE_TYPES: List<String> = listOf("병가", "지휴", "연차")
 
 /** "주", "야간 (병가)" … — a work-shift entry rather than a to-do. */
 fun Task.isShiftTask(): Boolean = normalizeShiftLabel(title) in SHIFT_LABELS
@@ -225,3 +225,18 @@ fun Task.shiftDay(shownDate: LocalDate?): LocalDate? =
 fun Task.isPastShift(today: LocalDate = LocalDate.now()): Boolean =
     isShiftTask() && repeatRule.isNullOrBlank() &&
         dueDate?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()?.isBefore(today) == true
+
+/** Every (day, leave) this task records — the per-day map plus an old "(병가)" title. */
+fun Task.leaveEntries(): List<Pair<LocalDate, String>> {
+    if (!isShiftTask()) return emptyList()
+    val fromMap = leaves.mapNotNull { (k, v) ->
+        val d = runCatching { LocalDate.parse(k) }.getOrNull()
+        if (d == null || v.isBlank()) null else d to v
+    }
+    val legacy = legacyLeave()
+    val due = dueDate?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+    val fromTitle = if (legacy != null && repeatRule.isNullOrBlank() && due != null &&
+        !leaves.containsKey(due.toString())
+    ) listOf(due to legacy) else emptyList()
+    return fromMap + fromTitle
+}
