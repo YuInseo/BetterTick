@@ -63,6 +63,8 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.withLeaveToggled
+import com.bettertick.data.model.isPastShift
 import kotlin.math.roundToInt
 import com.bettertick.ui.screens.calendar.components.WeekTimelineView
 import com.bettertick.ui.screens.tasks.components.KanbanView
@@ -157,6 +159,8 @@ fun TasksScreen(
             // TickTick: 완료·포기한 항목은 맨 아래 '완료됨' 그룹으로 모은다
             // (목록 ⋮ > 완료 항목 표시/숨기기).
             if (t.isCompleted || t.isAbandoned) { completed += t; continue }
+            // 지난 근무(주/야/비/휴)는 할일이 아니라 기록 — 기한 지남에 쌓지 않는다.
+            if (t.isPastShift(today)) continue
             val d = t.dueDate?.toLocalDate()
             when {
                 d == null -> if (!isHidden(TaskSection.NoDate, t)) noDate += t
@@ -370,7 +374,7 @@ fun TasksScreen(
             return@Column
         }
 
-        val openTasks = remember(tasks) { tasks.filter { !it.isCompleted && !it.isAbandoned } }
+        val openTasks = remember(tasks) { tasks.filter { !it.isCompleted && !it.isAbandoned && !it.isPastShift() } }
         val archive = currentFilter.isArchive
         // 완료 / 하지 않음 lists: finished tasks grouped by when they ended.
         val groups = if (archive) archiveGroups(completedTasks) else currentGroups(openTasks, lists, tags)
@@ -432,6 +436,9 @@ fun TasksScreen(
                                 onLongClick = {
                                     selectionMode = true
                                     if (task.id !in selectedIds) selectedIds.add(task.id)
+                                },
+                                onToggleLeave = { day, type ->
+                                    viewModel.updateTask(task.withLeaveToggled(day, type))
                                 },
                                 onPin = { viewModel.updateTask(task.copy(isPinned = !task.isPinned)) },
                                 onWontDo = { viewModel.updateTask(task.copy(isAbandoned = true)) }

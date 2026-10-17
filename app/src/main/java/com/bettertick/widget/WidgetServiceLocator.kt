@@ -93,6 +93,7 @@ object WidgetServiceLocator {
     private const val KEY_SHOW_OVERDUE = "widget_show_overdue"
     private const val KEY_SHOW_WEEK = "widget_show_week"
     private const val KEY_SORT = "widget_sort"                // "time" | "priority" | "title"
+    private const val KEY_MODE = "widget_mode"                // "checkbox" | "memo"
 
     data class ReminderSettings(
         val theme: String = "black",
@@ -108,8 +109,12 @@ object WidgetServiceLocator {
         val showDetail: Boolean = true,
         val showOverdue: Boolean = false,
         val showWeek: Boolean = true,
-        val sort: String = "time"
+        val sort: String = "time",
+        /** "checkbox": tappable checkboxes. "memo": plain note-style rows with notes. */
+        val mode: String = "checkbox"
     ) {
+        val isMemo: Boolean get() = mode == "memo"
+
         val isFiltered: Boolean get() = lists.isNotEmpty() || tags.isNotEmpty() || minPriority > 0
 
         /** Whether [task] falls inside 필터 보기 범위. */
@@ -122,6 +127,69 @@ object WidgetServiceLocator {
                     (tags.isEmpty() || task.tagIds.any { it in tags })
             }
         }
+    }
+
+    private fun widgetKey(widgetId: Int) = "widget_settings_$widgetId"
+
+    /**
+     * Settings of one placed widget ([widgetId] = AppWidget id). A widget
+     * that was never configured on its own inherits the shared settings, so
+     * existing widgets keep what the user chose before per-widget settings.
+     */
+    fun reminderSettings(context: Context, widgetId: Int): ReminderSettings {
+        if (widgetId <= 0) return reminderSettings(context)
+        val raw = prefs(context).getString(widgetKey(widgetId), null) ?: return reminderSettings(context)
+        val base = reminderSettings(context)
+        return runCatching {
+            val o = org.json.JSONObject(raw)
+            fun set(name: String): Set<String> =
+                o.optJSONArray(name)?.let { a -> (0 until a.length()).map { a.optString(it) }.toSet() } ?: emptySet()
+            ReminderSettings(
+                theme = o.optString("theme", base.theme),
+                fontSize = o.optString("fontSize", base.fontSize),
+                opacity = o.optInt("opacity", base.opacity),
+                lists = set("lists"),
+                tags = set("tags"),
+                minPriority = o.optInt("minPriority", 0),
+                exclude = o.optBoolean("exclude", false),
+                showCompleted = o.optBoolean("showCompleted", base.showCompleted),
+                showDetail = o.optBoolean("showDetail", base.showDetail),
+                showOverdue = o.optBoolean("showOverdue", base.showOverdue),
+                showWeek = o.optBoolean("showWeek", base.showWeek),
+                sort = o.optString("sort", base.sort),
+                mode = o.optString("mode", base.mode)
+            )
+        }.getOrDefault(base)
+    }
+
+    fun saveReminderSettings(context: Context, s: ReminderSettings, widgetId: Int) {
+        if (widgetId <= 0) {
+            saveReminderSettings(context, s)
+            return
+        }
+        val o = org.json.JSONObject()
+            .put("theme", s.theme)
+            .put("fontSize", s.fontSize)
+            .put("opacity", s.opacity)
+            .put("lists", org.json.JSONArray(s.lists.toList()))
+            .put("tags", org.json.JSONArray(s.tags.toList()))
+            .put("minPriority", s.minPriority)
+            .put("exclude", s.exclude)
+            .put("showCompleted", s.showCompleted)
+            .put("showDetail", s.showDetail)
+            .put("showOverdue", s.showOverdue)
+            .put("showWeek", s.showWeek)
+            .put("sort", s.sort)
+            .put("mode", s.mode)
+        // commit(): the widget re-reads this right after the activity closes.
+        prefs(context).edit().putString(widgetKey(widgetId), o.toString()).commit()
+    }
+
+    /** Drops the settings of widgets the user removed from the home screen. */
+    fun deleteWidgetSettings(context: Context, widgetIds: IntArray) {
+        val e = prefs(context).edit()
+        widgetIds.forEach { e.remove(widgetKey(it)) }
+        e.apply()
     }
 
     fun reminderSettings(context: Context): ReminderSettings {
@@ -141,7 +209,8 @@ object WidgetServiceLocator {
             showDetail = p.getBoolean(KEY_SHOW_DETAIL, true),
             showOverdue = p.getBoolean(KEY_SHOW_OVERDUE, false),
             showWeek = p.getBoolean(KEY_SHOW_WEEK, true),
-            sort = p.getString(KEY_SORT, "time") ?: "time"
+            sort = p.getString(KEY_SORT, "time") ?: "time",
+            mode = p.getString(KEY_MODE, "checkbox") ?: "checkbox"
         )
     }
 
@@ -160,6 +229,7 @@ object WidgetServiceLocator {
             .putBoolean(KEY_SHOW_OVERDUE, s.showOverdue)
             .putBoolean(KEY_SHOW_WEEK, s.showWeek)
             .putString(KEY_SORT, s.sort)
+            .putString(KEY_MODE, s.mode)
             // commit(): the widget re-reads these right after the activity
             // closes, so the write must land before the refresh starts.
             .commit()

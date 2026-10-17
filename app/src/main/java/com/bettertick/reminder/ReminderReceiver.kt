@@ -8,6 +8,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.bettertick.MainActivity
 import com.bettertick.data.model.occursOn
+import com.bettertick.data.model.isPastShift
 import com.bettertick.widget.WidgetServiceLocator
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -140,6 +141,7 @@ class ReminderReceiver : BroadcastReceiver() {
         val today = LocalDate.now()
         val due = tasks.filter { t ->
             !t.isCompleted && !t.isAbandoned && t.dueDate != null &&
+                !t.isPastShift(today) &&
                 (t.occursOn(today) || (t.repeatRule.isNullOrBlank() &&
                     t.dueDate.toDate().toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate().isBefore(today)))
         }
