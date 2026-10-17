@@ -240,3 +240,30 @@ fun Task.leaveEntries(): List<Pair<LocalDate, String>> {
     ) listOf(due to legacy) else emptyList()
     return fromMap + fromTitle
 }
+
+/** Shifts that are actual work (비번 / 휴무 are not). */
+val WORK_SHIFT_LABELS: Set<String> = setOf("주", "주간", "야", "야간", "당직")
+
+/** "주", "야간" … — a shift you go to work for. */
+fun Task.isWorkShift(): Boolean = normalizeShiftLabel(title) in WORK_SHIFT_LABELS
+
+/**
+ * Days in [from]..[to] on which some work shift was (or is) scheduled on a
+ * red day and no leave was taken — each one earns a 지휴.
+ */
+fun redDaysWorked(
+    tasks: List<Task>,
+    from: LocalDate,
+    to: LocalDate,
+    isRed: (LocalDate) -> Boolean
+): List<LocalDate> {
+    val shifts = tasks.filter { it.isWorkShift() && !(it.isAbandoned && it.repeatRule.isNullOrBlank()) }
+    if (shifts.isEmpty() || to.isBefore(from)) return emptyList()
+    val out = mutableListOf<LocalDate>()
+    var d = from
+    while (!d.isAfter(to)) {
+        if (isRed(d) && shifts.any { it.occursOn(d) && it.leaveOn(d) == null }) out += d
+        d = d.plusDays(1)
+    }
+    return out
+}
