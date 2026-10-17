@@ -428,7 +428,7 @@ fun LeaveButtonsRow(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         LEAVE_TYPES.forEach { type ->
             val selected = used == type
@@ -437,36 +437,43 @@ fun LeaveButtonsRow(
                 val extra = (if (selected) 1 else 0) - (if (savedUsed == type) 1 else 0)
                 com.bettertick.ui.screens.tasks.LeavePrefs.remaining(type, it, extra)
             }
-            val shape = RoundedCornerShape(12.dp)
-            Column(
+            val shape = RoundedCornerShape(10.dp)
+            // Compact one-line button: "지휴 1일 초과" / "병가 29일".
+            Row(
                 modifier = Modifier
                     .weight(1f)
                     .clip(shape)
                     .then(if (selected) Modifier.background(c) else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.5f), shape))
                     .then(if (onToggle != null) Modifier.clickable { onToggle(type) } else Modifier)
-                    .padding(vertical = 10.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(vertical = 7.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     if (selected) "$type ✓" else type,
-                    fontSize = 15.sp,
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = if (selected) Color.White else c
+                    color = if (selected) Color.White else c,
+                    maxLines = 1
                 )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = when {
-                        left == null -> if (selected) "사용" else "일수 미설정"
-                        left >= 0 -> "${left}일 남음"
-                        else -> "${-left}일 초과"
-                    },
-                    fontSize = 12.sp,
-                    color = when {
-                        selected -> Color.White.copy(alpha = 0.9f)
-                        left != null && left < 0 -> OverdueRed
-                        else -> TextSecondary
-                    }
-                )
+                val sub = when {
+                    left == null -> null
+                    left >= 0 -> "${left}일"
+                    else -> "${-left}일 초과"
+                }
+                if (sub != null) {
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        sub,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        color = when {
+                            selected -> Color.White.copy(alpha = 0.9f)
+                            left != null && left < 0 -> OverdueRed
+                            else -> TextSecondary
+                        }
+                    )
+                }
             }
         }
     }
