@@ -24,6 +24,11 @@ class ReminderWidgetReceiver : GlanceAppWidgetReceiver() {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        com.bettertick.widget.WidgetServiceLocator.deleteWidgetSettings(context, appWidgetIds)
+    }
+
     companion object {
         private const val TAG = "ReminderWidgetRcvr"
     }

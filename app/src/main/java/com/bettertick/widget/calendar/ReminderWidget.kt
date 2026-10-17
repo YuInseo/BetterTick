@@ -22,6 +22,7 @@ import androidx.glance.appwidget.action.actionSendBroadcast
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityWithIntent
 import com.bettertick.overlay.QuickOverlayReceiver
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.lazy.LazyColumn
 import androidx.glance.appwidget.lazy.items
@@ -88,6 +89,9 @@ private fun fontScale(size: String): Float = when (size) {
     else -> 1f
 }
 
+/** AppWidget id of the widget being composed (per-widget settings & taps). */
+private val LocalWidgetId = androidx.compose.runtime.staticCompositionLocalOf { 0 }
+
 class ReminderWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
@@ -108,6 +112,7 @@ class ReminderWidget : GlanceAppWidget() {
             }
 
         val listById = lists.associateBy { it.id }
+        val widgetId = runCatching { GlanceAppWidgetManager(context).getAppWidgetId(id) }.getOrDefault(0)
 
         provideContent {
             // Re-read everything settings-related on each composition.
@@ -116,7 +121,7 @@ class ReminderWidget : GlanceAppWidget() {
             // the composable means every SETTINGS_VERSION_KEY bump picks
             // up the fresh SharedPreferences.
             val ctxInside = LocalContext.current
-            val settings = WidgetServiceLocator.reminderSettings(ctxInside)
+            val settings = WidgetServiceLocator.reminderSettings(ctxInside, widgetId)
             val state = currentState<Preferences>()
             val today = WidgetDateUtils.today()
             val selectedDate = state[SELECTED_DATE_KEY]
@@ -160,7 +165,9 @@ class ReminderWidget : GlanceAppWidget() {
                 // Finished tasks sink to the bottom.
                 .sortedWith(compareBy<Task> { it.isCompleted || it.isAbandoned }.then(comparator))
 
-            ReminderContent(today, selectedDate, weekDates, datesWithEvents, dayTasks, listById, settings, menuOpen)
+            androidx.compose.runtime.CompositionLocalProvider(LocalWidgetId provides widgetId) {
+                ReminderContent(today, selectedDate, weekDates, datesWithEvents, dayTasks, listById, settings, menuOpen)
+            }
         }
     }
 
@@ -249,7 +256,7 @@ class ReminderWidget : GlanceAppWidget() {
                                     .padding(horizontal = 12.dp)
                                     .clickable(actionStartActivity<MainActivity>())
                             ) {
-                                TaskRow(task, listById, settings.showDetail, pal, fs, today)
+                                TaskRow(task, listById, settings.showDetail, pal, fs, today, settings.isMemo)
                                 Spacer(GlanceModifier.height(10.dp))
                             }
                         }
@@ -277,7 +284,8 @@ class ReminderWidget : GlanceAppWidget() {
                             label = "새로 고침",
                             intent = dispatcherIntent(
                                 context,
-                                WidgetActionDispatcher.ACTION_REFRESH
+                                WidgetActionDispatcher.ACTION_REFRESH,
+                                LocalWidgetId.current
                             )
                         )
                         MenuItem(
@@ -285,7 +293,8 @@ class ReminderWidget : GlanceAppWidget() {
                             label = "설정",
                             intent = dispatcherIntent(
                                 context,
-                                WidgetActionDispatcher.ACTION_OPEN_SETTINGS
+                                WidgetActionDispatcher.ACTION_OPEN_SETTINGS,
+                                LocalWidgetId.current
                             )
                         )
                     }
@@ -322,11 +331,12 @@ class ReminderWidget : GlanceAppWidget() {
         }
         val menuToggleIntent = dispatcherIntent(
             context,
-            WidgetActionDispatcher.ACTION_TOGGLE_MENU
+            WidgetActionDispatcher.ACTION_TOGGLE_MENU,
+            LocalWidgetId.current
         )
         // Tapping the badge always jumps back to today — that's its whole
         // purpose on Samsung's Reminder widget.
-        val jumpToTodayIntent = selectDateIntent(context, today)
+        val jumpToTodayIntent = selectDateIntent(context, today, LocalWidgetId.current)
 
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
@@ -346,7 +356,7 @@ class ReminderWidget : GlanceAppWidget() {
             Box(
                 modifier = GlanceModifier
                     .size(32.dp)
-                    .clickable(actionStartActivityWithIntent(selectDateIntent(context, prevWeek))),
+                    .clickable(actionStartActivityWithIntent(selectDateIntent(context, prevWeek, LocalWidgetId.current))),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -369,7 +379,7 @@ class ReminderWidget : GlanceAppWidget() {
             Box(
                 modifier = GlanceModifier
                     .size(32.dp)
-                    .clickable(actionStartActivityWithIntent(selectDateIntent(context, nextWeek))),
+                    .clickable(actionStartActivityWithIntent(selectDateIntent(context, nextWeek, LocalWidgetId.current))),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -476,7 +486,7 @@ class ReminderWidget : GlanceAppWidget() {
                     modifier = GlanceModifier
                         .defaultWeight()
                         .height(32.dp)
-                        .clickable(actionStartActivityWithIntent(selectDateIntent(context, date))),
+                        .clickable(actionStartActivityWithIntent(selectDateIntent(context, date, LocalWidgetId.current))),
                     contentAlignment = Alignment.Center
                 ) {
                     when {
@@ -556,8 +566,10 @@ class ReminderWidget : GlanceAppWidget() {
         showDetail: Boolean,
         pal: WidgetPalette,
         fs: Float,
-        today: LocalDate
+        today: LocalDate,
+        memo: Boolean
     ) {
+        val context = LocalContext.current
         val done = task.isCompleted || task.isAbandoned
         val ring = when {
             done -> pal.text3
@@ -570,27 +582,49 @@ class ReminderWidget : GlanceAppWidget() {
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Outlined square checkbox (ring effect via nested Box)
-            // Priority-colored ring (TickTick); filled when finished.
-            Box(
-                modifier = GlanceModifier
-                    .size(20.dp)
-                    .background(ColorProvider(ring.copy(alpha = 0.9f)))
-                    .cornerRadius(6.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                if (done) {
-                    Text(
-                        text = if (task.isAbandoned) "✕" else "✓",
-                        style = TextStyle(color = ColorProvider(pal.background), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    )
-                } else {
+            if (memo) {
+                // 메모 모드: a slim colored bar instead of a checkbox.
+                Box(
+                    modifier = GlanceModifier
+                        .width(3.dp)
+                        .height(18.dp)
+                        .background(ColorProvider(if (done) pal.text3 else ring))
+                        .cornerRadius(2.dp)
+                ) {}
+            } else {
+                // 체크박스 모드: priority-colored box; tapping it completes or
+                // reopens the task. The 28dp box is the touch target.
+                Box(
+                    modifier = GlanceModifier
+                        .size(28.dp)
+                        .clickable(
+                            actionStartActivityWithIntent(
+                                toggleTaskIntent(context, task.id, LocalWidgetId.current)
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
                     Box(
                         modifier = GlanceModifier
-                            .size(16.dp)
-                            .background(ColorProvider(pal.background))
-                            .cornerRadius(4.dp)
-                    ) {}
+                            .size(20.dp)
+                            .background(ColorProvider(ring.copy(alpha = 0.9f)))
+                            .cornerRadius(6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (done) {
+                            Text(
+                                text = if (task.isAbandoned) "✕" else "✓",
+                                style = TextStyle(color = ColorProvider(pal.background), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            )
+                        } else {
+                            Box(
+                                modifier = GlanceModifier
+                                    .size(16.dp)
+                                    .background(ColorProvider(pal.background))
+                                    .cornerRadius(4.dp)
+                            ) {}
+                        }
+                    }
                 }
             }
             Spacer(GlanceModifier.width(10.dp))
@@ -607,8 +641,17 @@ class ReminderWidget : GlanceAppWidget() {
                         fontWeight = FontWeight.Medium,
                         textDecoration = if (done) androidx.glance.text.TextDecoration.LineThrough else null
                     ),
-                    maxLines = 1
+                    maxLines = if (memo) 2 else 1
                 )
+                // 메모 모드 shows the task's notes like a sticky note.
+                if (memo && task.notes.isNotBlank()) {
+                    Spacer(GlanceModifier.height(2.dp))
+                    Text(
+                        text = task.notes.trim(),
+                        style = TextStyle(color = ColorProvider(pal.text2), fontSize = (11 * fs).sp),
+                        maxLines = 3
+                    )
+                }
                 if (showDetail) {
                     val subtitle = buildTaskSubtitle(task)
                     if (subtitle != null) {
@@ -674,10 +717,17 @@ class ReminderWidget : GlanceAppWidget() {
      * survives. PendingIntent identity is (component, action, data), so
      * each per-date URI gets its own pending intent.
      */
-    private fun selectDateIntent(context: Context, date: LocalDate): Intent =
+    private fun selectDateIntent(context: Context, date: LocalDate, widgetId: Int): Intent =
         Intent(context, WidgetActionDispatcher::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION
-            data = Uri.parse("bettertick://widget/selectdate/$date")
+            data = Uri.parse("bettertick://widget/selectdate/$date?w=$widgetId")
+        }
+
+    /** Checkbox tap: completes / reopens the task (체크박스 모드). */
+    private fun toggleTaskIntent(context: Context, taskId: String, widgetId: Int): Intent =
+        Intent(context, WidgetActionDispatcher::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION
+            data = Uri.parse("bettertick://widget/toggle/${Uri.encode(taskId)}?w=$widgetId")
         }
 
     /**
@@ -685,10 +735,10 @@ class ReminderWidget : GlanceAppWidget() {
      * than date selection. Data URI is keyed on the action name so each has
      * its own PendingIntent.
      */
-    private fun dispatcherIntent(context: Context, action: String): Intent =
+    private fun dispatcherIntent(context: Context, action: String, widgetId: Int): Intent =
         Intent(context, WidgetActionDispatcher::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION
-            data = Uri.parse("bettertick://widget/action/$action")
+            data = Uri.parse("bettertick://widget/action/$action?w=$widgetId")
         }
 
     /**

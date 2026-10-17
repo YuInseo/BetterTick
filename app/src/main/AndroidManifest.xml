@@ -81,8 +81,12 @@
         <activity
             android:name=".widget.calendar.WidgetSettingsActivity"
             android:exported="true"
-            android:launchMode="singleTop"
-            android:theme="@style/Theme.BetterTick" />
+            android:theme="@style/Theme.BetterTick">
+            <!-- Launcher's "위젯 설정" for a placed reminder widget. -->
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
 
         <receiver android:name=".widget.calendar.ReminderWidgetReceiver"
             android:exported="true"
