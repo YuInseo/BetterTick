@@ -35,11 +35,37 @@ object AppUpdater {
     @Volatile var lastFetchError: String? = null
         private set
 
+    /**
+     * True when the last check failed only because CI was re-publishing the
+     * release (it is deleted and re-created on every push to main, so for a
+     * minute the tag 404s or lacks the APK). Not a real error — try later.
+     */
+    @Volatile var lastFetchPublishing: Boolean = false
+        private set
+
+    const val PUBLISHING_MESSAGE = "새 버전을 배포하는 중이에요. 1~2분 뒤 다시 확인해 주세요."
+
+    private class HttpStatusException(val code: Int, message: String) : java.io.IOException(message)
+
     /** 마지막 downloadApk 실패 사유. UI 진단용 — 성공 시 null. */
     @Volatile var lastDownloadError: String? = null
         private set
 
-    suspend fun fetchLatest(): Release? = withContext(Dispatchers.IO) {
+    /**
+     * Latest release, or null (reason in [lastFetchError]). While CI is
+     * re-publishing it retries a few times before giving up.
+     */
+    suspend fun fetchLatest(): Release? {
+        repeat(3) { attempt ->
+            val r = fetchOnce()
+            if (r != null || !lastFetchPublishing) return r
+            if (attempt < 2) kotlinx.coroutines.delay(5_000)
+        }
+        return null
+    }
+
+    private suspend fun fetchOnce(): Release? = withContext(Dispatchers.IO) {
+        lastFetchPublishing = false
         try {
             val releaseJson = JSONObject(httpGetText(API_URL, githubAccept = true))
             val assets = releaseJson.optJSONArray("assets")
@@ -64,7 +90,9 @@ object AppUpdater {
                 }
             }
             if (apkUrl.isEmpty() || versionJsonUrl.isEmpty()) {
-                lastFetchError = "asset 누락 (apk=${apkUrl.isNotEmpty()}, json=${versionJsonUrl.isNotEmpty()})"
+                // Release exists but its files are still uploading.
+                lastFetchPublishing = true
+                lastFetchError = PUBLISHING_MESSAGE
                 return@withContext null
             }
 
@@ -77,6 +105,16 @@ object AppUpdater {
                 apkName = apkName,
                 sizeBytes = apkSize
             )
+        } catch (e: HttpStatusException) {
+            if (e.code == 404) {
+                // Old release already deleted, new one not created yet.
+                lastFetchPublishing = true
+                lastFetchError = PUBLISHING_MESSAGE
+            } else {
+                lastFetchError = e.message
+            }
+            Log.w(TAG, "fetchLatest failed", e)
+            null
         } catch (e: Exception) {
             lastFetchError = "${e.javaClass.simpleName}: ${e.message ?: "(no message)"}"
             Log.w(TAG, "fetchLatest failed", e)
@@ -103,7 +141,7 @@ object AppUpdater {
             conn.inputStream.bufferedReader().use { it.readText() }
         } else {
             val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-            throw java.io.IOException("HTTP $code from $url — body: ${errBody.take(300)}")
+            throw HttpStatusException(code, "HTTP $code from $url — body: ${errBody.take(300)}")
         }
     }
 
@@ -148,7 +186,7 @@ object AppUpdater {
                         continue
                     }
                     val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    throw java.io.IOException("HTTP $code from $url — body: ${errBody.take(300)}")
+                    throw HttpStatusException(code, "HTTP $code from $url — body: ${errBody.take(300)}")
                 }
                 if (conn == null || hop >= 5) throw java.io.IOException("redirect loop > 5 hops")
                 conn.inputStream.use { input ->

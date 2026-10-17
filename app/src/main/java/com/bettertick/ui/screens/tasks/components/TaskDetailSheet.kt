@@ -377,26 +377,8 @@ fun TaskDetailSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val checkboxShape = RoundedCornerShape(6.dp)
-                val asShift = task.copy(title = title, leaves = leaves)
-                if (asShift.isShiftTask()) {
-                    // 근무 일정: 병가 / 지휴 사용 여부 instead of a checkbox.
-                    val day = asShift.shiftDay(occurrenceDate)
-                    val used = asShift.leaveOn(day)
-                    Box(Modifier.weight(1f, fill = false)) {
-                        LeaveChipRow(
-                            day = day,
-                            used = used,
-                            savedUsed = task.leaveOn(day),
-                            onToggle = if (day != null) {
-                                { type ->
-                                    val t = asShift.withLeaveToggled(day, type)
-                                    title = t.title
-                                    leaves = t.leaves
-                                }
-                            } else null
-                        )
-                    }
-                } else Box(
+                val isShift = task.copy(title = title).isShiftTask()
+                if (!isShift) Box(
                     modifier = Modifier
                         .size(24.dp)
                         .clip(checkboxShape)
@@ -420,7 +402,7 @@ fun TaskDetailSheet(
                     }
                 }
 
-                Spacer(Modifier.width(12.dp))
+                if (!isShift) Spacer(Modifier.width(12.dp))
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -463,24 +445,24 @@ fun TaskDetailSheet(
 
             Spacer(Modifier.height(16.dp))
 
-            // ── Notion card ──────────────────────────────────────────────
-            NotionCard(
-                url = notionUrl,
-                onEdit = { showNotionInput = true },
-                onOpen = {
-                    if (notionUrl.isNotBlank()) {
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse(notionUrl.ensureScheme())
-                        )
-                        runCatching { context.startActivity(intent) }
-                    } else {
-                        showNotionInput = true
-                    }
-                }
-            )
-
-            Spacer(Modifier.height(16.dp))
+            // ── 근무 일정: 지휴 · 병가 · 연차 (one straight row) ────────────
+            val asShift = task.copy(title = title, leaves = leaves)
+            if (asShift.isShiftTask()) {
+                val day = asShift.shiftDay(occurrenceDate)
+                LeaveButtonsRow(
+                    day = day,
+                    used = asShift.leaveOn(day),
+                    savedUsed = task.leaveOn(day),
+                    onToggle = if (day != null) {
+                        { type ->
+                            val t = asShift.withLeaveToggled(day, type)
+                            title = t.title
+                            leaves = t.leaves
+                        }
+                    } else null
+                )
+                Spacer(Modifier.height(16.dp))
+            }
 
             // ── Selected-tag chips ───────────────────────────────────────
             val selectedTags = remember(tagIds, tags) {
