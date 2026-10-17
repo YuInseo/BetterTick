@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ themed icon: outline calendar + check (alpha only). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="4.5"
+        android:pathData="M42,36 H66 A9,9 0 0 1 75,45 V68 A9,9 0 0 1 66,77 H42 A9,9 0 0 1 33,68 V45 A9,9 0 0 1 42,36 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M39.5,30.5 A2.5,2.5 0 0 1 44.5,30.5 V38 H39.5 Z M63.5,30.5 A2.5,2.5 0 0 1 68.5,30.5 V38 H63.5 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M43,61 L51,68.5 L66,53" />
+</vector>
