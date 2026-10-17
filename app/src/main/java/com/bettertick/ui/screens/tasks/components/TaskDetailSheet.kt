@@ -481,19 +481,11 @@ fun TaskDetailSheet(
             // Plain markdown when listMode is None, otherwise an interactive
             // checklist / bullet editor. The list-button in the bottom bar
             // cycles between the two modes and keeps `notes` in sync.
-            Text(
-                text = "설명",
-                fontSize = 12.sp,
-                color = TextTertiary,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
             if (listMode == ListMode.None) {
                 MarkdownNotesEditor(
                     value = notes,
                     onValueChange = { notes = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 140.dp)
+                    modifier = Modifier.fillMaxWidth()
                 )
             } else {
                 ChecklistEditor(
@@ -749,33 +741,31 @@ private fun MarkdownNotesEditor(
 ) {
     val transformation = remember { MarkdownInlineTransformation() }
 
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(DarkSurfaceVariant.copy(alpha = 0.35f))
-            .padding(14.dp)
-    ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            if (value.isEmpty()) {
-                Text(
-                    text = "메모를 입력하세요 (**굵게**, *기울임*, `코드`, ~~취소선~~ 지원)",
-                    fontSize = 14.sp,
-                    color = TextTertiary
-                )
-            }
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                textStyle = TextStyle(
-                    color = TextPrimary,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                visualTransformation = transformation,
-                modifier = Modifier.fillMaxWidth()
+    // TickTick style: no box or label — the notes read as a continuation of
+    // the title, with a faint "설명" placeholder. The field fills the empty
+    // area so tapping anywhere below the title starts typing.
+    Box(modifier = modifier) {
+        if (value.isEmpty()) {
+            Text(
+                text = "설명",
+                fontSize = 16.sp,
+                color = TextTertiary
             )
         }
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            textStyle = TextStyle(
+                color = TextPrimary,
+                fontSize = 16.sp,
+                lineHeight = 24.sp
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            visualTransformation = transformation,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 160.dp)
+        )
     }
 }
 
