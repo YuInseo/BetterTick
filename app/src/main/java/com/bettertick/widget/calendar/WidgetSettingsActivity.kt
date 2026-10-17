@@ -91,10 +91,21 @@ class WidgetSettingsActivity : ComponentActivity() {
         val tagsFlow = runCatching { tagRepository.observeTags() }.getOrNull()
         // Snapshot taken outside composition; the live flow below takes over.
         val cachedLists: List<TaskList> = WidgetServiceLocator.listsCache.value
+        // Which placed widget is being configured — from the widget's ⋮ menu
+        // or the launcher's own "위젯 설정" (APPWIDGET_CONFIGURE).
+        val widgetId = intent?.getIntExtra(
+            android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
+            android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+        ) ?: android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+        // A launcher-driven configure must answer OK or the new widget is
+        // dropped; answer up front so ✕ / back keep the widget too.
+        if (widgetId != android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID) {
+            setResult(RESULT_OK, android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
+        }
         setContent {
             BetterTickTheme {
                 val ctx = this
-                var settings by remember { mutableStateOf(WidgetServiceLocator.reminderSettings(ctx)) }
+                var settings by remember { mutableStateOf(WidgetServiceLocator.reminderSettings(ctx, widgetId)) }
                 var filterPage by remember { mutableStateOf(false) }
                 val lists by remember {
                     (listsFlow ?: kotlinx.coroutines.flow.flowOf(cachedLists))
@@ -125,7 +136,7 @@ class WidgetSettingsActivity : ComponentActivity() {
                         TopBar(
                             onClose = { finish() },
                             onConfirm = {
-                                WidgetServiceLocator.saveReminderSettings(ctx, settings)
+                                WidgetServiceLocator.saveReminderSettings(ctx, settings, widgetId)
                                 refreshWidgets(ctx.applicationContext)
                                 finish()
                             }
@@ -136,7 +147,29 @@ class WidgetSettingsActivity : ComponentActivity() {
                                 .verticalScroll(rememberScrollState())
                                 .padding(horizontal = 16.dp)
                         ) {
+                            if (widgetId > 0) {
+                                Text(
+                                    "이 위젯에만 적용됩니다. 홈 화면의 다른 위젯은 각자 설정을 가집니다.",
+                                    fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp,
+                                    modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+                                )
+                            }
                             Spacer(Modifier.height(12.dp))
+                            Card {
+                                ChoiceRow(
+                                    title = "표시 모드",
+                                    value = settings.mode,
+                                    options = listOf("checkbox" to "체크박스", "memo" to "메모"),
+                                    onPick = { settings = settings.copy(mode = it) }
+                                )
+                                Text(
+                                    if (settings.isMemo) "체크박스 없이 제목과 메모 내용을 메모장처럼 보여 줍니다."
+                                    else "체크박스를 눌러 위젯에서 바로 완료할 수 있습니다.",
+                                    fontSize = 12.sp, color = TextTertiary, lineHeight = 16.sp,
+                                    modifier = Modifier.padding(start = 18.dp, end = 18.dp, bottom = 12.dp)
+                                )
+                            }
+                            Spacer(Modifier.height(16.dp))
                             Card {
                                 ChoiceRow(
                                     title = "테마",

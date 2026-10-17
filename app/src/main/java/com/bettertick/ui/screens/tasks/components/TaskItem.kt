@@ -33,11 +33,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.LEAVE_TYPES
+import com.bettertick.data.model.isShiftTask
+import com.bettertick.data.model.leaveOn
+import com.bettertick.data.model.normalizeShiftLabel
+import com.bettertick.data.model.shiftDay
 import com.bettertick.ui.components.MarkdownText
 import com.bettertick.ui.theme.OverdueRed
 import com.bettertick.ui.theme.TextPrimary
@@ -81,14 +87,19 @@ fun TaskItem(
     /** 목록 ⋮ > 세부 정보 표시 — notes preview + tag pills. */
     showDetails: Boolean = com.bettertick.ui.screens.tasks.TaskListPrefs.showDetails,
     /** Long-press — enters multi-select in the task list. */
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    /** 근무 할일의 병가 / 지휴 토글 (day, type). Null shows the used leave read-only. */
+    onToggleLeave: ((LocalDate, String) -> Unit)? = null
 ) {
+    val isShift = task.isShiftTask()
+    val shiftDay = if (isShift) task.shiftDay(overrideDate) else null
+    val leave = if (isShift) task.leaveOn(shiftDay) else null
     val shownDate = overrideDate ?: task.dueDate?.toLocalDate()
     // Recurring tasks aren't really "overdue" — even when their stored
     // due date is in the past, the rule keeps producing fresh occurrences.
     val isOverdue = shownDate?.let {
         it.isBefore(LocalDate.now()) && !task.isCompleted && !task.isAbandoned &&
-            task.repeatRule.isNullOrBlank()
+            task.repeatRule.isNullOrBlank() && !task.isShiftTask()
     } ?: false
     val isDone = task.isCompleted || task.isAbandoned
 
@@ -119,7 +130,12 @@ fun TaskItem(
     ) {
         // 44dp touch target keeps the parent drag detector from stealing the
         // tap; the visible box is TickTick's 18dp rounded square.
-        Box(
+        if (isShift) {
+            // 근무 일정 — no completion checkbox, just the shift badge.
+            Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                ShiftBadge(normalizeShiftLabel(task.title), leave)
+            }
+        } else Box(
             modifier = Modifier
                 .size(44.dp)
                 .clickable {
@@ -148,6 +164,22 @@ fun TaskItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (isShift && (onToggleLeave != null || leave != null)) {
+                Spacer(Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    LEAVE_TYPES.forEach { type ->
+                        if (onToggleLeave != null || leave == type) {
+                            LeaveChip(
+                                label = type,
+                                selected = leave == type,
+                                onClick = if (onToggleLeave != null && shiftDay != null) {
+                                    { onToggleLeave(shiftDay, type) }
+                                } else null
+                            )
+                        }
+                    }
+                }
+            }
             if (showDetails && task.notes.isNotBlank()) {
                 MarkdownText(
                     text = task.notes,
@@ -342,4 +374,44 @@ private fun formatClock(time: LocalTime): String {
         else -> time.hour
     }
     return "%d:%02d".format(h, time.minute)
+}
+
+
+/** Color of a leave kind (병가 red, 지휴 purple). */
+fun leaveColor(type: String): Color = if (type == "병가") Color(0xFFE5483F) else Color(0xFF8E6CEF)
+
+/** Round badge with the shift label (주 / 야 / 비 / 휴); tinted by the leave used. */
+@Composable
+fun ShiftBadge(label: String, leave: String?) {
+    val tint = leave?.let { leaveColor(it) } ?: ThemeState.accentColor
+    Box(
+        modifier = Modifier
+            .size(26.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(tint.copy(alpha = 0.16f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label.take(2), fontSize = if (label.length > 1) 10.sp else 12.sp, fontWeight = FontWeight.Bold, color = tint)
+    }
+}
+
+/** 병가 / 지휴 toggle pill. Filled when that leave was used on the day. */
+@Composable
+fun LeaveChip(label: String, selected: Boolean, onClick: (() -> Unit)?) {
+    val c = leaveColor(label)
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier = Modifier
+            .clip(shape)
+            .then(if (selected) Modifier.background(c) else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.6f), shape))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 10.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = if (selected) "$label ✓" else label,
+            fontSize = 12.sp,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (selected) Color.White else TextSecondary
+        )
+    }
 }

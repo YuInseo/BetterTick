@@ -9,4 +9,6 @@
     android:updatePeriodMillis="1800000"
     android:description="@string/widget_reminder_description"
     android:initialLayout="@layout/widget_preview_reminder"
-    android:previewLayout="@layout/widget_preview_reminder" />
+    android:previewLayout="@layout/widget_preview_reminder"
+    android:configure="com.bettertick.widget.calendar.WidgetSettingsActivity"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

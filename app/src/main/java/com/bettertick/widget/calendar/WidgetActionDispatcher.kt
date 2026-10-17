@@ -49,6 +49,8 @@ class WidgetActionDispatcher : ComponentActivity() {
         val segments = uri.pathSegments
         val kind = segments.firstOrNull() ?: return
         val arg = segments.getOrNull(1)
+        // Which placed widget sent the tap (0 = unknown → apply to all).
+        val widgetId = uri.getQueryParameter("w")?.toIntOrNull() ?: 0
 
         // Side-effects that aren't Glance state (launch another activity) run
         // synchronously here so they fire even if the coroutine below races
@@ -57,15 +59,35 @@ class WidgetActionDispatcher : ComponentActivity() {
             Log.i(TAG, "OPEN_SETTINGS")
             startActivity(
                 Intent(this, WidgetSettingsActivity::class.java)
+                    .putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             )
+        }
+
+        // 체크박스 모드: complete / reopen the tapped task. The app-wide task
+        // stream repaints every widget once the write lands.
+        if (kind == "toggle" && arg != null) {
+            if (!com.bettertick.widget.WidgetServiceLocator.isInitialized) return
+            val task = com.bettertick.widget.WidgetServiceLocator.tasksCache.value.firstOrNull { it.id == arg }
+            val complete = task?.let { !(it.isCompleted || it.isAbandoned) } ?: true
+            Log.i(TAG, "TOGGLE task=$arg complete=$complete")
+            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                runCatching {
+                    val repo = com.bettertick.widget.WidgetServiceLocator.taskRepository
+                    if (task?.isAbandoned == true) repo.setAbandoned(arg, false)
+                    else repo.toggleComplete(arg, complete)
+                }.onFailure { Log.e(TAG, "toggle failed", it) }
+            }
+            return
         }
 
         val appContext = applicationContext
         CoroutineScope(SupervisorJob() + Dispatchers.Main).launch {
             try {
-                val ids = GlanceAppWidgetManager(appContext)
-                    .getGlanceIds(ReminderWidget::class.java)
+                val mgr = GlanceAppWidgetManager(appContext)
+                val ids = mgr.getGlanceIds(ReminderWidget::class.java).filter { gid ->
+                    widgetId <= 0 || runCatching { mgr.getAppWidgetId(gid) }.getOrNull() == widgetId
+                }
                 Log.i(TAG, "writing state for ${ids.size} widget(s)")
                 val widget = ReminderWidget()
                 for (id in ids) {
