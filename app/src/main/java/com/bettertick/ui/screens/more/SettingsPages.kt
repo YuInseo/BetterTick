@@ -413,8 +413,9 @@ private fun LeaveSummaryRow(type: String, today: java.time.LocalDate, onClick: (
             Text(type, fontSize = 16.sp, color = TextPrimary)
             Spacer(Modifier.height(2.dp))
             Text(
-                "${LeavePrefs.periodOf(type).label} · ${LeavePrefs.periodName(type)} ${used}일 사용" +
-                    (if (q > 0) " · ${q - used}일 남음" else "") +
+                (if (LeavePrefs.isAuto(type)) "빨간날 근무 자동 · " else "") +
+                    "${LeavePrefs.periodOf(type).label} · ${LeavePrefs.periodName(type)} ${used}일 사용" +
+                    (if (q > 0 || LeavePrefs.isAuto(type)) " · ${q - used}일 남음" else "") +
                     (if (custom) " · ${today.year}년 별도 설정" else ""),
                 fontSize = 12.sp, color = TextTertiary
             )
@@ -430,10 +431,97 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
     val today = remember { java.time.LocalDate.now() }
     var editBase by remember { mutableStateOf(false) }
     var editYear by remember { mutableStateOf<Int?>(null) }
+    var pickRedDay by remember { mutableStateOf(false) }
+    var showEarned by remember { mutableStateOf(false) }
     val period = LeavePrefs.periodOf(type)
     val base = LeavePrefs.baseQuota(type)
+    val auto = LeavePrefs.isAuto(type)
+    // In auto mode the user's own number is added on top of what was earned.
+    val ownLabel = when {
+        auto -> "추가 일수"
+        period == LeavePeriod.NONE -> "총 일수"
+        else -> "기본 일수"
+    }
 
     OptionPage(title = type, onBack = onBack) {
+        if (type == "지휴") {
+            OptionCard {
+                OptionSwitchRow(
+                    title = "빨간날 근무로 자동 계산",
+                    subtitle = "한국 달력의 공휴일·대체공휴일에 주간/야간/당직 근무를 하면 그날마다 지휴 1일이 생깁니다. 그날 휴가를 쓰면 세지 않습니다.",
+                    checked = LeavePrefs.autoJihyu,
+                    onCheckedChange = { LeavePrefs.updateAutoJihyu(it) }
+                )
+                if (auto) {
+                    OptionSwitchRow(
+                        title = "일요일도 빨간날로",
+                        subtitle = "끄면 공휴일 근무만 셉니다.",
+                        checked = LeavePrefs.includeSunday,
+                        onCheckedChange = { LeavePrefs.updateIncludeSunday(it) }
+                    )
+                    val earnedNow = LeavePrefs.earnedDaysIn(today)
+                    OptionNavRow(
+                        "${LeavePrefs.periodName(type)} 빨간날 근무",
+                        value = "${earnedNow.size}일"
+                    ) { showEarned = !showEarned }
+                    if (showEarned) {
+                        if (earnedNow.isEmpty()) {
+                            Text(
+                                "아직 빨간날 근무가 없습니다.",
+                                fontSize = 13.sp, color = TextTertiary,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                            )
+                        }
+                        earnedNow.forEach { d ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    "${d.monthValue}월 ${d.dayOfMonth}일 (${koDow(d.dayOfWeek)})",
+                                    fontSize = 14.sp, color = TextPrimary, modifier = Modifier.weight(1f)
+                                )
+                                Text(
+                                    (LeavePrefs.redDayName(d) ?: "") + if (d.isAfter(today)) " · 예정" else "",
+                                    fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFE5483F)
+                                )
+                            }
+                        }
+                    }
+                    OptionNavRow(
+                        "빨간날 직접 지정",
+                        value = LeavePrefs.redOverrides.size.takeIf { it > 0 }?.let { "${it}일" }
+                    ) { pickRedDay = true }
+                }
+            }
+            if (auto && LeavePrefs.redOverrides.isNotEmpty()) {
+                OptionCard {
+                    LeavePrefs.redOverrides.entries.sortedBy { it.key }.forEach { (d, red) ->
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(start = 20.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "${d.year}년 ${d.monthValue}월 ${d.dayOfMonth}일 (${koDow(d.dayOfWeek)})",
+                                fontSize = 14.sp, color = TextPrimary, modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                if (red) "빨간날로" else "빨간날 아님",
+                                fontSize = 13.sp,
+                                color = if (red) androidx.compose.ui.graphics.Color(0xFFE5483F) else TextSecondary
+                            )
+                            androidx.compose.material3.TextButton(onClick = { LeavePrefs.setRedOverride(d, null) }) {
+                                Text("되돌리기", color = ThemeState.accentColor, fontSize = 13.sp)
+                            }
+                        }
+                    }
+                }
+            }
+        }
         OptionCard {
             OptionChoiceRow(
                 title = "주기",
@@ -447,17 +535,16 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
                 label = { it.label },
                 onPick = { LeavePrefs.updatePeriod(type, it) }
             )
-            OptionNavRow(
-                if (period == LeavePeriod.NONE) "총 일수" else "기본 일수",
-                value = daysLabel(type, base)
-            ) { editBase = true }
+            OptionNavRow(ownLabel, value = daysLabel(type, base)) { editBase = true }
         }
 
         val q = LeavePrefs.quota(type, today)
         val used = LeavePrefs.used(type, today)
         Text(
-            "${LeavePrefs.periodName(type)} ${used}일 사용" +
-                (if (q > 0) " · ${q}일 중 ${q - used}일 남음" else " · 일수를 정하면 남은 일수가 표시됩니다."),
+            (if (auto) "빨간날 근무 ${LeavePrefs.earnedIn(today)}일" +
+                (if (q - LeavePrefs.earnedIn(today) > 0) " + 추가 ${q - LeavePrefs.earnedIn(today)}일" else "") + " · " else "") +
+                "${LeavePrefs.periodName(type)} ${used}일 사용" +
+                (if (q > 0 || auto) " · ${q}일 중 ${q - used}일 남음" else " · 일수를 정하면 남은 일수가 표시됩니다."),
             fontSize = 13.sp, color = TextSecondary,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
@@ -490,11 +577,20 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
 
     if (editBase) {
         LeaveDaysDialog(
-            title = "$type ${if (period == LeavePeriod.NONE) "총 일수" else "기본 일수"}",
+            title = "$type $ownLabel",
             initial = base,
             clearLabel = null,
             onDismiss = { editBase = false },
             onConfirm = { LeavePrefs.updateQuota(type, it ?: 0); editBase = false }
+        )
+    }
+    if (pickRedDay) {
+        RedDayPickerDialog(
+            onDismiss = { pickRedDay = false },
+            onPick = { d ->
+                LeavePrefs.setRedOverride(d, !LeavePrefs.isRedDay(d))
+                pickRedDay = false
+            }
         )
     }
     editYear?.let { y ->
@@ -504,6 +600,51 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
             clearLabel = "기본값 사용",
             onDismiss = { editYear = null },
             onConfirm = { LeavePrefs.updateYearQuota(type, y, it); editYear = null }
+        )
+    }
+}
+
+private fun koDow(d: DayOfWeek): String = "월화수목금토일"[d.value - 1].toString()
+
+/** Pick a day to flip between 빨간날 and not — for holidays the table misses. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun RedDayPickerDialog(onDismiss: () -> Unit, onPick: (java.time.LocalDate) -> Unit) {
+    val state = androidx.compose.material3.rememberDatePickerState()
+    val picked = state.selectedDateMillis?.let {
+        java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+    }
+    androidx.compose.material3.DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                enabled = picked != null,
+                onClick = { picked?.let(onPick) }
+            ) {
+                Text(
+                    when {
+                        picked == null -> "날짜 선택"
+                        LeavePrefs.isRedDay(picked) -> "빨간날 아님으로"
+                        else -> "빨간날로 지정"
+                    },
+                    color = ThemeState.accentColor
+                )
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("취소", color = TextSecondary) }
+        },
+        colors = androidx.compose.material3.DatePickerDefaults.colors(containerColor = GroupedCard)
+    ) {
+        androidx.compose.material3.DatePicker(
+            state = state,
+            title = {
+                Text(
+                    "회사 휴일·새로 생긴 공휴일 등을 지정하세요",
+                    fontSize = 13.sp, color = TextSecondary,
+                    modifier = Modifier.padding(start = 24.dp, end = 12.dp, top = 16.dp)
+                )
+            }
         )
     }
 }
