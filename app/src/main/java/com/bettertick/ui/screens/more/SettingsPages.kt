@@ -42,6 +42,8 @@ import com.bettertick.ui.screens.tasks.SmartList
 import com.bettertick.ui.screens.tasks.SmartListPrefs
 import com.bettertick.ui.screens.tasks.SmartVisibility
 import com.bettertick.ui.screens.tasks.SwipeAction
+import com.bettertick.ui.screens.tasks.LeavePeriod
+import com.bettertick.ui.screens.tasks.LeavePrefs
 import com.bettertick.ui.screens.tasks.TaskListPrefs
 import com.bettertick.ui.theme.AppPrefs
 import com.bettertick.ui.theme.DefaultDueDate
@@ -315,6 +317,31 @@ fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = nul
                 onCheckedChange = AppPrefs::updateNewTaskOnTop
             )
         }
+        Text(
+            "휴가 일수",
+            fontSize = 13.sp, color = TextSecondary,
+            modifier = Modifier.padding(start = 20.dp)
+        )
+        OptionCard {
+            val today = java.time.LocalDate.now()
+            listOf("지휴", "연차", "병가").forEach { type ->
+                val monthly = LeavePrefs.periodOf(type) == LeavePeriod.MONTH
+                OptionChoiceRow(
+                    title = type,
+                    subtitle = (if (monthly) "매달 " else "매년 ") + "주어지는 일수 · " +
+                        (if (monthly) "이번 달 " else "올해 ") + "${LeavePrefs.used(type, today)}일 사용",
+                    value = LeavePrefs.quota(type),
+                    options = (0..(if (monthly) 10 else 30)).toList(),
+                    label = { if (it == 0) "설정 안 함" else if (monthly) "월 ${it}일" else "연 ${it}일" },
+                    onPick = { LeavePrefs.updateQuota(type, it) }
+                )
+            }
+        }
+        Text(
+            "근무(주/야/비/휴) 할일의 병가·지휴·연차 버튼에 남은 일수가 표시됩니다. 지휴는 매달 1일, 연차·병가는 매년 1월 1일에 다시 채워집니다.",
+            fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
         Text(
             "스와이프 동작",
             fontSize = 13.sp, color = TextSecondary,

@@ -166,19 +166,13 @@ fun TaskItem(
             )
             if (isShift && (onToggleLeave != null || leave != null)) {
                 Spacer(Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    LEAVE_TYPES.forEach { type ->
-                        if (onToggleLeave != null || leave == type) {
-                            LeaveChip(
-                                label = type,
-                                selected = leave == type,
-                                onClick = if (onToggleLeave != null && shiftDay != null) {
-                                    { onToggleLeave(shiftDay, type) }
-                                } else null
-                            )
-                        }
-                    }
-                }
+                LeaveChipRow(
+                    day = shiftDay,
+                    used = leave,
+                    onToggle = if (onToggleLeave != null && shiftDay != null) {
+                        { type -> onToggleLeave(shiftDay, type) }
+                    } else null
+                )
             }
             if (showDetails && task.notes.isNotBlank()) {
                 MarkdownText(
@@ -378,7 +372,45 @@ private fun formatClock(time: LocalTime): String {
 
 
 /** Color of a leave kind (병가 red, 지휴 purple). */
-fun leaveColor(type: String): Color = if (type == "병가") Color(0xFFE5483F) else Color(0xFF8E6CEF)
+fun leaveColor(type: String): Color = when (type) {
+    "병가" -> Color(0xFFE5483F)
+    "연차" -> Color(0xFF35B36A)
+    else -> Color(0xFF8E6CEF)
+}
+
+/**
+ * 병가 / 지휴 / 연차 chips for a shift on [day], each with the days left in
+ * its allowance (설정 > 일반 > 휴가 일수). Read-only ([onToggle] null) shows
+ * only the leave that was used.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun LeaveChipRow(
+    day: LocalDate?,
+    used: String?,
+    onToggle: ((String) -> Unit)?,
+    /** Unsaved edit (detail sheet): the leave the saved task has on [day]. */
+    savedUsed: String? = used
+) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        LEAVE_TYPES.forEach { type ->
+            if (onToggle != null || used == type) {
+                LeaveChip(
+                    label = type,
+                    selected = used == type,
+                    remaining = day?.let {
+                        val extra = (if (used == type) 1 else 0) - (if (savedUsed == type) 1 else 0)
+                        com.bettertick.ui.screens.tasks.LeavePrefs.remainingLabel(type, it, extra)
+                    },
+                    onClick = onToggle?.let { { it(type) } }
+                )
+            }
+        }
+    }
+}
 
 /** Round badge with the shift label (주 / 야 / 비 / 휴); tinted by the leave used. */
 @Composable
@@ -397,7 +429,7 @@ fun ShiftBadge(label: String, leave: String?) {
 
 /** 병가 / 지휴 toggle pill. Filled when that leave was used on the day. */
 @Composable
-fun LeaveChip(label: String, selected: Boolean, onClick: (() -> Unit)?) {
+fun LeaveChip(label: String, selected: Boolean, onClick: (() -> Unit)?, remaining: String? = null) {
     val c = leaveColor(label)
     val shape = RoundedCornerShape(10.dp)
     Box(
@@ -407,11 +439,20 @@ fun LeaveChip(label: String, selected: Boolean, onClick: (() -> Unit)?) {
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 10.dp, vertical = 3.dp)
     ) {
+        val over = remaining?.endsWith("초과") == true
         Text(
-            text = if (selected) "$label ✓" else label,
+            text = buildString {
+                append(label)
+                if (selected) append(" ✓")
+                if (remaining != null) append(" · ").append(remaining)
+            },
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) Color.White else TextSecondary
+            color = when {
+                selected -> Color.White
+                over -> OverdueRed
+                else -> TextSecondary
+            }
         )
     }
 }

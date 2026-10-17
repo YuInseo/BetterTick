@@ -83,7 +83,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 import com.bettertick.data.model.isShiftRotationOf
-import com.bettertick.data.model.LEAVE_TYPES
 import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.leaveOn
 import com.bettertick.data.model.shiftDay
@@ -383,20 +382,19 @@ fun TaskDetailSheet(
                     // 근무 일정: 병가 / 지휴 사용 여부 instead of a checkbox.
                     val day = asShift.shiftDay(occurrenceDate)
                     val used = asShift.leaveOn(day)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        LEAVE_TYPES.forEach { type ->
-                            LeaveChip(
-                                label = type,
-                                selected = used == type,
-                                onClick = if (day != null) {
-                                    {
-                                        val t = asShift.withLeaveToggled(day, type)
-                                        title = t.title
-                                        leaves = t.leaves
-                                    }
-                                } else null
-                            )
-                        }
+                    Box(Modifier.weight(1f, fill = false)) {
+                        LeaveChipRow(
+                            day = day,
+                            used = used,
+                            savedUsed = task.leaveOn(day),
+                            onToggle = if (day != null) {
+                                { type ->
+                                    val t = asShift.withLeaveToggled(day, type)
+                                    title = t.title
+                                    leaves = t.leaves
+                                }
+                            } else null
+                        )
                     }
                 } else Box(
                     modifier = Modifier
