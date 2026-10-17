@@ -109,6 +109,7 @@ private fun WeekDayCell(
                 color = when {
                     isSelected -> Color.White
                     isToday -> MaterialTheme.colorScheme.primary
+                    isCalendarRedDay(date) -> CalendarRedDay
                     else -> MaterialTheme.colorScheme.onBackground
                 },
                 textAlign = TextAlign.Center

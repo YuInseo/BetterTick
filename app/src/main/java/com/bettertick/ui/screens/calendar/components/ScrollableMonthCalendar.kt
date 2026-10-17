@@ -299,6 +299,7 @@ private fun DayCell(
                 color = when {
                     isSelected -> Color.White
                     isToday -> MaterialTheme.colorScheme.primary
+                    isCalendarRedDay(date) -> CalendarRedDay
                     else -> MaterialTheme.colorScheme.onBackground
                 },
                 textAlign = TextAlign.Center,
@@ -394,3 +395,10 @@ fun CalendarTaskChip(
         )
     }
 }
+
+internal val CalendarRedDay = Color(0xFFE5483F)
+
+/** Sundays and Korean public holidays (with the user's own corrections) show in red. */
+internal fun isCalendarRedDay(date: LocalDate): Boolean =
+    com.bettertick.ui.screens.tasks.LeavePrefs.redOverrides[date]
+        ?: com.bettertick.data.model.KoreanHolidays.isRedDay(date)
