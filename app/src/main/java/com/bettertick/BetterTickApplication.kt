@@ -49,6 +49,7 @@ class BetterTickApplication : Application() {
         com.bettertick.ui.screens.tasks.SmartListPrefs.init(this)
         com.bettertick.ui.screens.focus.FocusPrefs.init(this)
         com.bettertick.ui.screens.habits.HabitPrefs.init(this)
+        com.bettertick.ui.screens.tasks.LeavePrefs.init(this)
         com.bettertick.reminder.ReminderScheduler.scheduleDailySummary(this)
         KakaoMapSdk.init(this, "36af0c02f9ab81fb67df8c9bbeefc7f1")
         // Initialize widget service locator for AppWidget access
@@ -86,6 +87,8 @@ class BetterTickApplication : Application() {
             }
             .onEach { tasks ->
                 WidgetServiceLocator.publishTasks(tasks)
+                // 휴가 남은 일수 (병가/지휴/연차) follows every task change.
+                runCatching { com.bettertick.ui.screens.tasks.LeavePrefs.recount(tasks) }
                 // Keep task reminder alarms in step with every task change.
                 runCatching { com.bettertick.reminder.ReminderScheduler.syncAll(this@BetterTickApplication, tasks) }
                 runCatching { ReminderWidget().updateAll(this@BetterTickApplication) }

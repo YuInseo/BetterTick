@@ -85,6 +85,13 @@ private data class WidgetPalette(
     }
 }
 
+/** 병가 red, 연차 green, 지휴 purple — same as the app's leave chips. */
+private fun widgetLeaveColor(type: String): Color = when (type) {
+    "병가" -> Color(0xFFE5483F)
+    "연차" -> Color(0xFF35B36A)
+    else -> Color(0xFF8E6CEF)
+}
+
 /** 위젯 설정 > 글자 크기. */
 private fun fontScale(size: String): Float = when (size) {
     "small" -> 0.88f
@@ -589,11 +596,7 @@ class ReminderWidget : GlanceAppWidget() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isShift) {
-                val tint = when (leave) {
-                    "병가" -> Color(0xFFE5483F)
-                    "지휴" -> Color(0xFF8E6CEF)
-                    else -> WidgetColorValues.accent
-                }
+                val tint = leave?.let { widgetLeaveColor(it) } ?: WidgetColorValues.accent
                 Box(
                     modifier = GlanceModifier
                         .size(24.dp)
@@ -669,9 +672,10 @@ class ReminderWidget : GlanceAppWidget() {
                 )
                 if (leave != null) {
                     Text(
-                        text = "$leave 사용",
+                        text = "$leave 사용" + (com.bettertick.ui.screens.tasks.LeavePrefs
+                            .remainingLabel(leave, today)?.let { " · $it" } ?: ""),
                         style = TextStyle(
-                            color = ColorProvider(if (leave == "병가") Color(0xFFE5483F) else Color(0xFF8E6CEF)),
+                            color = ColorProvider(widgetLeaveColor(leave)),
                             fontSize = (11 * fs).sp,
                             fontWeight = FontWeight.Medium
                         )
