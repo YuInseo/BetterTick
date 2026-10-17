@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.withLeaveToggled
 import com.bettertick.ui.screens.tasks.components.QuickDateSettingsDialog
 import com.bettertick.ui.screens.tasks.components.RecurringScope
 import com.bettertick.ui.screens.tasks.components.RecurringScopeDialog
@@ -163,7 +164,8 @@ fun SelectedDatePanel(
                             },
                             onDragUpdate = onDragTaskUpdate,
                             onDragRelease = onDragTaskRelease,
-                            resolvedTags = taskTags
+                            resolvedTags = taskTags,
+                            onToggleLeave = { day, type -> onUpdateTask(task.withLeaveToggled(day, type)) }
                         )
                     }
                 }
@@ -261,7 +263,8 @@ fun SelectedDatePanel(
             onUpdateTask = { updated -> onUpdateTask(updated) },
             onToggleComplete = { onToggleComplete(task) },
             tags = tags,
-            onCreateTag = onCreateTag
+            onCreateTag = onCreateTag,
+            occurrenceDate = selectedDate
         )
     }
 
@@ -309,7 +312,8 @@ private fun DraggableTaskRow(
     onDelete: () -> Unit,
     onDragUpdate: (ActiveDrag?) -> Unit,
     onDragRelease: (Task) -> Unit,
-    resolvedTags: List<Tag> = emptyList()
+    resolvedTags: List<Tag> = emptyList(),
+    onToggleLeave: ((LocalDate, String) -> Unit)? = null
 ) {
     // Track the item's position in the root Composition so drag offsets
     // can be translated to root-space for hit-testing against date cells
@@ -355,7 +359,8 @@ private fun DraggableTaskRow(
             overrideDate = selectedDate,
             listName = listName,
             resolvedTags = resolvedTags,
-            rowBackground = DarkCard
+            rowBackground = DarkCard,
+            onToggleLeave = onToggleLeave
         )
     }
 }

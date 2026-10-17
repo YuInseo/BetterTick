@@ -172,3 +172,56 @@ fun Task.isShiftRotationOf(labels: Set<String>): Boolean {
     return parts.getOrNull(3)?.equals("Day", ignoreCase = true) == true &&
         normalizeShiftLabel(title) in labels
 }
+
+// ── 근무 할일: 체크박스 대신 병가 / 지휴 사용 표시 ──────────────────────────
+
+/** Shift labels that turn a task into a 근무 일정 (no completion checkbox). */
+val SHIFT_LABELS: Set<String> = setOf("주", "주간", "야", "야간", "비", "비번", "휴", "휴무", "당직")
+
+/** Leave kinds a shift can be marked with. */
+val LEAVE_TYPES: List<String> = listOf("병가", "지휴")
+
+/** "주", "야간 (병가)" … — a work-shift entry rather than a to-do. */
+fun Task.isShiftTask(): Boolean = normalizeShiftLabel(title) in SHIFT_LABELS
+
+/** Leave written the old way, as "(병가)" at the end of the title. */
+private fun Task.legacyLeave(): String? {
+    val m = Regex("""[(（]([^()（）]*)[)）]\s*$""").find(title.trim()) ?: return null
+    return LEAVE_TYPES.firstOrNull { m.groupValues[1].contains(it) }
+}
+
+/** Leave used on [date] ("병가" / "지휴"), or null. */
+fun Task.leaveOn(date: LocalDate?): String? {
+    if (date == null) return null
+    val key = date.toString()
+    if (leaves.containsKey(key)) return leaves[key]?.takeIf { it.isNotBlank() }
+    return legacyLeave()
+}
+
+/**
+ * Turns [type] on or off for [date]. A leave still written in the title
+ * moves into [Task.leaves] first, and the title loses its "(병가)" suffix.
+ */
+fun Task.withLeaveToggled(date: LocalDate, type: String): Task {
+    val key = date.toString()
+    val legacy = legacyLeave()
+    var base = this
+    if (legacy != null) {
+        base = copy(
+            title = normalizeShiftLabel(title),
+            leaves = if (leaves.containsKey(key)) leaves else leaves + (key to legacy)
+        )
+    }
+    val current = base.leaves[key]
+    return base.copy(leaves = if (current == type) base.leaves - key else base.leaves + (key to type))
+}
+
+/** The day a shift row stands for: the shown day, today for repeats, else its due day. */
+fun Task.shiftDay(shownDate: LocalDate?): LocalDate? =
+    shownDate ?: if (!repeatRule.isNullOrBlank()) LocalDate.now()
+    else dueDate?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
+
+/** A one-off shift whose day has passed — history, never "overdue". */
+fun Task.isPastShift(today: LocalDate = LocalDate.now()): Boolean =
+    isShiftTask() && repeatRule.isNullOrBlank() &&
+        dueDate?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()?.isBefore(today) == true

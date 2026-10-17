@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.TaskList
 import com.bettertick.data.model.occursOn
 import com.bettertick.util.DateUtils.toLocalDate
@@ -103,7 +104,8 @@ sealed class TaskFilter {
 private fun Task.isOpen() = !isCompleted && !isAbandoned
 
 private fun Task.isOverdue(today: LocalDate): Boolean =
-    isOpen() && repeatRule.isNullOrBlank() && dueDate?.toLocalDate()?.isBefore(today) == true
+    isOpen() && repeatRule.isNullOrBlank() && dueDate?.toLocalDate()?.isBefore(today) == true &&
+        !isShiftTask()
 
 private fun Task.dueOn(day: LocalDate): Boolean =
     if (repeatRule.isNullOrBlank()) dueDate?.toLocalDate() == day else occursOn(day)

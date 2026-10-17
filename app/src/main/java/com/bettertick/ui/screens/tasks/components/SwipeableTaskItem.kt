@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.isShiftTask
 import com.bettertick.ui.screens.tasks.SwipeAction
 import com.bettertick.ui.screens.tasks.TaskListPrefs
 import com.bettertick.ui.theme.DarkBackground
@@ -65,11 +66,13 @@ fun SwipeableTaskItem(
     rowBackground: Color = DarkBackground,
     onLongClick: (() -> Unit)? = null,
     onPin: (() -> Unit)? = null,
-    onWontDo: (() -> Unit)? = null
+    onWontDo: (() -> Unit)? = null,
+    onToggleLeave: ((LocalDate, String) -> Unit)? = null
 ) {
     fun handler(a: SwipeAction): (() -> Unit)? = when (a) {
         SwipeAction.NONE -> null
-        SwipeAction.COMPLETE -> onToggleComplete
+        // 근무 일정 has no completion — 병가/지휴 chips replace it.
+        SwipeAction.COMPLETE -> if (task.isShiftTask()) null else onToggleComplete
         SwipeAction.DATE -> onReschedule
         SwipeAction.MOVE -> onMove
         SwipeAction.DELETE -> onDelete
@@ -148,7 +151,8 @@ fun SwipeableTaskItem(
                 overrideDate = overrideDate,
                 listName = listName,
                 resolvedTags = resolvedTags,
-                onLongClick = onLongClick
+                onLongClick = onLongClick,
+                onToggleLeave = onToggleLeave
             )
         }
     }

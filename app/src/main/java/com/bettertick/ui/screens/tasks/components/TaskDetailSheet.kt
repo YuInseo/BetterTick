@@ -83,6 +83,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 import com.bettertick.data.model.isShiftRotationOf
+import com.bettertick.data.model.LEAVE_TYPES
+import com.bettertick.data.model.isShiftTask
+import com.bettertick.data.model.leaveOn
+import com.bettertick.data.model.shiftDay
+import com.bettertick.data.model.withLeaveToggled
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
 import com.bettertick.ui.components.MarkdownInlineTransformation
@@ -127,12 +132,16 @@ fun TaskDetailSheet(
     /** ⋯ > 복제 — creates a copy of the (edited) task. */
     onDuplicate: ((Task) -> Unit)? = null,
     /** ⋯ > 삭제. */
-    onDelete: ((Task) -> Unit)? = null
+    onDelete: ((Task) -> Unit)? = null,
+    /** Day this sheet was opened for (calendar) — 근무 휴가 기록의 기준일. */
+    occurrenceDate: java.time.LocalDate? = null
 ) {
     // Local edit state — keyed by task.id so re-opening a different task
     // pulls in fresh values instead of leaking from the previous one.
     var title by remember(task.id) { mutableStateOf(task.title) }
     var notes by remember(task.id) { mutableStateOf(task.notes) }
+    // 근무 할일: 병가 / 지휴 per day.
+    var leaves by remember(task.id) { mutableStateOf(task.leaves) }
     val attachments = remember(task.id) {
         androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(task.attachments) }
     }
@@ -199,11 +208,13 @@ fun TaskDetailSheet(
                 listId != task.listId ||
                 isPinned != task.isPinned ||
                 isAbandoned != task.isAbandoned ||
+                leaves != task.leaves ||
                 attachmentsList != task.attachments
         if (changed) {
             onUpdateTask(
                 task.copy(
                     title = title,
+                    leaves = leaves,
                     notes = notes,
                     notionUrl = notionUrl,
                     dueDate = dueTimestamp,
@@ -367,7 +378,27 @@ fun TaskDetailSheet(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 val checkboxShape = RoundedCornerShape(6.dp)
-                Box(
+                val asShift = task.copy(title = title, leaves = leaves)
+                if (asShift.isShiftTask()) {
+                    // 근무 일정: 병가 / 지휴 사용 여부 instead of a checkbox.
+                    val day = asShift.shiftDay(occurrenceDate)
+                    val used = asShift.leaveOn(day)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        LEAVE_TYPES.forEach { type ->
+                            LeaveChip(
+                                label = type,
+                                selected = used == type,
+                                onClick = if (day != null) {
+                                    {
+                                        val t = asShift.withLeaveToggled(day, type)
+                                        title = t.title
+                                        leaves = t.leaves
+                                    }
+                                } else null
+                            )
+                        }
+                    }
+                } else Box(
                     modifier = Modifier
                         .size(24.dp)
                         .clip(checkboxShape)

@@ -53,6 +53,9 @@ import com.bettertick.widget.WidgetServiceLocator
 import com.bettertick.widget.theme.WidgetColors
 import com.bettertick.widget.theme.WidgetColorValues
 import com.bettertick.data.model.occursOn
+import com.bettertick.data.model.isShiftTask
+import com.bettertick.data.model.leaveOn
+import com.bettertick.data.model.normalizeShiftLabel
 import com.bettertick.widget.util.WidgetDateUtils
 import com.bettertick.widget.util.WidgetDateUtils.localDueDate
 import kotlinx.coroutines.flow.first
@@ -147,7 +150,7 @@ class ReminderWidget : GlanceAppWidget() {
             // are listed under today, like TickTick's 오늘 view.
             val overdue = if (settings.showOverdue && selectedDate == today) {
                 visible.filter { t ->
-                    !t.isCompleted && !t.isAbandoned && t.repeatRule.isNullOrBlank() &&
+                    !t.isCompleted && !t.isAbandoned && t.repeatRule.isNullOrBlank() && !t.isShiftTask() &&
                         (t.localDueDate()?.isBefore(today) == true)
                 }
             } else emptyList()
@@ -256,7 +259,7 @@ class ReminderWidget : GlanceAppWidget() {
                                     .padding(horizontal = 12.dp)
                                     .clickable(actionStartActivity<MainActivity>())
                             ) {
-                                TaskRow(task, listById, settings.showDetail, pal, fs, today, settings.isMemo)
+                                TaskRow(task, listById, settings.showDetail, pal, fs, selectedDate, settings.isMemo)
                                 Spacer(GlanceModifier.height(10.dp))
                             }
                         }
@@ -571,6 +574,9 @@ class ReminderWidget : GlanceAppWidget() {
     ) {
         val context = LocalContext.current
         val done = task.isCompleted || task.isAbandoned
+        // 근무 일정: badge instead of a checkbox, plus the leave used that day.
+        val isShift = task.isShiftTask()
+        val leave = if (isShift) task.leaveOn(today) else null
         val ring = when {
             done -> pal.text3
             task.priority == 3 -> Color(0xFFD52B24)
@@ -582,7 +588,25 @@ class ReminderWidget : GlanceAppWidget() {
             modifier = GlanceModifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (memo) {
+            if (isShift) {
+                val tint = when (leave) {
+                    "병가" -> Color(0xFFE5483F)
+                    "지휴" -> Color(0xFF8E6CEF)
+                    else -> WidgetColorValues.accent
+                }
+                Box(
+                    modifier = GlanceModifier
+                        .size(24.dp)
+                        .background(ColorProvider(tint.copy(alpha = 0.2f)))
+                        .cornerRadius(12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = normalizeShiftLabel(task.title).take(2),
+                        style = TextStyle(color = ColorProvider(tint), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    )
+                }
+            } else if (memo) {
                 // 메모 모드: a slim colored bar instead of a checkbox.
                 Box(
                     modifier = GlanceModifier
@@ -643,6 +667,16 @@ class ReminderWidget : GlanceAppWidget() {
                     ),
                     maxLines = if (memo) 2 else 1
                 )
+                if (leave != null) {
+                    Text(
+                        text = "$leave 사용",
+                        style = TextStyle(
+                            color = ColorProvider(if (leave == "병가") Color(0xFFE5483F) else Color(0xFF8E6CEF)),
+                            fontSize = (11 * fs).sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    )
+                }
                 // 메모 모드 shows the task's notes like a sticky note.
                 if (memo && task.notes.isNotBlank()) {
                     Spacer(GlanceModifier.height(2.dp))
@@ -758,7 +792,7 @@ class ReminderWidget : GlanceAppWidget() {
      * start, so showing red there misrepresents an actively-recurring task.
      */
     private fun Task.isOverdueNow(): Boolean {
-        if (isCompleted || isAbandoned) return false
+        if (isCompleted || isAbandoned || isShiftTask()) return false
         if (!repeatRule.isNullOrBlank()) return false
         val due = dueDate?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalDate()
             ?: return false
