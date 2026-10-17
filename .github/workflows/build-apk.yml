@@ -240,11 +240,19 @@ jobs:
 
             Direct download (no login required):
             https://github.com/${{ github.repository }}/releases/download/latest-debug/BetterTick.apk
+          # version.json goes up in the next step, only after the APK has
+          # finished uploading — the app treats version.json as "ready".
           files: |
             BetterTick.apk
-            version.json
           prerelease: true
           make_latest: "false"
+
+      - name: Upload version.json (after APK)
+        if: steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload latest-debug version.json --clobber --repo "$GITHUB_REPOSITORY"
 
       - name: Fail the job if build failed
         if: steps.build.outcome == 'failure'

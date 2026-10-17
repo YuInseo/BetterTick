@@ -3,6 +3,8 @@ package com.bettertick.ui.screens.tasks.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -383,7 +385,6 @@ fun leaveColor(type: String): Color = when (type) {
  * its allowance (설정 > 일반 > 휴가 일수). Read-only ([onToggle] null) shows
  * only the leave that was used.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LeaveChipRow(
     day: LocalDate?,
@@ -392,20 +393,79 @@ fun LeaveChipRow(
     /** Unsaved edit (detail sheet): the leave the saved task has on [day]. */
     savedUsed: String? = used
 ) {
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+    // One straight line (scrolls if the row is narrow) with short labels.
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         LEAVE_TYPES.forEach { type ->
             if (onToggle != null || used == type) {
+                val left = day?.let {
+                    val extra = (if (used == type) 1 else 0) - (if (savedUsed == type) 1 else 0)
+                    com.bettertick.ui.screens.tasks.LeavePrefs.remaining(type, it, extra)
+                }
                 LeaveChip(
                     label = type,
                     selected = used == type,
-                    remaining = day?.let {
-                        val extra = (if (used == type) 1 else 0) - (if (savedUsed == type) 1 else 0)
-                        com.bettertick.ui.screens.tasks.LeavePrefs.remainingLabel(type, it, extra)
-                    },
+                    remaining = left?.let { if (it >= 0) "${it}일" else "${-it}일 초과" },
                     onClick = onToggle?.let { { it(type) } }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Detail-sheet version: 지휴 · 병가 · 연차 as three equal-width buttons in
+ * one row, each with the days left underneath.
+ */
+@Composable
+fun LeaveButtonsRow(
+    day: LocalDate?,
+    used: String?,
+    savedUsed: String?,
+    onToggle: ((String) -> Unit)?
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        LEAVE_TYPES.forEach { type ->
+            val selected = used == type
+            val c = leaveColor(type)
+            val left = day?.let {
+                val extra = (if (selected) 1 else 0) - (if (savedUsed == type) 1 else 0)
+                com.bettertick.ui.screens.tasks.LeavePrefs.remaining(type, it, extra)
+            }
+            val shape = RoundedCornerShape(12.dp)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(shape)
+                    .then(if (selected) Modifier.background(c) else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.5f), shape))
+                    .then(if (onToggle != null) Modifier.clickable { onToggle(type) } else Modifier)
+                    .padding(vertical = 10.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    if (selected) "$type ✓" else type,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (selected) Color.White else c
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = when {
+                        left == null -> if (selected) "사용" else "일수 미설정"
+                        left >= 0 -> "${left}일 남음"
+                        else -> "${-left}일 초과"
+                    },
+                    fontSize = 12.sp,
+                    color = when {
+                        selected -> Color.White.copy(alpha = 0.9f)
+                        left != null && left < 0 -> OverdueRed
+                        else -> TextSecondary
+                    }
                 )
             }
         }
@@ -444,7 +504,7 @@ fun LeaveChip(label: String, selected: Boolean, onClick: (() -> Unit)?, remainin
             text = buildString {
                 append(label)
                 if (selected) append(" ✓")
-                if (remaining != null) append(" · ").append(remaining)
+                if (remaining != null) append(" ").append(remaining)
             },
             fontSize = 12.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
