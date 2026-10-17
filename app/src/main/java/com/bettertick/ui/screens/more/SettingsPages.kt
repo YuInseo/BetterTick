@@ -287,6 +287,12 @@ private fun ringtoneTitle(context: android.content.Context, uri: String?): Strin
 
 @Composable
 fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = null) {
+    var leaveType by remember { mutableStateOf<String?>(null) }
+    leaveType?.let { type ->
+        androidx.activity.compose.BackHandler { leaveType = null }
+        LeaveTypeSettingsScreen(type = type, onBack = { leaveType = null })
+        return
+    }
     val tabs = listOf(
         "tasks" to "할일", "calendar" to "캘린더", "matrix" to "아이젠하워 매트릭스",
         "focus" to "뽀모도로", "habits" to "습관"
@@ -325,20 +331,11 @@ fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = nul
         OptionCard {
             val today = java.time.LocalDate.now()
             listOf("지휴", "연차", "병가").forEach { type ->
-                val monthly = LeavePrefs.periodOf(type) == LeavePeriod.MONTH
-                OptionChoiceRow(
-                    title = type,
-                    subtitle = (if (monthly) "매달 " else "매년 ") + "주어지는 일수 · " +
-                        (if (monthly) "이번 달 " else "올해 ") + "${LeavePrefs.used(type, today)}일 사용",
-                    value = LeavePrefs.quota(type),
-                    options = (0..(if (monthly) 10 else 30)).toList(),
-                    label = { if (it == 0) "설정 안 함" else if (monthly) "월 ${it}일" else "연 ${it}일" },
-                    onPick = { LeavePrefs.updateQuota(type, it) }
-                )
+                LeaveSummaryRow(type = type, today = today, onClick = { leaveType = type })
             }
         }
         Text(
-            "근무(주/야/비/휴) 할일의 병가·지휴·연차 버튼에 남은 일수가 표시됩니다. 지휴는 매달 1일, 연차·병가는 매년 1월 1일에 다시 채워집니다.",
+            "근무(주/야/비/휴) 할일의 병가·지휴·연차 버튼에 남은 일수가 표시됩니다. 항목을 눌러 주기와 일수, 연도별 일수를 정하세요.",
             fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
@@ -386,4 +383,176 @@ fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = nul
             }
         }
     }
+}
+
+
+// ── 설정 > 일반 > 휴가 일수 ────────────────────────────────────────────────
+
+private fun daysLabel(type: String, days: Int): String {
+    if (days <= 0) return "설정 안 함"
+    return when (LeavePrefs.periodOf(type)) {
+        LeavePeriod.MONTH -> "월 ${days}일"
+        LeavePeriod.YEAR -> "연 ${days}일"
+        LeavePeriod.NONE -> "총 ${days}일"
+    }
+}
+
+@Composable
+private fun LeaveSummaryRow(type: String, today: java.time.LocalDate, onClick: () -> Unit) {
+    val q = LeavePrefs.quota(type, today)
+    val used = LeavePrefs.used(type, today)
+    val custom = LeavePrefs.periodOf(type) != LeavePeriod.NONE && LeavePrefs.yearQuota(type, today.year) != null
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(type, fontSize = 16.sp, color = TextPrimary)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "${LeavePrefs.periodOf(type).label} · ${LeavePrefs.periodName(type)} ${used}일 사용" +
+                    (if (q > 0) " · ${q - used}일 남음" else "") +
+                    (if (custom) " · ${today.year}년 별도 설정" else ""),
+                fontSize = 12.sp, color = TextTertiary
+            )
+        }
+        Text(daysLabel(type, q), fontSize = 14.sp, color = TextSecondary)
+        Icon(Icons.Default.KeyboardArrowDown, null, tint = TextTertiary, modifier = Modifier.size(20.dp))
+    }
+}
+
+/** One leave kind: 주기, 기본 일수 and optional 연도별 일수. */
+@Composable
+fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
+    val today = remember { java.time.LocalDate.now() }
+    var editBase by remember { mutableStateOf(false) }
+    var editYear by remember { mutableStateOf<Int?>(null) }
+    val period = LeavePrefs.periodOf(type)
+    val base = LeavePrefs.baseQuota(type)
+
+    OptionPage(title = type, onBack = onBack) {
+        OptionCard {
+            OptionChoiceRow(
+                title = "주기",
+                subtitle = when (period) {
+                    LeavePeriod.MONTH -> "매달 1일에 다시 채워집니다."
+                    LeavePeriod.YEAR -> "매년 1월 1일에 다시 채워집니다."
+                    LeavePeriod.NONE -> "다시 채워지지 않고 전체 사용 일수로 셉니다."
+                },
+                value = period,
+                options = LeavePeriod.entries,
+                label = { it.label },
+                onPick = { LeavePrefs.updatePeriod(type, it) }
+            )
+            OptionNavRow(
+                if (period == LeavePeriod.NONE) "총 일수" else "기본 일수",
+                value = daysLabel(type, base)
+            ) { editBase = true }
+        }
+
+        val q = LeavePrefs.quota(type, today)
+        val used = LeavePrefs.used(type, today)
+        Text(
+            "${LeavePrefs.periodName(type)} ${used}일 사용" +
+                (if (q > 0) " · ${q}일 중 ${q - used}일 남음" else " · 일수를 정하면 남은 일수가 표시됩니다."),
+            fontSize = 13.sp, color = TextSecondary,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+
+        if (period != LeavePeriod.NONE) {
+            Text(
+                "연도별 일수",
+                fontSize = 13.sp, color = TextSecondary,
+                modifier = Modifier.padding(start = 20.dp, top = 6.dp)
+            )
+            OptionCard {
+                val set = LeavePrefs.yearQuotas[type].orEmpty().keys
+                val years = ((today.year - 1)..(today.year + 3)).toSet() + set
+                years.sorted().forEach { y ->
+                    val v = LeavePrefs.yearQuota(type, y)
+                    OptionNavRow(
+                        "${y}년" + if (y == today.year) " (올해)" else "",
+                        value = v?.let { daysLabel(type, it) } ?: "기본값 · ${daysLabel(type, base)}"
+                    ) { editYear = y }
+                }
+            }
+            Text(
+                "해마다 일수가 다르면 그 해만 따로 입력하세요. 비워 두면 기본 일수를 씁니다." +
+                    if (period == LeavePeriod.MONTH) " (매달 주기는 그 해의 달마다 적용됩니다.)" else "",
+                fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+        }
+    }
+
+    if (editBase) {
+        LeaveDaysDialog(
+            title = "$type ${if (period == LeavePeriod.NONE) "총 일수" else "기본 일수"}",
+            initial = base,
+            clearLabel = null,
+            onDismiss = { editBase = false },
+            onConfirm = { LeavePrefs.updateQuota(type, it ?: 0); editBase = false }
+        )
+    }
+    editYear?.let { y ->
+        LeaveDaysDialog(
+            title = "${y}년 $type 일수",
+            initial = LeavePrefs.yearQuota(type, y),
+            clearLabel = "기본값 사용",
+            onDismiss = { editYear = null },
+            onConfirm = { LeavePrefs.updateYearQuota(type, y, it); editYear = null }
+        )
+    }
+}
+
+/** Number entry (0–365). [clearLabel] adds a button that answers null. */
+@Composable
+private fun LeaveDaysDialog(
+    title: String,
+    initial: Int?,
+    clearLabel: String?,
+    onDismiss: () -> Unit,
+    onConfirm: (Int?) -> Unit
+) {
+    var text by remember { mutableStateOf(initial?.takeIf { it > 0 }?.toString() ?: "") }
+    val value = text.toIntOrNull()
+    val valid = text.isEmpty() || (value != null && value in 0..365)
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title, color = TextPrimary) },
+        text = {
+            Column {
+                androidx.compose.material3.OutlinedTextField(
+                    value = text,
+                    onValueChange = { v -> text = v.filter { it.isDigit() }.take(3) },
+                    singleLine = true,
+                    suffix = { Text("일") },
+                    placeholder = { Text("0 = 설정 안 함") },
+                    isError = !valid,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                )
+                if (clearLabel != null) {
+                    Spacer(Modifier.height(4.dp))
+                    androidx.compose.material3.TextButton(onClick = { onConfirm(null) }) {
+                        Text(clearLabel, color = ThemeState.accentColor)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                enabled = valid,
+                onClick = { onConfirm(value ?: 0) }
+            ) { Text("저장", color = ThemeState.accentColor) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("취소", color = TextSecondary) }
+        },
+        containerColor = GroupedCard
+    )
 }
