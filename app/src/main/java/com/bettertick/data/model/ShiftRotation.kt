@@ -241,28 +241,81 @@ fun Task.leaveEntries(): List<Pair<LocalDate, String>> {
     return fromMap + fromTitle
 }
 
-/** Shifts that are actual work (비번 / 휴무 are not). */
-val WORK_SHIFT_LABELS: Set<String> = setOf("주", "주간", "야", "야간", "당직")
+/** The day-to-day shift kinds a shift row can be switched to. */
+val SHIFT_KINDS: List<String> = listOf("주", "야", "비", "휴")
 
-/** "주", "야간" … — a shift you go to work for. */
-fun Task.isWorkShift(): Boolean = normalizeShiftLabel(title) in WORK_SHIFT_LABELS
+/** "주간" → "주", "야간" → "야", "비번" → "비", "휴무" → "휴"; 당직 stays. */
+fun shiftKind(label: String): String = when (normalizeShiftLabel(label)) {
+    "주", "주간" -> "주"
+    "야", "야간" -> "야"
+    "비", "비번" -> "비"
+    "휴", "휴무" -> "휴"
+    else -> normalizeShiftLabel(label)
+}
+
+/** Full name shown on a row for a switched day. */
+fun shiftKindName(kind: String): String = when (kind) {
+    "주" -> "주간"
+    "야" -> "야간"
+    "비" -> "비번"
+    "휴" -> "휴무"
+    else -> kind
+}
+
+/** What [date] counts as: the day's own switch, else the title's shift. */
+fun Task.shiftKindOn(date: LocalDate?): String =
+    date?.let { dayShifts[it.toString()] }?.takeIf { it.isNotBlank() } ?: shiftKind(title)
+
+/** Row title for [date]: "야간" → "주간" when that day was switched. */
+fun Task.shiftTitleOn(date: LocalDate?): String {
+    val own = date?.let { dayShifts[it.toString()] }?.takeIf { it.isNotBlank() } ?: return title
+    return if (own == shiftKind(title)) title else shiftKindName(own)
+}
+
+/** Switch [date] to [kind]; picking the title's own shift (or the current switch) clears it. */
+fun Task.withDayShift(date: LocalDate, kind: String): Task {
+    val key = date.toString()
+    return if (kind == shiftKind(title) || dayShifts[key] == kind) copy(dayShifts = dayShifts - key)
+    else copy(dayShifts = dayShifts + (key to kind))
+}
+
+/** Shift kinds that are actual work (비 / 휴 are not). */
+val WORK_SHIFT_KINDS: Set<String> = setOf("주", "야", "당직")
+
+/** Was [date] a work day for this shift row? */
+fun Task.isWorkOn(date: LocalDate): Boolean = isShiftTask() && shiftKindOn(date) in WORK_SHIFT_KINDS
+
+/** Does this row ever stand for work (its title or any switched day)? */
+fun Task.isWorkShift(): Boolean =
+    isShiftTask() && (shiftKind(title) in WORK_SHIFT_KINDS || dayShifts.values.any { it in WORK_SHIFT_KINDS })
 
 /**
- * Days in [from]..[to] on which some work shift was (or is) scheduled on a
- * red day and no leave was taken — each one earns a 지휴.
+ * Red days in [from]..[to] worked with no leave taken, each with the shift
+ * kind worked ("야" if any row that day was a night shift, else "주" / "당직").
+ * Each one earns 지휴.
  */
 fun redDaysWorked(
     tasks: List<Task>,
     from: LocalDate,
     to: LocalDate,
     isRed: (LocalDate) -> Boolean
-): List<LocalDate> {
+): List<Pair<LocalDate, String>> {
     val shifts = tasks.filter { it.isWorkShift() && !(it.isAbandoned && it.repeatRule.isNullOrBlank()) }
     if (shifts.isEmpty() || to.isBefore(from)) return emptyList()
-    val out = mutableListOf<LocalDate>()
+    val out = mutableListOf<Pair<LocalDate, String>>()
     var d = from
     while (!d.isAfter(to)) {
-        if (isRed(d) && shifts.any { it.occursOn(d) && it.leaveOn(d) == null }) out += d
+        if (isRed(d)) {
+            val kinds = shifts.filter { it.occursOn(d) && it.isWorkOn(d) && it.leaveOn(d) == null }
+                .map { it.shiftKindOn(d) }
+            val kind = when {
+                kinds.isEmpty() -> null
+                "야" in kinds -> "야"
+                "당직" in kinds -> "당직"
+                else -> "주"
+            }
+            if (kind != null) out += d to kind
+        }
         d = d.plusDays(1)
     }
     return out

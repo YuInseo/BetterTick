@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Task
 import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.leaveOn
+import com.bettertick.data.model.shiftTitleOn
 import com.bettertick.data.model.normalizeShiftLabel
 import com.bettertick.ui.screens.calendar.CalendarPrefs
 import com.bettertick.ui.screens.calendar.LocalTaskColor
@@ -366,8 +367,10 @@ fun CalendarTaskChip(
     /** Cell date — lets a 근무 chip show the 병가 / 지휴 used that day. */
     day: java.time.LocalDate? = null
 ) {
-    val leave = if (day != null && task.isShiftTask()) task.leaveOn(day) else null
-    val label = if (leave != null) "${normalizeShiftLabel(task.title)} $leave" else task.title
+    val isShift = day != null && task.isShiftTask()
+    val leave = if (isShift) task.leaveOn(day) else null
+    val title = if (isShift) task.shiftTitleOn(day) else task.title
+    val label = if (leave != null) "${normalizeShiftLabel(title)} $leave" else title
     val colors = chipColors(LocalTaskColor.current(task), task.isCompleted)
     val time = if (CalendarPrefs.showDetails) {
         task.dueDate?.toDate()?.toInstant()?.atZone(java.time.ZoneId.systemDefault())?.toLocalTime()

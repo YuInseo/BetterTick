@@ -85,6 +85,8 @@ import kotlinx.coroutines.launch
 import com.bettertick.data.model.isShiftRotationOf
 import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.leaveOn
+import com.bettertick.data.model.shiftKindOn
+import com.bettertick.data.model.withDayShift
 import com.bettertick.data.model.shiftDay
 import com.bettertick.data.model.withLeaveToggled
 import com.bettertick.data.model.Tag
@@ -141,6 +143,8 @@ fun TaskDetailSheet(
     var notes by remember(task.id) { mutableStateOf(task.notes) }
     // 근무 할일: 병가 / 지휴 per day.
     var leaves by remember(task.id) { mutableStateOf(task.leaves) }
+    // 근무 할일: 그 날만 다른 근무로 (주 / 야 / 비 / 휴).
+    var dayShifts by remember(task.id) { mutableStateOf(task.dayShifts) }
     val attachments = remember(task.id) {
         androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(task.attachments) }
     }
@@ -208,12 +212,14 @@ fun TaskDetailSheet(
                 isPinned != task.isPinned ||
                 isAbandoned != task.isAbandoned ||
                 leaves != task.leaves ||
+                dayShifts != task.dayShifts ||
                 attachmentsList != task.attachments
         if (changed) {
             onUpdateTask(
                 task.copy(
                     title = title,
                     leaves = leaves,
+                    dayShifts = dayShifts,
                     notes = notes,
                     notionUrl = notionUrl,
                     dueDate = dueTimestamp,
@@ -446,9 +452,17 @@ fun TaskDetailSheet(
             Spacer(Modifier.height(16.dp))
 
             // ── 근무 일정: 지휴 · 병가 · 연차 (one straight row) ────────────
-            val asShift = task.copy(title = title, leaves = leaves)
+            val asShift = task.copy(title = title, leaves = leaves, dayShifts = dayShifts)
             if (asShift.isShiftTask()) {
                 val day = asShift.shiftDay(occurrenceDate)
+                // What this day counts as — 주 / 야 / 비 / 휴.
+                ShiftKindButtonsRow(
+                    selected = asShift.shiftKindOn(day),
+                    onPick = if (day != null) {
+                        { kind -> dayShifts = asShift.withDayShift(day, kind).dayShifts }
+                    } else null
+                )
+                Spacer(Modifier.height(8.dp))
                 LeaveButtonsRow(
                     day = day,
                     used = asShift.leaveOn(day),
