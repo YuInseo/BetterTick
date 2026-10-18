@@ -433,6 +433,7 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
     var editYear by remember { mutableStateOf<Int?>(null) }
     var pickRedDay by remember { mutableStateOf(false) }
     var showEarned by remember { mutableStateOf(false) }
+    var editWeight by remember { mutableStateOf<String?>(null) }
     val period = LeavePrefs.periodOf(type)
     val base = LeavePrefs.baseQuota(type)
     val auto = LeavePrefs.isAuto(type)
@@ -448,7 +449,7 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
             OptionCard {
                 OptionSwitchRow(
                     title = "빨간날 근무로 자동 계산",
-                    subtitle = "한국 달력의 공휴일·대체공휴일에 주간/야간/당직 근무를 하면 그날마다 지휴 1일이 생깁니다. 그날 휴가를 쓰면 세지 않습니다.",
+                    subtitle = "한국 달력의 공휴일·대체공휴일에 주간/야간/당직 근무를 하면 그날마다 지휴가 생깁니다 (근무별 일수는 아래에서). 그날 휴가를 쓰면 세지 않습니다.",
                     checked = LeavePrefs.autoJihyu,
                     onCheckedChange = { LeavePrefs.updateAutoJihyu(it) }
                 )
@@ -459,10 +460,16 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
                         checked = LeavePrefs.includeSunday,
                         onCheckedChange = { LeavePrefs.updateIncludeSunday(it) }
                     )
+                    LeavePrefs.WEIGHT_KINDS.forEach { kind ->
+                        OptionNavRow(
+                            "빨간날 ${com.bettertick.data.model.shiftKindName(kind)} 근무",
+                            value = "지휴 ${LeavePrefs.weightOf(kind)}일"
+                        ) { editWeight = kind }
+                    }
                     val earnedNow = LeavePrefs.earnedDaysIn(today)
                     OptionNavRow(
                         "${LeavePrefs.periodName(type)} 빨간날 근무",
-                        value = "${earnedNow.size}일"
+                        value = "${earnedNow.size}번 · 지휴 ${LeavePrefs.earnedIn(today)}일"
                     ) { showEarned = !showEarned }
                     if (showEarned) {
                         if (earnedNow.isEmpty()) {
@@ -472,7 +479,7 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                             )
                         }
-                        earnedNow.forEach { d ->
+                        earnedNow.forEach { (d, kind) ->
                             Row(
                                 Modifier
                                     .fillMaxWidth()
@@ -484,7 +491,11 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
                                     fontSize = 14.sp, color = TextPrimary, modifier = Modifier.weight(1f)
                                 )
                                 Text(
-                                    (LeavePrefs.redDayName(d) ?: "") + if (d.isAfter(today)) " · 예정" else "",
+                                    listOfNotNull(
+                                        LeavePrefs.redDayName(d),
+                                        com.bettertick.data.model.shiftKindName(kind) + " +${LeavePrefs.weightOf(kind)}일",
+                                        if (d.isAfter(today)) "예정" else null
+                                    ).joinToString(" · "),
                                     fontSize = 13.sp, color = androidx.compose.ui.graphics.Color(0xFFE5483F)
                                 )
                             }
@@ -582,6 +593,15 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
             clearLabel = null,
             onDismiss = { editBase = false },
             onConfirm = { LeavePrefs.updateQuota(type, it ?: 0); editBase = false }
+        )
+    }
+    editWeight?.let { kind ->
+        LeaveDaysDialog(
+            title = "빨간날 ${com.bettertick.data.model.shiftKindName(kind)} 근무 1번에 지휴",
+            initial = LeavePrefs.weightOf(kind),
+            clearLabel = null,
+            onDismiss = { editWeight = null },
+            onConfirm = { LeavePrefs.updateWeight(kind, it ?: 0); editWeight = null }
         )
     }
     if (pickRedDay) {

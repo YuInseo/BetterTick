@@ -55,7 +55,8 @@ import com.bettertick.widget.theme.WidgetColorValues
 import com.bettertick.data.model.occursOn
 import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.leaveOn
-import com.bettertick.data.model.normalizeShiftLabel
+import com.bettertick.data.model.shiftKindOn
+import com.bettertick.data.model.shiftTitleOn
 import com.bettertick.widget.util.WidgetDateUtils
 import com.bettertick.widget.util.WidgetDateUtils.localDueDate
 import kotlinx.coroutines.flow.first
@@ -605,7 +606,7 @@ class ReminderWidget : GlanceAppWidget() {
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = normalizeShiftLabel(task.title).take(2),
+                        text = task.shiftKindOn(today).take(2),
                         style = TextStyle(color = ColorProvider(tint), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                     )
                 }
@@ -661,7 +662,7 @@ class ReminderWidget : GlanceAppWidget() {
                 modifier = GlanceModifier.defaultWeight()
             ) {
                 Text(
-                    text = task.title,
+                    text = if (isShift) task.shiftTitleOn(today) else task.title,
                     style = TextStyle(
                         color = ColorProvider(if (done) pal.text3 else pal.text),
                         fontSize = (13 * fs).sp,

@@ -44,7 +44,8 @@ import com.bettertick.data.model.Task
 import com.bettertick.data.model.LEAVE_TYPES
 import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.leaveOn
-import com.bettertick.data.model.normalizeShiftLabel
+import com.bettertick.data.model.shiftTitleOn
+import com.bettertick.data.model.shiftKindOn
 import com.bettertick.data.model.shiftDay
 import com.bettertick.ui.components.MarkdownText
 import com.bettertick.ui.theme.OverdueRed
@@ -135,7 +136,7 @@ fun TaskItem(
         if (isShift) {
             // 근무 일정 — no completion checkbox, just the shift badge.
             Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                ShiftBadge(normalizeShiftLabel(task.title), leave)
+                ShiftBadge(task.shiftKindOn(shiftDay), leave)
             }
         } else Box(
             modifier = Modifier
@@ -160,7 +161,7 @@ fun TaskItem(
             verticalArrangement = Arrangement.Center
         ) {
             MarkdownText(
-                text = task.title,
+                text = if (isShift) task.shiftTitleOn(shiftDay) else task.title,
                 color = if (isDone) TextTertiary else TextPrimary,
                 fontSize = 15.sp,
                 maxLines = 1,
@@ -474,6 +475,41 @@ fun LeaveButtonsRow(
                         }
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 주 · 야 · 비 · 휴 — what the day counts as. Picking the shift in the title
+ * goes back to the rotation; any other switches just that day.
+ */
+@Composable
+fun ShiftKindButtonsRow(selected: String, onPick: ((String) -> Unit)?) {
+    val accent = ThemeState.accentColor
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        com.bettertick.data.model.SHIFT_KINDS.forEach { kind ->
+            val on = selected == kind
+            val shape = RoundedCornerShape(10.dp)
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(shape)
+                    .then(if (on) Modifier.background(accent) else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.5f), shape))
+                    .then(if (onPick != null) Modifier.clickable { onPick(kind) } else Modifier)
+                    .padding(vertical = 7.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    kind,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (on) Color.White else TextSecondary,
+                    maxLines = 1
+                )
             }
         }
     }

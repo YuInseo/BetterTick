@@ -34,6 +34,9 @@ enum class LeavePeriod(val key: String, val label: String) {
 object LeavePrefs {
     private const val PREFS = "leave_prefs"
     private const val AUTO_TYPE = "지휴"
+    /** Shift kinds that earn 지휴 on a red day, in display order. */
+    val WEIGHT_KINDS = listOf("주", "야", "당직")
+    private val DEFAULT_WEIGHTS = mapOf("주" to 1, "야" to 2, "당직" to 1)
 
     private fun defaultPeriod(type: String) = if (type == "지휴") LeavePeriod.MONTH else LeavePeriod.YEAR
 
@@ -59,8 +62,11 @@ object LeavePrefs {
     /** Days the user marked by hand: date → true (빨간날로) / false (빨간날 아님). */
     var redOverrides by mutableStateOf<Map<LocalDate, Boolean>>(emptyMap())
         private set
-    /** Red days worked (each one a 지휴), oldest first. */
-    var earnedDays by mutableStateOf<List<LocalDate>>(emptyList())
+    /** 지휴 days one red-day shift earns, by kind: 주 1 · 야 2 · 당직 1 by default. */
+    var shiftWeights by mutableStateOf(DEFAULT_WEIGHTS)
+        private set
+    /** Red days worked with the shift kind worked, oldest first. */
+    var earnedDays by mutableStateOf<List<Pair<LocalDate, String>>>(emptyList())
         private set
     /** periodKey → 지휴 earned in that period. */
     private var earned by mutableStateOf<Map<String, Int>>(emptyMap())
@@ -77,6 +83,7 @@ object LeavePrefs {
         quotas = LEAVE_TYPES.associateWith { p.getInt("quota_$it", 0) }
         yearQuotas = LEAVE_TYPES.associateWith { t -> parseYears(p.getString("years_$t", null)) }
         autoJihyu = p.getBoolean("auto_jihyu", true)
+        shiftWeights = WEIGHT_KINDS.associateWith { p.getInt("weight_$it", DEFAULT_WEIGHTS[it] ?: 1) }
         includeSunday = p.getBoolean("red_sunday", true)
         redOverrides = p.getString("red_overrides", null).orEmpty().split(',').mapNotNull { e ->
             val (d, v) = e.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
@@ -97,6 +104,15 @@ object LeavePrefs {
     fun updateIncludeSunday(on: Boolean) {
         includeSunday = on
         edit { putBoolean("red_sunday", on) }
+        recount(lastTasks)
+    }
+
+    /** 지휴 days a red-day [kind] shift earns. */
+    fun weightOf(kind: String): Int = shiftWeights[kind] ?: DEFAULT_WEIGHTS[kind] ?: 1
+
+    fun updateWeight(kind: String, days: Int) {
+        shiftWeights = shiftWeights + (kind to days.coerceAtLeast(0))
+        edit { putInt("weight_$kind", days.coerceAtLeast(0)) }
         recount(lastTasks)
     }
 
@@ -127,9 +143,9 @@ object LeavePrefs {
     fun earnedIn(day: LocalDate): Int = earned[periodKey(AUTO_TYPE, day)] ?: 0
 
     /** The red days worked that fall in the period containing [day]. */
-    fun earnedDaysIn(day: LocalDate): List<LocalDate> {
+    fun earnedDaysIn(day: LocalDate): List<Pair<LocalDate, String>> {
         val key = periodKey(AUTO_TYPE, day)
-        return earnedDays.filter { periodKey(AUTO_TYPE, it) == key }
+        return earnedDays.filter { periodKey(AUTO_TYPE, it.first) == key }
     }
 
     private fun parseYears(raw: String?): Map<Int, Int> =
@@ -207,7 +223,8 @@ object LeavePrefs {
         val from = maxOf(first, today.minusYears(3).withDayOfYear(1))
         val days = redDaysWorked(tasks, from, to, ::isRedDay)
         earnedDays = days
-        earned = days.groupingBy { periodKey(AUTO_TYPE, it) }.eachCount()
+        earned = days.groupBy { periodKey(AUTO_TYPE, it.first) }
+            .mapValues { (_, list) -> list.sumOf { weightOf(it.second) } }
     }
 
     fun countUsage(tasks: List<Task>): Map<String, Int> =
