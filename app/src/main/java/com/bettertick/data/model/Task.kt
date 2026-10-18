@@ -45,5 +45,8 @@ data class Task(
     val isPinned: Boolean = false,
     // 근무(주/야/비/휴) 할일의 휴가 사용 기록: "yyyy-MM-dd" → "병가" | "지휴".
     // Keyed by date so a repeating shift keeps one record per occurrence.
-    val leaves: Map<String, String> = emptyMap()
+    val leaves: Map<String, String> = emptyMap(),
+    // 근무 할일의 날짜별 근무 바꿈: "yyyy-MM-dd" → "주" | "야" | "비" | "휴".
+    // That day counts as this shift instead of the one in the title.
+    val dayShifts: Map<String, String> = emptyMap()
 )
