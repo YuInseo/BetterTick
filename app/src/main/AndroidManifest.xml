@@ -196,6 +196,12 @@
             android:foregroundServiceType="dataSync"
             tools:node="merge" />
             <!-- Task reminders -->
+        <!-- 앱 업데이트: 설치 결과 + 업데이트 완료 알림 -->
+        <receiver android:name=".update.UpdateInstallReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <receiver android:name=".reminder.ReminderReceiver" android:exported="false" />
         <receiver android:name=".reminder.ReminderActionReceiver" android:exported="false" />
     </application>

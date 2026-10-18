@@ -56,10 +56,30 @@ class BetterTickApplication : Application() {
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
         // Schedule periodic widget updates
         WidgetUpdateWorker.enqueue(this)
-        // Schedule background app update checks (every 6 hours) + immediate first check
+        // Background app update checks every 6 hours; the app-open check is in
+        // MainActivity. A silent update found on app open installs once the
+        // user leaves the app (see AppUpdater).
         AppUpdateWorker.createNotificationChannels(this)
         AppUpdateWorker.enqueue(this)
-        AppUpdateWorker.runImmediately(this)
+        registerActivityLifecycleCallbacks(object : Application.ActivityLifecycleCallbacks {
+            private var started = 0
+            override fun onActivityStarted(activity: android.app.Activity) {
+                started++
+                com.bettertick.update.AppUpdater.isForeground = true
+            }
+            override fun onActivityStopped(activity: android.app.Activity) {
+                started = (started - 1).coerceAtLeast(0)
+                if (started == 0 && !activity.isChangingConfigurations) {
+                    com.bettertick.update.AppUpdater.isForeground = false
+                    com.bettertick.update.AppUpdater.onAppBackground(this@BetterTickApplication)
+                }
+            }
+            override fun onActivityCreated(activity: android.app.Activity, savedInstanceState: android.os.Bundle?) {}
+            override fun onActivityResumed(activity: android.app.Activity) {}
+            override fun onActivityPaused(activity: android.app.Activity) {}
+            override fun onActivitySaveInstanceState(activity: android.app.Activity, outState: android.os.Bundle) {}
+            override fun onActivityDestroyed(activity: android.app.Activity) {}
+        })
 
         // Server-backed sync for tasks. The widget (and the rest of the app)
         // reads from ListenSource.CACHE, so nothing pulls from the server by
