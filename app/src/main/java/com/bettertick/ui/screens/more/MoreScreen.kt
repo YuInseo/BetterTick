@@ -373,30 +373,21 @@ fun MoreScreen(
                         checkingUpdate = true
                         scope.launch {
                             try {
-                                val release = AppUpdater.fetchLatest()
-                                if (release == null) {
-                                    val msg = if (AppUpdater.lastFetchPublishing) AppUpdater.PUBLISHING_MESSAGE
-                                    else "업데이트 확인 실패: ${AppUpdater.lastFetchError ?: "(원인 불명)"}"
-                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-                                    return@launch
+                                val msg = when (val o = AppUpdater.run(context, AppUpdater.Trigger.USER) { r ->
+                                    Toast.makeText(context, "v${r.versionName} 다운로드 중…", Toast.LENGTH_SHORT).show()
+                                }) {
+                                    is AppUpdater.Outcome.UpToDate ->
+                                        "이미 최신 버전입니다 (설치: ${o.current} / 최신: ${o.latest})"
+                                    is AppUpdater.Outcome.Failed -> o.message
+                                    AppUpdater.Outcome.Publishing -> AppUpdater.PUBLISHING_MESSAGE
+                                    AppUpdater.Outcome.Busy -> "이미 업데이트를 받는 중이에요. 잠시만 기다려 주세요."
+                                    is AppUpdater.Outcome.Ready -> "v${o.versionName} 준비됨 — 앱을 나가면 설치돼요"
+                                    // Silent: the app closes and updates; else the system screen opens.
+                                    is AppUpdater.Outcome.Installing ->
+                                        if (AppUpdater.canInstallSilently(context)) "v${o.versionName} 설치 중 — 앱이 잠깐 닫혔다가 업데이트돼요"
+                                        else null
                                 }
-                                val current = AppUpdater.currentVersionCode(context)
-                                if (!AppUpdater.isNewer(release.versionCode, current)) {
-                                    Toast.makeText(
-                                        context,
-                                        "이미 최신 버전입니다 (설치: ${current} / 최신: ${release.versionCode})",
-                                        Toast.LENGTH_LONG
-                                    ).show()
-                                    return@launch
-                                }
-                                Toast.makeText(context, "v${release.versionName} 다운로드 중…", Toast.LENGTH_SHORT).show()
-                                val apk = AppUpdater.downloadApk(context, release)
-                                if (apk == null) {
-                                    val reason = AppUpdater.lastDownloadError ?: "(원인 불명)"
-                                    Toast.makeText(context, "다운로드 실패: $reason", Toast.LENGTH_LONG).show()
-                                    return@launch
-                                }
-                                AppUpdater.launchInstall(context, apk)
+                                if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                             } finally {
                                 checkingUpdate = false
                             }

@@ -123,12 +123,17 @@ class MainActivity : ComponentActivity() {
 
     private fun checkForUpdate() {
         lifecycleScope.launch {
-            val release = AppUpdater.fetchLatest() ?: return@launch
-            val current = AppUpdater.currentVersionCode(this@MainActivity)
-            if (!AppUpdater.isNewer(release.versionCode, current)) return@launch
-            Log.i("MainActivity", "Update ${release.versionName} (code ${release.versionCode}) available (current $current)")
-            val apk = AppUpdater.downloadApk(this@MainActivity, release) ?: return@launch
-            AppUpdater.launchInstall(this@MainActivity, apk)
+            // Quiet: download in the background; a silent update installs when
+            // the app is left, otherwise the system confirm screen opens.
+            val outcome = AppUpdater.run(this@MainActivity, AppUpdater.Trigger.APP_OPEN)
+            Log.i("MainActivity", "update check: $outcome")
+            if (outcome is AppUpdater.Outcome.Ready) {
+                android.widget.Toast.makeText(
+                    this@MainActivity,
+                    "새 버전 v${outcome.versionName} 준비됨 — 앱을 나가면 자동으로 설치돼요",
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
         }
     }
 
