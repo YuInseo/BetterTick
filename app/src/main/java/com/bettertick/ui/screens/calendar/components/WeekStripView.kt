@@ -122,7 +122,7 @@ private fun WeekDayCell(
             val overflow = tasks.size - maxVisibleTasks
 
             visible.forEach { task ->
-                com.bettertick.ui.screens.calendar.components.CalendarTaskChip(task = task, day = date)
+                com.bettertick.ui.screens.calendar.components.CalendarTaskChip(task = task, day = date, showTime = false)
                 Spacer(modifier = Modifier.height(1.dp))
             }
             if (overflow > 0) {
