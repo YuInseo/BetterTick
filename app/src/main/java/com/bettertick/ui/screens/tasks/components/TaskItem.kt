@@ -92,7 +92,9 @@ fun TaskItem(
     /** Long-press — enters multi-select in the task list. */
     onLongClick: (() -> Unit)? = null,
     /** 근무 할일의 병가 / 지휴 토글 (day, type). Null shows the used leave read-only. */
-    onToggleLeave: ((LocalDate, String) -> Unit)? = null
+    onToggleLeave: ((LocalDate, String) -> Unit)? = null,
+    /** False hides the 병가 / 지휴 chip row under a 근무 title. */
+    showLeaveChips: Boolean = true
 ) {
     val isShift = task.isShiftTask()
     val shiftDay = if (isShift) task.shiftDay(overrideDate) else null
@@ -167,7 +169,7 @@ fun TaskItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (isShift && (onToggleLeave != null || leave != null)) {
+            if (showLeaveChips && isShift && (onToggleLeave != null || leave != null)) {
                 Spacer(Modifier.height(4.dp))
                 LeaveChipRow(
                     day = shiftDay,
