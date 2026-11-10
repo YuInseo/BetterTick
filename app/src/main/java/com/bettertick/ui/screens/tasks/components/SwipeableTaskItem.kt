@@ -67,7 +67,8 @@ fun SwipeableTaskItem(
     onLongClick: (() -> Unit)? = null,
     onPin: (() -> Unit)? = null,
     onWontDo: (() -> Unit)? = null,
-    onToggleLeave: ((LocalDate, String) -> Unit)? = null
+    onToggleLeave: ((LocalDate, String) -> Unit)? = null,
+    showLeaveChips: Boolean = true
 ) {
     fun handler(a: SwipeAction): (() -> Unit)? = when (a) {
         SwipeAction.NONE -> null
@@ -152,7 +153,8 @@ fun SwipeableTaskItem(
                 listName = listName,
                 resolvedTags = resolvedTags,
                 onLongClick = onLongClick,
-                onToggleLeave = onToggleLeave
+                onToggleLeave = onToggleLeave,
+                showLeaveChips = showLeaveChips
             )
         }
     }

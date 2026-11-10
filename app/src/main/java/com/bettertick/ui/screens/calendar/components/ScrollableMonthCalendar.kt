@@ -365,14 +365,16 @@ fun CalendarTaskChip(
     task: Task,
     modifier: Modifier = Modifier.fillMaxWidth(),
     /** Cell date — lets a 근무 chip show the 병가 / 지휴 used that day. */
-    day: java.time.LocalDate? = null
+    day: java.time.LocalDate? = null,
+    /** False hides the leading "9:00 " — the week strip shows titles only. */
+    showTime: Boolean = true
 ) {
     val isShift = day != null && task.isShiftTask()
     val leave = if (isShift) task.leaveOn(day) else null
     val title = if (isShift) task.shiftTitleOn(day) else task.title
     val label = if (leave != null) "${normalizeShiftLabel(title)} $leave" else title
     val colors = chipColors(LocalTaskColor.current(task), task.isCompleted)
-    val time = if (CalendarPrefs.showDetails) {
+    val time = if (showTime && CalendarPrefs.showDetails) {
         task.dueDate?.toDate()?.toInstant()?.atZone(java.time.ZoneId.systemDefault())?.toLocalTime()
             ?.takeIf { it != java.time.LocalTime.MIDNIGHT }
             ?.let { "%d:%02d ".format(it.hour, it.minute) } ?: ""
