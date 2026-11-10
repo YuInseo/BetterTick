@@ -360,7 +360,8 @@ private fun DraggableTaskRow(
             listName = listName,
             resolvedTags = resolvedTags,
             rowBackground = DarkCard,
-            onToggleLeave = onToggleLeave
+            onToggleLeave = onToggleLeave,
+            showLeaveChips = false
         )
     }
 }

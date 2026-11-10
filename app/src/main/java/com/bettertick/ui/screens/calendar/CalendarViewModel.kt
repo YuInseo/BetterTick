@@ -111,15 +111,23 @@ class CalendarViewModel @Inject constructor(
                     day = day.plusDays(1)
                 }
             }
-            // Sort repeating tasks first within each day — visual grouping
-            // that matches the per-day panel's section ordering.
+            // Within each day, order by time of day (repeating tasks keep
+            // their series start date, so compare the clock time, not the
+            // timestamp). Tasks without a time (midnight / no due) go last.
             result.mapValues { (_, list) ->
                 list.sortedWith(
-                    compareByDescending<Task> { !it.repeatRule.isNullOrBlank() }
-                        .thenBy { it.dueDate?.toDate()?.time ?: Long.MAX_VALUE }
+                    compareBy<Task> { timeOfDayKey(it) }
+                        .thenBy { it.sortOrder }
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+    }
+
+    private fun timeOfDayKey(task: Task): Int {
+        val t = task.dueDate?.toDate()?.toInstant()
+            ?.atZone(java.time.ZoneId.systemDefault())?.toLocalTime()
+            ?: return Int.MAX_VALUE
+        return if (t == java.time.LocalTime.MIDNIGHT) Int.MAX_VALUE else t.toSecondOfDay()
     }
 
     /** Tapping the currently selected date clears the selection (closes the panel). */
