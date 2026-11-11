@@ -29,3 +29,13 @@ test("recurring task successor uses deterministic id and keeps completion revers
  assert.match(source,/isCompleted:!t\.isCompleted/);
  assert.match(source,/if\(!completed\|\|!t\.repeatRule/);
 });
+
+test("calendar navigation moves backward and forward",()=>{
+ const source=read("../src/App.tsx");
+ assert.match(source,/month\.getMonth\(\)-1,1\)\)\}><ChevronLeft/);
+ assert.match(source,/month\.getMonth\(\)\+1,1\)\)\}><ChevronRight/);
+});
+test("interactive task controls have event handlers",()=>{
+ const source=read("../src/App.tsx");
+ for(const fragment of ['onSubmit={e=>{e.preventDefault();void addTask()}}','onClick={()=>completeTask(t)}','onClick={()=>removeTask(active.id)}','onClick={()=>setFocusRunning(!focusRunning)}','onClick={()=>setSidebar(false)}','onClick={()=>setSidebar(true)}'])assert.ok(source.includes(fragment),fragment);
+});
