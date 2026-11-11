@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.draw.alpha
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,6 +103,8 @@ fun SelectedDatePanel(
     onSkipOccurrence: (Task, LocalDate) -> Unit = { _, _ -> },
     onDragTaskUpdate: (ActiveDrag?) -> Unit = {},
     onDragTaskRelease: (Task) -> Unit = {},
+    /** Drag released inside the list — new top-to-bottom ids for the day. */
+    onReorder: (List<String>) -> Unit = {},
     tags: List<Tag> = emptyList(),
     onCreateTag: suspend (String) -> String = { "" }
 ) {
@@ -119,6 +124,17 @@ fun SelectedDatePanel(
     // whole series.
     var recurringDeleteFor by remember { mutableStateOf<Task?>(null) }
 
+    // Drag-to-reorder: row / list bounds in root space, plus the live drag.
+    val rowBounds = remember { mutableStateMapOf<String, Rect>() }
+    var listBounds by remember { mutableStateOf<Rect?>(null) }
+    var localDrag by remember { mutableStateOf<ActiveDrag?>(null) }
+    val dragged = localDrag?.task?.takeIf { d -> active.any { it.id == d.id } }
+    val others = if (dragged == null) active else active.filterNot { it.id == dragged.id }
+    val insertAt: Int? = localDrag?.currentOffset?.let { p ->
+        if (dragged == null || listBounds?.contains(p) != true) null
+        else others.count { t -> rowBounds[t.id]?.let { it.center.y < p.y } == true }
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         // Active (top) card — rounded both ends, scrollable.
         Column(
@@ -136,7 +152,12 @@ fun SelectedDatePanel(
                 Spacer(Modifier.height(8.dp))
             } else {
                 LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onGloballyPositioned { c ->
+                            val pos = c.positionInRoot()
+                            listBounds = Rect(pos.x, pos.y, pos.x + c.size.width, pos.y + c.size.height)
+                        },
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                     contentPadding = listPadding
                 ) {
@@ -144,6 +165,19 @@ fun SelectedDatePanel(
                         val taskTags = remember(task.tagIds, tags) {
                             task.tagIds.mapNotNull { id -> tags.firstOrNull { it.id == id } }
                         }
+                        val othersIdx = others.indexOfFirst { it.id == task.id }
+                        val lineAbove = insertAt != null && othersIdx >= 0 && othersIdx == insertAt
+                        val lineBelow = insertAt != null && othersIdx >= 0 &&
+                            othersIdx == others.lastIndex && insertAt == others.size
+                        Column(
+                            modifier = Modifier
+                                .onGloballyPositioned { c ->
+                                    val pos = c.positionInRoot()
+                                    rowBounds[task.id] = Rect(pos.x, pos.y, pos.x + c.size.width, pos.y + c.size.height)
+                                }
+                                .alpha(if (dragged?.id == task.id) 0.35f else 1f)
+                        ) {
+                        if (lineAbove) ReorderLine()
                         DraggableTaskRow(
                             task = task,
                             selectedDate = selectedDate,
@@ -162,11 +196,25 @@ fun SelectedDatePanel(
                                 if (task.repeatRule.isNullOrBlank()) onDelete(task)
                                 else recurringDeleteFor = task
                             },
-                            onDragUpdate = onDragTaskUpdate,
-                            onDragRelease = onDragTaskRelease,
+                            onDragUpdate = { d ->
+                                localDrag = d
+                                onDragTaskUpdate(d)
+                            },
+                            onDragRelease = { t ->
+                                val idx = insertAt
+                                if (idx != null && dragged != null) {
+                                    val newOrder = others.toMutableList().apply { add(idx.coerceIn(0, size), dragged) }
+                                    val ids = newOrder.map { it.id }
+                                    if (ids != active.map { it.id }) onReorder(ids)
+                                }
+                                localDrag = null
+                                onDragTaskRelease(t)
+                            },
                             resolvedTags = taskTags,
                             onToggleLeave = { day, type -> onUpdateTask(task.withLeaveToggled(day, type)) }
                         )
+                        if (lineBelow) ReorderLine()
+                        }
                     }
                 }
             }
@@ -320,6 +368,8 @@ private fun DraggableTaskRow(
     // positioned elsewhere in the tree.
     var rootPos by remember { mutableStateOf(Offset.Zero) }
     var dragRootPointer by remember { mutableStateOf<Offset?>(null) }
+    val latestDragUpdate by androidx.compose.runtime.rememberUpdatedState(onDragUpdate)
+    val latestDragRelease by androidx.compose.runtime.rememberUpdatedState(onDragRelease)
 
     Box(
         modifier = Modifier
@@ -330,21 +380,21 @@ private fun DraggableTaskRow(
                     onDragStart = { localOffset ->
                         val rootOffset = rootPos + localOffset
                         dragRootPointer = rootOffset
-                        onDragUpdate(ActiveDrag(task, rootOffset, rootOffset))
+                        latestDragUpdate(ActiveDrag(task, rootOffset, rootOffset))
                     },
                     onDragEnd = {
-                        onDragRelease(task)
+                        latestDragRelease(task)
                         dragRootPointer = null
                     },
                     onDragCancel = {
-                        onDragUpdate(null)
+                        latestDragUpdate(null)
                         dragRootPointer = null
                     },
                     onDrag = { change, amount ->
                         change.consume()
                         val next = (dragRootPointer ?: rootPos) + amount
                         dragRootPointer = next
-                        onDragUpdate(ActiveDrag(task, rootPos, next))
+                        latestDragUpdate(ActiveDrag(task, rootPos, next))
                     }
                 )
             }
@@ -485,4 +535,17 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             color = TextTertiary
         )
     }
+}
+
+/** Insertion marker shown between rows while dragging to reorder. */
+@Composable
+private fun ReorderLine() {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .height(2.dp)
+            .clip(RoundedCornerShape(1.dp))
+            .background(MaterialTheme.colorScheme.primary)
+    )
 }

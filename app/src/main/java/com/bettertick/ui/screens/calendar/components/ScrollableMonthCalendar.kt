@@ -367,7 +367,7 @@ fun CalendarTaskChip(
     /** Cell date — lets a 근무 chip show the 병가 / 지휴 used that day. */
     day: java.time.LocalDate? = null,
     /** False hides the leading "9:00 " — the week strip shows titles only. */
-    showTime: Boolean = true
+    showTime: Boolean = com.bettertick.ui.screens.calendar.LocalChipShowTime.current
 ) {
     val isShift = day != null && task.isShiftTask()
     val leave = if (isShift) task.leaveOn(day) else null

@@ -193,8 +193,11 @@ fun CalendarScreen(
                 (currentCycle[parentTaskId(t.id)]?.let { it == d } ?: true)
         }
     }
-    val filteredByDate = remember(tasksByDate, filterKey, occurrenceFilter) {
-        tasksByDate.mapValues { (d, l) -> l.filter { CalendarPrefs.passesFilter(it) && occurrenceFilter(it, d) } }
+    val dayOrders = CalendarPrefs.dayOrders
+    val filteredByDate = remember(tasksByDate, filterKey, occurrenceFilter, dayOrders) {
+        tasksByDate.mapValues { (d, l) ->
+            CalendarPrefs.applyDayOrder(d, l.filter { CalendarPrefs.passesFilter(it) && occurrenceFilter(it, d) })
+        }
     }
     // Panel lists keep real tasks only; grid chips may add check items.
     val lookup = remember(filteredByDate) { TaskDateLookup(filteredByDate) }
@@ -587,6 +590,7 @@ fun CalendarScreen(
                                 tags = viewModel.tags.collectAsState().value,
                                 onCreateTag = { viewModel.createTag(it) },
                                 onDragTaskUpdate = { drag -> activeDrag = drag },
+                                onReorder = { ids -> CalendarPrefs.updateDayOrder(currentDate, ids) },
                                 onDragTaskRelease = { task ->
                                     val drop = activeDrag?.currentOffset
                                     if (drop != null) {
@@ -923,15 +927,19 @@ private fun DragAwareWeekStrip(
             }
     ) {
         Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
-            WeekRow(
-                week = selectedWeek,
-                weekIdx = 0,
-                allWeeks = selectedWeekList,
-                today = today,
-                selectedDate = selectedDate,
-                lookup = lookup,
-                onDateSelected = onDateSelected
-            )
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.bettertick.ui.screens.calendar.LocalChipShowTime provides false
+            ) {
+                WeekRow(
+                    week = selectedWeek,
+                    weekIdx = 0,
+                    allWeeks = selectedWeekList,
+                    today = today,
+                    selectedDate = selectedDate,
+                    lookup = lookup,
+                    onDateSelected = onDateSelected
+                )
+            }
             Row(modifier = Modifier.fillMaxWidth()) {
                 selectedWeek.forEach { d ->
                     val isHovered = activeDrag != null && hoveredDate == d
