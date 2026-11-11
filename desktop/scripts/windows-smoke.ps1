@@ -10,8 +10,6 @@ public static class BetterTickWindow {
 '@
 $app = Join-Path $PSScriptRoot '../src-tauri/target/release/bettertick-desktop.exe'
 if (!(Test-Path $app)) { throw "Built executable missing: $app" }
-$previousBrowserArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9333 --remote-debugging-address=127.0.0.1'
 $process = Start-Process -FilePath $app -PassThru -RedirectStandardError (Join-Path $PSScriptRoot '../test-results/native-stderr.log') -RedirectStandardOutput (Join-Path $PSScriptRoot '../test-results/native-stdout.log')
 try {
   $deadline = (Get-Date).AddSeconds(45)
@@ -25,8 +23,8 @@ try {
   if (![BetterTickWindow]::IsWindowVisible($handle)) { throw 'Desktop window is not visible' }
   if ($process.MainWindowTitle -ne 'BetterTick') { throw "Unexpected window title: $($process.MainWindowTitle)" }
   Write-Host 'PASS: Built Windows executable starts and displays the BetterTick window.'
-  # Wait for the actual WebView UI instead of assuming a fixed startup delay.
-  & node (Join-Path $PSScriptRoot 'native-ready.mjs')
+  # Test the exact release binary through Windows accessibility and real keyboard input.
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'native-ready.ps1') -WindowHandle ($handle.ToInt64())
   if ($LASTEXITCODE -ne 0) { throw 'The native WebView did not pass its UI check' }
   $process.Refresh()
   if ($process.HasExited) { throw "Native process exited after UI readiness (exit $($process.ExitCode))" }
@@ -49,6 +47,5 @@ try {
   if (![BetterTickWindow]::IsWindowVisible($handle)) { throw 'Global quick-add shortcut did not restore the native window' }
   Write-Host 'PASS: Ctrl+Shift+A restores the native window from tray.'
 } finally {
-  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousBrowserArguments
   if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
 }
