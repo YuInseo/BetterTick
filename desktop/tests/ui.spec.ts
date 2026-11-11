@@ -10,6 +10,7 @@ test("add, complete, uncomplete and delete a task",async({page})=>{
  await page.getByTitle("완료 전환").click();
  await page.getByRole("button",{name:"전체",exact:true}).click();
  await page.getByText("QA sample task").first().click();
+ page.once("dialog",dialog=>dialog.accept());
  await page.getByRole("button",{name:"삭제",exact:true}).click();
  await expect(page.getByText("QA sample task")).toHaveCount(0);
 });
@@ -60,4 +61,20 @@ test("settings reset returns default values",async({page})=>{
  await page.locator(".settings-options input[type=number]").first().fill("35");
  await page.getByRole("button",{name:"기본값 복원"}).click();
  await expect(page.locator(".settings-options input[type=number]").first()).toHaveValue("25");
+});
+
+test("keyboard shortcuts focus search and new-task input",async({page})=>{
+ await page.keyboard.press("Control+k");
+ await expect(page.locator("#search")).toBeFocused();
+ await page.keyboard.press("Control+n");
+ await expect(page.locator("#quick-add")).toBeFocused();
+});
+test("task details priority and repeat settings can be changed",async({page})=>{
+ await page.locator("#quick-add").fill("Detail QA");
+ await page.getByRole("button",{name:"추가",exact:true}).click();
+ await expect(page.locator(".detail")).toBeVisible();
+ await page.locator(".detail label").filter({hasText:"우선순위"}).locator("select").selectOption("3");
+ await expect(page.locator(".detail label").filter({hasText:"우선순위"}).locator("select")).toHaveValue("3");
+ await page.locator(".detail label").filter({hasText:"반복"}).locator("select").selectOption("DAILY");
+ await expect(page.locator(".detail label").filter({hasText:"반복"}).locator("select")).toHaveValue("DAILY");
 });
