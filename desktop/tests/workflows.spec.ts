@@ -345,6 +345,8 @@ test("every main navigation renders without runtime errors", async ({
   });
   await closeDetail(page);
   await nav(page, "습관");
+  await expect(page.locator(".habit-head span").last()).toBeInViewport();
+  await expect(page.locator(".sidebar .brand")).toBeInViewport();
   await page.screenshot({
     path: "test-results/desktop-habits.png",
     fullPage: true,

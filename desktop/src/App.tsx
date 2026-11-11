@@ -523,29 +523,31 @@ function App() {
     <div className="shell">
       {sidebar && (
         <aside className="sidebar">
-          <div className="brand">
-            <div className="logo-mark">✓</div>
-            <strong>BetterTick</strong>
-            <button
-              className="icon-button push"
-              title={tr("사이드바 닫기")}
-              onClick={() => setSidebar(false)}
-            >
-              <Menu size={17} />
-            </button>
-          </div>
-          <div className="profile">
-            <div className="avatar">
-              {(user.displayName ?? "U").slice(0, 1)}
+          <div className="sidebar-header">
+            <div className="brand">
+              <div className="logo-mark">✓</div>
+              <strong>BetterTick</strong>
+              <button
+                className="icon-button push"
+                title={tr("사이드바 닫기")}
+                onClick={() => setSidebar(false)}
+              >
+                <Menu size={17} />
+              </button>
             </div>
-            <span>{user.displayName ?? user.email}</span>
-            <button
-              className="icon-button"
-              title={tr("설정")}
-              onClick={() => setView("settings")}
-            >
-              <Settings2 size={16} />
-            </button>
+            <div className="profile">
+              <div className="avatar">
+                {(user.displayName ?? "U").slice(0, 1)}
+              </div>
+              <span>{user.displayName ?? user.email}</span>
+              <button
+                className="icon-button"
+                title={tr("설정")}
+                onClick={() => setView("settings")}
+              >
+                <Settings2 size={16} />
+              </button>
+            </div>
           </div>
           <div className="nav-section">
             {nav.map((item) => (

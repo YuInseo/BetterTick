@@ -1311,3 +1311,42 @@ button.primary,
   top: 0;
   font-size: 7px;
 }
+.sidebar-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: #f7f8fa;
+  flex-shrink: 0;
+  padding-top: 5px;
+}
+.detail label {
+  white-space: nowrap;
+}
+.detail label input,
+.detail label select {
+  flex: 0 1 170px;
+  min-width: 0;
+  max-width: 170px;
+}
+.detail label input[type="checkbox"] {
+  flex: 0 0 18px;
+}
+.toolbar > .icon-button,
+.backup-import {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.search-box {
+  flex: 1;
+  min-width: 100px;
+}
+.habit-head,
+.habit-row {
+  min-width: 620px;
+  grid-template-columns: minmax(150px, 2fr) repeat(7, minmax(45px, 1fr));
+  gap: 5px;
+  padding: 12px;
+}
+:root[data-theme="dark"] .sidebar-header {
+  background: #20242d;
+}
