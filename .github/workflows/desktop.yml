@@ -22,6 +22,7 @@ jobs:
           cache: npm
           cache-dependency-path: desktop/package-lock.json
       - run: npm install
+      - run: npx tauri icon icon.svg
       - run: npm run build
       - run: npm run tauri build
       - uses: actions/upload-artifact@v4
