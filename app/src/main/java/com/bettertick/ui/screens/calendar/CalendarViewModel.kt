@@ -192,6 +192,10 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    fun applyStatus(task: Task, action: com.bettertick.data.model.TaskStatusAction, shownDate: LocalDate?) {
+        viewModelScope.launch { taskRepository.applyStatus(task, action, shownDate) }
+    }
+
     fun setAbandoned(taskId: String, isAbandoned: Boolean) {
         viewModelScope.launch {
             taskRepository.setAbandoned(taskId, isAbandoned)

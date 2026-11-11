@@ -274,7 +274,13 @@ class ReminderWidget : GlanceAppWidget() {
                             Column(
                                 modifier = GlanceModifier
                                     .padding(horizontal = 12.dp)
-                                    .clickable(actionStartActivity<MainActivity>())
+                                    .clickable(
+                                        // 근무 opens the app; other rows open 완료/취소됨/미루기.
+                                        if (task.isShiftTask()) actionStartActivity<MainActivity>()
+                                        else actionStartActivityWithIntent(
+                                            WidgetTaskMenuActivity.intent(context, task.id, selectedDate)
+                                        )
+                                    )
                             ) {
                                 TaskRow(task, listById, settings.showDetail, pal, fs, selectedDate, settings.isMemo)
                                 Spacer(GlanceModifier.height(10.dp))

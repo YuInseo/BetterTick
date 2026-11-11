@@ -591,6 +591,7 @@ fun CalendarScreen(
                                 onCreateTag = { viewModel.createTag(it) },
                                 onDragTaskUpdate = { drag -> activeDrag = drag },
                                 onReorder = { ids -> CalendarPrefs.updateDayOrder(currentDate, ids) },
+                                onStatusAction = { task, action -> viewModel.applyStatus(task, action, currentDate) },
                                 onDragTaskRelease = { task ->
                                     val drop = activeDrag?.currentOffset
                                     if (drop != null) {
