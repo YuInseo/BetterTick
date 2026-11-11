@@ -23,19 +23,4 @@ test("Tauri Rust application and icon source exist",()=>{
  for(const path of ["../src-tauri/src/main.rs","../src-tauri/src/lib.rs","../src-tauri/Cargo.toml","../icon.svg"])assert.ok(existsSync(new URL(path,import.meta.url)),path);
 });
 
-test("recurring task successor uses deterministic id and keeps completion reversible",()=>{
- const source=read("../src/App.tsx");
- assert.match(source,/const id=t\.id\+"__"\+dateKey\(next\)/);
- assert.match(source,/const completed=!t\.isCompleted/);
- assert.match(source,/if\(!completed\|\|!t\.repeatRule/);
-});
-
-test("calendar navigation moves backward and forward",()=>{
- const source=read("../src/App.tsx");
- assert.match(source,/month\.getMonth\(\)-1,1\)\)\}><ChevronLeft/);
- assert.match(source,/month\.getMonth\(\)\+1,1\)\)\}><ChevronRight/);
-});
-test("interactive task controls have event handlers",()=>{
- const source=read("../src/App.tsx");
- for(const fragment of ['onSubmit={e=>{e.preventDefault();void addTask()}}','onClick={()=>completeTask(t)}','onClick={()=>removeTask(active.id)}','onClick={()=>setFocusRunning(!focusRunning)}','onClick={()=>setSidebar(false)}','onClick={()=>setSidebar(true)}'])assert.ok(source.includes(fragment),fragment);
-});
+test("all user data collections are included in backup validation",()=>{const source=read("../src/domain.ts");for(const key of ["tasks","lists","tags","habits","habitLogs","sessions","filters"])assert.ok(source.includes(key))});

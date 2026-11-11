@@ -5,7 +5,32 @@ on:
     paths: ['desktop/**', '.github/workflows/desktop.yml']
   workflow_dispatch:
 jobs:
+  qa:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BetterTick-Linux-QA
+          path: |
+            desktop/playwright-report/**
+            desktop/test-results/**
   windows:
+    needs: qa
     runs-on: windows-latest
     defaults:
       run:
@@ -19,7 +44,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install
+      - run: npm ci
       - run: npx tauri icon icon.svg
       - run: npm test
       - run: npx playwright install --with-deps chromium
