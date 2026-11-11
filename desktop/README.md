@@ -6,7 +6,7 @@ React 19 / TypeScript / Tauri 2 기반 Windows 데스크톱 할 일 앱.
 
 Node.js 22 이상에서 `npm ci && npm run dev`를 실행합니다. Firebase 설정 없이 바로 로컬 모드로 시작하며, 작업은 브라우저 또는 Windows WebView의 기기별 저장 공간에 유지됩니다.
 
-Windows 설치 파일: `npm run tauri build`. Rust stable, Microsoft C++ Build Tools 및 WebView2가 필요합니다. GitHub Actions의 **Desktop Windows Build**가 Linux 회귀 검사 후 Windows에서도 검사하고 EXE / MSI를 아티팩트로 제공합니다.
+Windows 설치 파일: `npm run tauri build`. Rust stable, Microsoft C++ Build Tools 및 WebView2가 필요합니다. GitHub Actions의 **Desktop Windows Build**가 Linux 회귀 검사 후 Windows에서도 검사하고 EXE / MSI를 아티팩트로 제공합니다. 빌드된 Windows 실행 파일을 실제로 실행하여 창 표시, 닫기 시 트레이 유지, 전역 단축키 복원을 검사합니다.
 
 선택적 Firebase 동기화를 사용하려면 `.env.example`의 웹 앱 설정을 입력합니다. 사용자별 `users/{uid}` 경로를 보호하는 Firestore 규칙이 필요합니다. 설정된 환경에서도 로그인 화면에서 로컬 사용을 선택할 수 있습니다. Firebase 모드에는 IndexedDB 기반 영구 캐시와 오프라인 쓰기 큐를 사용합니다.
 
@@ -40,4 +40,4 @@ Windows 설치 파일: `npm run tauri build`. Rust stable, Microsoft C++ Build T
 
 TickTick과 기능 및 디자인이 완전히 동일하다고 인증된 버전은 아닙니다. 외부 서비스 연동·협업·AI·음성 입력은 이번 범위에서 제외합니다. 다중 매트릭스 사용자 정의, 무제한 계층 하위 작업, 고급 반복 규칙 전체, 데스크톱 독립 위젯/스티키 창, 자동 업데이트 및 앱 종료 중 OS 예약 알림은 아직 지원하지 않습니다.
 
-로컬 저장은 기기별 Web Storage이므로 저장 공간 한도가 있습니다. 첨부가 많으면 백업을 내보내 관리하세요. 백업은 같은 ID를 덮어쓰는 병합 방식이며, 여러 저장소에 걸친 트랜잭션 복원은 아닙니다. Windows 전역 단축키·트레이·자동 시작의 OS 동작은 브라우저 E2E 검증 대상이 아닙니다.
+로컬 저장은 기기별 Web Storage이므로 저장 공간 한도가 있습니다. 첨부가 많으면 백업을 내보내 관리하세요. 백업은 같은 ID를 덮어쓰는 병합 방식이며, 여러 저장소에 걸친 트랜잭션 복원은 아닙니다. Windows 창·트레이·전역 단축키는 별도 네이티브 스모크 검사로 확인합니다. OS 재부팅 후 자동 시작과 실제 사용자 알림 권한은 자동 검증 범위에 포함되지 않습니다.
