@@ -1,7 +1,7 @@
 name: Desktop (Tauri)
 
-# PC app lives in desktop/ on the `pc` branch. Every push builds the
-# Windows installer and runs the Rust tests.
+# PC app lives in desktop/ on the `pc` branch. Every push runs the Rust tests
+# and builds the Windows installer. (Tests run on Windows: no apt mirror needed.)
 on:
   push:
     branches: [ pc ]
@@ -13,37 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
-    name: Rust tests (Linux)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: desktop
-    steps:
-      - uses: actions/checkout@v4
-      - name: System libraries for Tauri
-        timeout-minutes: 10
-        run: |
-          # man-db's index rebuild can stall apt on hosted runners for ages.
-          sudo rm -f /var/lib/man-db/auto-update
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: desktop/package-lock.json
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: desktop/src-tauri
-      - run: npm ci
-      - run: npm run build
-      - run: cargo test --manifest-path src-tauri/Cargo.toml
-
   windows:
-    name: Windows installer
+    name: Tests + Windows installer
     runs-on: windows-latest
     timeout-minutes: 45
     defaults:
@@ -61,6 +32,10 @@ jobs:
         with:
           workspaces: desktop/src-tauri
       - run: npm ci
+      # generate_context! embeds dist/, so build the frontend before cargo test.
+      - run: npm run build
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
       - name: Build (NSIS installer)
         run: npx tauri build --bundles nsis
       - uses: actions/upload-artifact@v4
