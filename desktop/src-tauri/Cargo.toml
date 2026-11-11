@@ -1,0 +1,50 @@
+[package]
+name = "bettertick"
+version = "0.1.0"
+description = "BetterTick — keyboard-first desktop productivity app"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+# `_lib` suffix avoids a name clash with the bin target on Windows (Tauri v2 template convention).
+name = "bettertick_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+# Core — v2 only. `tray-icon`: system tray. `image-png`: tray icon. `macos-private-api`: transparent windows on macOS.
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-shell = "2"
+
+# Storage: SQLite (bundled, no system lib needed), WAL mode set at open.
+rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
+
+# Async runtime for the pomodoro ticker, focus sampler and batch jobs.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync"] }
+
+# Markdown TODO.md watcher (Step 2: two-way sync engine).
+notify = "6"
+notify-debouncer-mini = "0.4"
+
+# Active window (process + title) during focus sessions.
+active-win-pos-rs = "0.9"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4"] }
+thiserror = "1"
+log = "0.4"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-global-shortcut = "2"
+
+[profile.release]
+# Ultra-light binary: strip symbols, optimize for size, single codegen unit.
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
