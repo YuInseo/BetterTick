@@ -22,3 +22,10 @@ test("critical desktop screens and Firestore synchronization are wired",()=>{
 test("Tauri Rust application and icon source exist",()=>{
  for(const path of ["../src-tauri/src/main.rs","../src-tauri/src/lib.rs","../src-tauri/Cargo.toml","../icon.svg"])assert.ok(existsSync(new URL(path,import.meta.url)),path);
 });
+
+test("recurring task successor uses deterministic id and keeps completion reversible",()=>{
+ const source=read("../src/App.tsx");
+ assert.match(source,/const id=t\.id\+"__"\+dateKey\(next\)/);
+ assert.match(source,/isCompleted:!t\.isCompleted/);
+ assert.match(source,/if\(!completed\|\|!t\.repeatRule/);
+});
