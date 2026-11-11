@@ -29,7 +29,12 @@ export type Task = {
   sortOrder?: number;
   pinned?: boolean;
   isNote?: boolean;
-  attachments?: { id: string; name: string; mime: string; data: string }[];
+  desktopAttachments?: {
+    id: string;
+    name: string;
+    mime: string;
+    data: string;
+  }[];
   section?: string;
   reminderMinutes?: number[];
   subtasks?: { id: string; title: string; done: boolean }[];
@@ -58,6 +63,8 @@ export type HabitLog = {
   habitId: string;
   date: string;
   value: number;
+  isCompleted?: boolean;
+  completedAt?: DateValue;
 };
 export type FocusSession = {
   id: string;
@@ -341,9 +348,9 @@ export function validateBackup(input: unknown) {
       throw Error("필터 데이터 오류");
   for (const t of p.tasks as Task[])
     if (
-      t.attachments &&
-      (!Array.isArray(t.attachments) ||
-        t.attachments.some(
+      t.desktopAttachments &&
+      (!Array.isArray(t.desktopAttachments) ||
+        t.desktopAttachments.some(
           (a) =>
             !a ||
             !validId(a.id) ||

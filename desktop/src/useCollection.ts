@@ -6,7 +6,9 @@ import {
   onSnapshot,
   setDoc,
   type Firestore,
+  Timestamp,
 } from "firebase/firestore";
+import { asDate } from "./domain";
 export function useCollection<T extends { id: string }>(
   db: Firestore | null,
   userId: string,
@@ -34,7 +36,28 @@ export function useCollection<T extends { id: string }>(
     return onSnapshot(
       collection(db, "users", userId, name),
       (snap) =>
-        setItems(snap.docs.map((d) => ({ ...d.data(), id: d.id }) as T)),
+        setItems(
+          snap.docs.map((d) => {
+            const raw = { ...d.data(), id: d.id } as Record<string, unknown>;
+            if (name === "habits") {
+              raw.target = raw.target ?? 1;
+              raw.unit = raw.unit ?? "회";
+              raw.targetDays = Array.isArray(raw.targetDays)
+                ? raw.targetDays.map((day) => Number(day) % 7)
+                : [0, 1, 2, 3, 4, 5, 6];
+              raw.isArchived = raw.isArchived ?? false;
+            }
+            if (name === "habitLogs")
+              raw.value = raw.value ?? (raw.isCompleted ? 1 : 0);
+            if (name === "tasks") {
+              raw.desktopAttachments = raw.desktopAttachments ?? [];
+              raw.pinned = raw.pinned ?? raw.isPinned ?? false;
+              raw.reminderMinutes = raw.reminderMinutes ?? raw.reminders ?? [];
+              raw.duration = raw.duration ?? raw.durationMinutes ?? 0;
+            }
+            return raw as T;
+          }),
+        ),
       (e) => onError(e.message),
     );
   }, [db, userId, name]);
@@ -59,7 +82,27 @@ export function useCollection<T extends { id: string }>(
       });
       if (db)
         try {
-          await setDoc(doc(db, "users", userId, name, clean.id), clean);
+          const remote = JSON.parse(JSON.stringify(clean)) as Record<
+            string,
+            unknown
+          >;
+          for (const field of ["dueDate", "createdAt", "completedAt"]) {
+            const value = asDate(remote[field] as Parameters<typeof asDate>[0]);
+            if (value) remote[field] = Timestamp.fromDate(value);
+          }
+          if (name === "habits" && Array.isArray(remote.targetDays))
+            remote.targetDays = remote.targetDays.map((d) => (d === 0 ? 7 : d));
+          if (name === "tasks") {
+            remote.updatedAt = Timestamp.now();
+            if (remote.pinned !== undefined) remote.isPinned = remote.pinned;
+            if (remote.reminderMinutes !== undefined)
+              remote.reminders = remote.reminderMinutes;
+            if (remote.duration !== undefined)
+              remote.durationMinutes = remote.duration;
+          }
+          await setDoc(doc(db, "users", userId, name, clean.id), remote, {
+            merge: true,
+          });
         } catch (e) {
           onError("동기화 실패: " + String(e));
         }

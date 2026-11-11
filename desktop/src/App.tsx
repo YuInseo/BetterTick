@@ -808,7 +808,21 @@ function App() {
             habits={habitStore.items}
             logs={logStore.items}
             onSave={habitStore.put}
-            onLog={logStore.put}
+            onLog={(l) =>
+              logStore.put({
+                ...l,
+                isCompleted:
+                  l.value >=
+                  (habitStore.items.find((h) => h.id === l.habitId)?.target ??
+                    1),
+                completedAt:
+                  l.value >=
+                  (habitStore.items.find((h) => h.id === l.habitId)?.target ??
+                    1)
+                    ? new Date().toISOString()
+                    : null,
+              })
+            }
             onDelete={(id) => {
               habitStore.remove(id);
               logStore.items
@@ -1628,8 +1642,8 @@ function App() {
                 reader.onload = () =>
                   write({
                     ...active,
-                    attachments: [
-                      ...(active.attachments ?? []),
+                    desktopAttachments: [
+                      ...(active.desktopAttachments ?? []),
                       {
                         id: uid(),
                         name: file.name,
@@ -1642,7 +1656,7 @@ function App() {
               }}
             />
           </label>
-          {(active.attachments ?? []).map((file) => (
+          {(active.desktopAttachments ?? []).map((file) => (
             <div className="attachment" key={file.id}>
               <a href={file.data} download={file.name}>
                 {file.name}
@@ -1652,7 +1666,7 @@ function App() {
                 onClick={() =>
                   write({
                     ...active,
-                    attachments: active.attachments?.filter(
+                    desktopAttachments: active.desktopAttachments?.filter(
                       (a) => a.id !== file.id,
                     ),
                   })
