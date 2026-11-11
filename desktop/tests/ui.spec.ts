@@ -40,3 +40,24 @@ test("new list creation and navigation",async({page})=>{
  await page.getByTitle("목록 추가").click();
  await expect(page.getByRole("button",{name:"QA List"})).toBeVisible();
 });
+
+test("settings persist theme and default priority across reload",async({page})=>{
+ await page.locator(".profile .icon-button").click();
+ await expect(page.getByRole("heading",{name:"설정"})).toBeVisible();
+ await page.getByRole("button",{name:"화면",exact:true}).click();
+ await page.locator(".settings-options select").first().selectOption("dark");
+ await expect(page.locator("html")).toHaveAttribute("data-theme","dark");
+ await page.getByRole("button",{name:"할 일",exact:true}).click();
+ await page.locator(".settings-options select").first().selectOption("3");
+ await page.reload();
+ await page.locator(".profile .icon-button").click();
+ await page.getByRole("button",{name:"할 일",exact:true}).click();
+ await expect(page.locator(".settings-options select").first()).toHaveValue("3");
+});
+test("settings reset returns default values",async({page})=>{
+ await page.locator(".profile .icon-button").click();
+ await page.getByRole("button",{name:"집중",exact:true}).click();
+ await page.locator(".settings-options input[type=number]").first().fill("35");
+ await page.getByRole("button",{name:"기본값 복원"}).click();
+ await expect(page.locator(".settings-options input[type=number]").first()).toHaveValue("25");
+});
