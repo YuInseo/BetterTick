@@ -50,6 +50,7 @@ function App() {
  const addList = async () => {if(!user||!db)return;const name=prompt("새 목록 이름");if(!name?.trim())return;const id=uid();try{await setDoc(doc(db,"users",user.uid,"lists",id),{id,name:name.trim(),color:"#4776ef",icon:"list",sortOrder:lists.length,createdAt:serverTimestamp()});setView(id)}catch(e){setError(String(e))}};
  const completeTask = async (t:Task) => {
   const completed=!t.isCompleted;
+  if(t.isCompleted)return;
   await write({...t,isCompleted:completed,completedAt:completed?new Date():null} as Task);
   if(!completed||!t.repeatRule||!taskDate(t))return;
   const next=new Date(taskDate(t)!);
@@ -57,8 +58,8 @@ function App() {
   else if(t.repeatRule==="WEEKLY")next.setDate(next.getDate()+7);
   else if(t.repeatRule==="MONTHLY")next.setMonth(next.getMonth()+1);
   else return;
-  const id=uid();
-  await write({...t,id,isCompleted:false,dueDate:next,sortOrder:Date.now()});
+  const id=t.id+"__"+dateKey(next);
+  await write({...t,id,isCompleted:false,completedAt:null,dueDate:next,sortOrder:next.getTime()});
  };
  const removeTask = async (id:string)=>{if(!user||!db)return;try{await deleteDoc(doc(db,"users",user.uid,"tasks",id));setSelected(null)}catch(e){setError(String(e))}};
  const visible = useMemo(()=>tasks.filter(t=>{
