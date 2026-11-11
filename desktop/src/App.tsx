@@ -50,7 +50,6 @@ function App() {
  const addList = async () => {if(!user||!db)return;const name=prompt("새 목록 이름");if(!name?.trim())return;const id=uid();try{await setDoc(doc(db,"users",user.uid,"lists",id),{id,name:name.trim(),color:"#4776ef",icon:"list",sortOrder:lists.length,createdAt:serverTimestamp()});setView(id)}catch(e){setError(String(e))}};
  const completeTask = async (t:Task) => {
   const completed=!t.isCompleted;
-  if(t.isCompleted)return;
   await write({...t,isCompleted:completed,completedAt:completed?new Date():null} as Task);
   if(!completed||!t.repeatRule||!taskDate(t))return;
   const next=new Date(taskDate(t)!);
