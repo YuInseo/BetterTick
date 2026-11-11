@@ -71,6 +71,19 @@ class TaskRepository @Inject constructor(
         v
     }
 
+    /**
+     * Firestore's mapper turns Kotlin `isCompleted` into a "completed" field on
+     * write but can't map it back onto the `val`, so Boolean `is*` flags read
+     * as false. Read them from the document directly (either field name).
+     */
+    private fun com.google.firebase.firestore.DocumentSnapshot.toTask(): Task? =
+        toObject(Task::class.java)?.copy(
+            id = id,
+            isCompleted = getBoolean("completed") ?: getBoolean("isCompleted") ?: false,
+            isAbandoned = getBoolean("abandoned") ?: getBoolean("isAbandoned") ?: false,
+            isPinned = getBoolean("pinned") ?: getBoolean("isPinned") ?: false
+        )
+
     private fun refreshWidget() {
         widgetScope.launch {
             runCatching { ReminderWidget().updateAll(appContext) }
@@ -89,7 +102,7 @@ class TaskRepository @Inject constructor(
             .addSnapshotListener(cacheOptions) { snapshot, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
                 trySend(snapshot?.documents?.map { doc ->
-                    doc.toObject(Task::class.java)?.copy(id = doc.id) ?: Task()
+                    doc.toTask() ?: Task()
                 } ?: emptyList())
             }
         awaitClose { registration.remove() }
@@ -108,7 +121,7 @@ class TaskRepository @Inject constructor(
             .addSnapshotListener(cacheOptions) { snapshot, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
                 trySend(snapshot?.documents?.map { doc ->
-                    doc.toObject(Task::class.java)?.copy(id = doc.id) ?: Task()
+                    doc.toTask() ?: Task()
                 } ?: emptyList())
             }
         awaitClose { registration.remove() }
@@ -120,13 +133,19 @@ class TaskRepository @Inject constructor(
             .addSnapshotListener(cacheOptions) { snapshot, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
                 trySend(snapshot?.documents?.map { doc ->
-                    doc.toObject(Task::class.java)?.copy(id = doc.id) ?: Task()
+                    doc.toTask() ?: Task()
                 } ?: emptyList())
             }
         awaitClose { registration.remove() }
     }
 
-    fun observeTasksForDateRange(startDate: LocalDate, endDate: LocalDate): Flow<List<Task>> = callbackFlow {
+    fun observeTasksForDateRange(startDate: LocalDate, endDate: LocalDate): Flow<List<Task>> = combine(
+        rawObserveTasksForDateRange(startDate, endDate),
+        _optimisticCompleted,
+        _optimisticAbandoned
+    ) { tasks, completed, abandoned -> tasks.applyOverrides(completed, abandoned) }
+
+    private fun rawObserveTasksForDateRange(startDate: LocalDate, endDate: LocalDate): Flow<List<Task>> = callbackFlow {
         val startTs = Timestamp(Date.from(startDate.atStartOfDay(ZoneId.systemDefault()).toInstant()))
         val endTs = Timestamp(Date.from(endDate.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()))
 
@@ -136,7 +155,7 @@ class TaskRepository @Inject constructor(
             .addSnapshotListener(cacheOptions) { snapshot, error ->
                 if (error != null) { close(error); return@addSnapshotListener }
                 trySend(snapshot?.documents?.map { doc ->
-                    doc.toObject(Task::class.java)?.copy(id = doc.id) ?: Task()
+                    doc.toTask() ?: Task()
                 } ?: emptyList())
             }
         awaitClose { registration.remove() }
@@ -230,7 +249,7 @@ class TaskRepository @Inject constructor(
     suspend fun skipOccurrence(taskId: String, date: LocalDate) {
         val doc = firestoreProvider.tasksCollection().document(taskId)
         val snapshot = doc.get(Source.CACHE).await()
-        val existing = snapshot.toObject(Task::class.java) ?: return
+        val existing = snapshot.toTask() ?: return
         val iso = date.toString()
         if (iso in existing.exceptions) return
         doc.update(
@@ -251,7 +270,7 @@ class TaskRepository @Inject constructor(
     suspend fun moveOccurrence(taskId: String, sourceDate: LocalDate, newDate: LocalDate) {
         val doc = firestoreProvider.tasksCollection().document(taskId)
         val snapshot = doc.get(Source.CACHE).await()
-        val original = snapshot.toObject(Task::class.java) ?: return
+        val original = snapshot.toTask() ?: return
 
         // Preserve the original time-of-day when shifting the occurrence so
         // the moved copy keeps its alarm/start time.
