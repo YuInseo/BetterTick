@@ -11,6 +11,7 @@ type Task = { id: string; title: string; notes?: string; listId: string; dueDate
 type TaskList = { id: string; name: string; color: string; icon?: string; sortOrder?: number };
 type View = "inbox" | "today" | "upcoming" | "all" | "completed" | "calendar" | "focus" | "board" | string;
 const config = { apiKey: import.meta.env.VITE_FIREBASE_API_KEY, authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID, appId: import.meta.env.VITE_FIREBASE_APP_ID };
+const qaMode = import.meta.env.VITE_QA_MODE === "true";
 const configured = Object.values(config).every(Boolean);
 const app = configured ? (getApps()[0] ?? initializeApp(config)) : null;
 const auth = app ? getAuth(app) : null;
@@ -20,7 +21,7 @@ const taskDate = (task: Task) => task.dueDate?.toDate?.() ?? (task.dueDate ? new
 const today = dateKey(new Date());
 const uid = () => crypto.randomUUID();
 function App() {
- const [user,setUser] = useState<User|null>(null);
+ const [user,setUser] = useState<User|null>(qaMode ? ({uid:"qa-user",displayName:"QA Tester",email:"qa@example.test"} as User) : null);
  const [tasks,setTasks] = useState<Task[]>([]);
  const [lists,setLists] = useState<TaskList[]>([]);
  const [tags,setTags] = useState<{id:string;name:string;color:string}[]>([]);
@@ -34,8 +35,9 @@ function App() {
  const [focusSeconds,setFocusSeconds] = useState(25*60);
  const [focusRunning,setFocusRunning] = useState(false);
  const [error,setError] = useState("");
- useEffect(()=>auth ? onAuthStateChanged(auth,setUser) : undefined,[]);
+ useEffect(()=>qaMode ? undefined : auth ? onAuthStateChanged(auth,setUser) : undefined,[]);
  useEffect(()=>{
+  if(qaMode)return;
   if(!user || !db) { setTasks([]); setLists([]); return; }
   const path = "users/"+user.uid;
   const a = onSnapshot(collection(db,path,"tasks"), snap=>setTasks(snap.docs.map(d=>({ ...d.data(),id:d.id } as Task))), e=>setError(e.message));
@@ -45,9 +47,9 @@ function App() {
  },[user]);
  useEffect(()=>{if(!focusRunning)return;const timer=window.setInterval(()=>setFocusSeconds(s=>{if(s<=1){setFocusRunning(false);return 0;}return s-1;}),1000);return ()=>clearInterval(timer)},[focusRunning]);
  useEffect(()=>{const handler=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==="k"){e.preventDefault();document.getElementById("search")?.focus()}if((e.ctrlKey||e.metaKey)&&e.key==="n"){e.preventDefault();document.getElementById("quick-add")?.focus()}};window.addEventListener("keydown",handler);return ()=>window.removeEventListener("keydown",handler)},[]);
- const write = async (task:Task) => {if(!user||!db)return;try{await setDoc(doc(db,"users",user.uid,"tasks",task.id),{...task,updatedAt:serverTimestamp()},{merge:true})}catch(e){setError(String(e))}};
+ const write = async (task:Task) => {if(qaMode){setTasks(ts=>[...ts.filter(t=>t.id!==task.id),task]);return;}if(!user||!db)return;try{await setDoc(doc(db,"users",user.uid,"tasks",task.id),{...task,updatedAt:serverTimestamp()},{merge:true})}catch(e){setError(String(e))}};
  const addTask = async () => {if(!draft.trim()||!user)return;const id=uid();const task:Task={id,title:draft.trim(),notes:"",listId:lists.find(l=>l.id===view)?.id ?? "",isCompleted:false,priority:0,dueDate:view==="today"?new Date():null,sortOrder:Date.now()};setDraft("");await write(task);setSelected(id)};
- const addList = async () => {if(!user||!db)return;const name=prompt("새 목록 이름");if(!name?.trim())return;const id=uid();try{await setDoc(doc(db,"users",user.uid,"lists",id),{id,name:name.trim(),color:"#4776ef",icon:"list",sortOrder:lists.length,createdAt:serverTimestamp()});setView(id)}catch(e){setError(String(e))}};
+ const addList = async () => {if(qaMode){const name=prompt("새 목록 이름");if(!name?.trim())return;const id=uid();setLists(ls=>[...ls,{id,name:name.trim(),color:"#4776ef",sortOrder:ls.length}]);setView(id);return;}if(!user||!db)return;const name=prompt("새 목록 이름");if(!name?.trim())return;const id=uid();try{await setDoc(doc(db,"users",user.uid,"lists",id),{id,name:name.trim(),color:"#4776ef",icon:"list",sortOrder:lists.length,createdAt:serverTimestamp()});setView(id)}catch(e){setError(String(e))}};
  const completeTask = async (t:Task) => {
   const completed=!t.isCompleted;
   await write({...t,isCompleted:completed,completedAt:completed?new Date():null} as Task);
@@ -60,7 +62,7 @@ function App() {
   const id=t.id+"__"+dateKey(next);
   await write({...t,id,isCompleted:false,completedAt:null,dueDate:next,sortOrder:next.getTime()});
  };
- const removeTask = async (id:string)=>{if(!user||!db)return;try{await deleteDoc(doc(db,"users",user.uid,"tasks",id));setSelected(null)}catch(e){setError(String(e))}};
+ const removeTask = async (id:string)=>{if(qaMode){setTasks(ts=>ts.filter(t=>t.id!==id));setSelected(null);return;}if(!user||!db)return;try{await deleteDoc(doc(db,"users",user.uid,"tasks",id));setSelected(null)}catch(e){setError(String(e))}};
  const visible = useMemo(()=>tasks.filter(t=>{
   if(search&&!((t.title+" "+(t.notes??"")).toLowerCase().includes(search.toLowerCase())))return false;
   if(view==="completed")return t.isCompleted;
@@ -74,7 +76,7 @@ function App() {
  }).sort((a,b)=>(a.isCompleted===b.isCompleted?0:a.isCompleted?1:-1)||b.priority-a.priority||(a.sortOrder??0)-(b.sortOrder??0)),[tasks,view,search,showCompleted]);
  const active = tasks.find(t=>t.id===selected);
  const nav = [{id:"today",name:"오늘",icon:Sun},{id:"upcoming",name:"예정",icon:CalendarDays},{id:"inbox",name:"받은 편지함",icon:Inbox},{id:"all",name:"전체",icon:ListTodo},{id:"completed",name:"완료",icon:Check}];
- if(!configured)return <div className="center"><h1>BetterTick Desktop</h1><p>Firebase 설정이 필요합니다. desktop/.env.example을 .env로 복사하고 Android 프로젝트와 동일한 Firebase 웹 앱 설정을 입력하세요.</p></div>;
+ if(!configured&&!qaMode)return <div className="center"><h1>BetterTick Desktop</h1><p>Firebase 설정이 필요합니다. desktop/.env.example을 .env로 복사하고 Android 프로젝트와 동일한 Firebase 웹 앱 설정을 입력하세요.</p></div>;
  if(!user)return <div className="center"><div className="login-card"><div className="logo-mark">✓</div><h1>BetterTick</h1><p>모바일과 PC에서 할 일을 함께 관리하세요.</p><button className="primary" onClick={()=>auth&&signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>setError(e.message))}>Google 계정으로 로그인</button>{error&&<p className="error">{error}</p>}</div></div>;
  return <div className="shell">
   {sidebar&&<aside className="sidebar">
