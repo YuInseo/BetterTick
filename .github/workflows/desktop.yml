@@ -1,0 +1,32 @@
+name: Desktop Windows Build
+on:
+  push:
+    branches: [desktop]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+      - run: npm install
+      - run: npm run build
+      - run: npm run tauri build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BetterTick-Windows
+          path: |
+            desktop/src-tauri/target/release/bundle/nsis/*.exe
+            desktop/src-tauri/target/release/bundle/msi/*.msi
