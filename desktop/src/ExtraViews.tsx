@@ -1,0 +1,18 @@
+import { useEffect, useMemo, useState } from "react";
+import { collection, deleteDoc, doc, onSnapshot, setDoc, serverTimestamp, type Firestore } from "firebase/firestore";
+type Habit={id:string;name:string;icon:string;color:string;frequency:string;targetDays:number[];isArchived:boolean;sortOrder:number};
+type Log={id:string;habitId:string;date:string;isCompleted:boolean};
+const key=(d:Date)=>[d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-");
+export function Habits({db,userId}:{db:Firestore;userId:string}){
+ const [habits,setHabits]=useState<Habit[]>([]),[logs,setLogs]=useState<Log[]>([]),[error,setError]=useState("");
+ useEffect(()=>{const base=["users",userId];const a=onSnapshot(collection(db,...base,"habits"),s=>setHabits(s.docs.map(d=>({...d.data(),id:d.id} as Habit))),e=>setError(e.message));const b=onSnapshot(collection(db,...base,"habitLogs"),s=>setLogs(s.docs.map(d=>({...d.data(),id:d.id} as Log))),e=>setError(e.message));return()=>{a();b()}},[db,userId]);
+ const today=key(new Date());const days=useMemo(()=>Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate()-6+i);return key(d)}),[]);
+ async function add(){const name=prompt("새 습관 이름");if(!name?.trim())return;const id=crypto.randomUUID();try{await setDoc(doc(db,"users",userId,"habits",id),{id,name:name.trim(),icon:"✓",color:"#4776ef",frequency:"daily",targetDays:[1,2,3,4,5,6,7],isArchived:false,sortOrder:habits.length,createdAt:serverTimestamp()})}catch(e){setError(String(e))}}
+ async function toggle(habitId:string,date:string){const id=habitId+"_"+date;const old=logs.find(l=>l.id===id);try{await setDoc(doc(db,"users",userId,"habitLogs",id),{id,habitId,date,isCompleted:!old?.isCompleted,completedAt:!old?.isCompleted?serverTimestamp():null})}catch(e){setError(String(e))}}
+ return <section className="content"><div className="heading"><div><h1>습관</h1><p>지난 7일의 달성 기록</p></div><button className="primary" onClick={add}>+ 습관 추가</button></div>{error&&<p className="error">{error}</p>}<div className="habit-head"><span>습관</span>{days.map(d=><span key={d}>{d.slice(5)}</span>)}</div>{habits.filter(h=>!h.isArchived).map(h=><div className="habit-row" key={h.id}><div><strong>{h.icon} {h.name}</strong><button className="habit-remove" onClick={()=>{if(confirm("습관을 삭제할까요?"))deleteDoc(doc(db,"users",userId,"habits",h.id)).catch(e=>setError(String(e)))}}>삭제</button></div>{days.map(d=><button key={d} className={"habit-check "+(logs.some(l=>l.habitId===h.id&&l.date===d&&l.isCompleted)?"is-done":"")} onClick={()=>toggle(h.id,d)}>{logs.some(l=>l.habitId===h.id&&l.date===d&&l.isCompleted)?"✓":"○"}</button>)}</div>)}{habits.length===0&&<div className="empty"><h3>첫 습관을 추가해 보세요</h3></div>}<p className="habit-hint">오늘: {today}</p></section>
+}
+export function Matrix({tasks,onSelect}:{tasks:{id:string;title:string;priority:number;isCompleted:boolean;dueDate?:any}[];onSelect:(id:string)=>void}){
+ const today=key(new Date());
+ const quadrants=[{title:"긴급하고 중요",match:(p:number,d:string)=>p===3&&!!d&&d<=today},{title:"중요하지만 긴급하지 않음",match:(p:number,d:string)=>p===3&&(!d||d>today)},{title:"긴급하지만 덜 중요",match:(p:number,d:string)=>p<3&&!!d&&d<=today},{title:"긴급하지 않고 덜 중요",match:(p:number,d:string)=>p<3&&(!d||d>today)}];
+ return <section className="content"><div className="heading"><h1>아이젠하워 매트릭스</h1></div><div className="matrix">{quadrants.map((q,i)=><div className={"matrix-cell matrix-"+i} key={q.title}><h3>{q.title}</h3>{tasks.filter(t=>!t.isCompleted&&q.match(t.priority,t.dueDate?.toDate?key(t.dueDate.toDate()):t.dueDate?key(new Date(t.dueDate)):"")).map(t=><button key={t.id} onClick={()=>onSelect(t.id)}>{t.title}</button>)}</div>)}</div></section>
+}
