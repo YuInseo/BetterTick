@@ -1,5 +1,6 @@
 package com.bettertick.ui.screens.calendar
 
+import androidx.compose.ui.graphics.graphicsLayer
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextTertiary
 import com.bettertick.ui.theme.ThemeState
@@ -10,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -572,7 +574,8 @@ fun CalendarScreen(
                                 hoveredDate = hoveredDate,
                                 onDateSelected = onDatePick,
                                 onDateBounds = { d, r -> dateBounds[d] = r },
-                                onExpandMonth = { viewModel.clearSelection() }
+                                onExpandMonth = { viewModel.clearSelection() },
+                                onSwipeWeek = { dir -> viewModel.setSelectedDate(currentDate.plusWeeks(dir.toLong())) }
                             )
                             SelectedDatePanel(
                                 tasks = lookup.tasksOn(currentDate),
@@ -907,10 +910,21 @@ private fun DragAwareWeekStrip(
     hoveredDate: java.time.LocalDate?,
     onDateSelected: (java.time.LocalDate) -> Unit,
     onDateBounds: (java.time.LocalDate, Rect) -> Unit,
-    onExpandMonth: () -> Unit
+    onExpandMonth: () -> Unit,
+    /** Horizontal swipe: -1 = previous week, +1 = next week. */
+    onSwipeWeek: (Int) -> Unit = {}
 ) {
     val selectedWeek = week.take(7)
     val selectedWeekList = remember(selectedWeek) { listOf(selectedWeek) }
+    val latestSwipeWeek by androidx.compose.runtime.rememberUpdatedState(onSwipeWeek)
+    var swipeX by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    var swiping by remember { mutableStateOf(false) }
+    val shownX by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (swiping) swipeX else 0f,
+        animationSpec = if (swiping) androidx.compose.animation.core.snap()
+        else androidx.compose.animation.core.spring(),
+        label = "weekSwipe"
+    )
 
     Box(
         modifier = Modifier
@@ -926,8 +940,36 @@ private fun DragAwareWeekStrip(
                     }
                 )
             }
+            // 좌우로 밀어서 지난주 / 다음주.
+            .pointerInput(Unit) {
+                val threshold = 56.dp.toPx()
+                detectHorizontalDragGestures(
+                    onDragStart = { swipeX = 0f; swiping = true },
+                    onDragEnd = {
+                        when {
+                            swipeX < -threshold -> latestSwipeWeek(1)
+                            swipeX > threshold -> latestSwipeWeek(-1)
+                        }
+                        swiping = false
+                        swipeX = 0f
+                    },
+                    onDragCancel = { swiping = false; swipeX = 0f },
+                    onHorizontalDrag = { change, amount ->
+                        change.consume()
+                        swipeX += amount
+                    }
+                )
+            }
     ) {
-        Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+                .graphicsLayer {
+                    translationX = shownX * 0.5f
+                    alpha = 1f - (kotlin.math.abs(shownX) / (size.width.coerceAtLeast(1f))).coerceIn(0f, 0.5f)
+                }
+        ) {
             androidx.compose.runtime.CompositionLocalProvider(
                 com.bettertick.ui.screens.calendar.LocalChipShowTime provides false
             ) {
