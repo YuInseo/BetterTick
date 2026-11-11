@@ -52,3 +52,10 @@ test("all user data collections are included in backup validation", () => {
   ])
     assert.ok(source.includes(key));
 });
+
+test("Windows installer has an explicit, existing ICO asset", () => {
+  const config = JSON.parse(read("../src-tauri/tauri.conf.json"));
+  const ico = config.bundle.icon.find((path) => path.endsWith(".ico"));
+  assert.ok(ico);
+  assert.ok(existsSync(new URL("../src-tauri/" + ico, import.meta.url)));
+});
