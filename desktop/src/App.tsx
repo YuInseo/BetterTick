@@ -1,3 +1,4 @@
+import { Settings, loadPreferences, savePreferences, applyPreferences, type Preferences } from "./Settings";
 import { Tags } from "./Tags";
 import { Habits, Matrix } from "./ExtraViews";
 import { initializeApp, getApps } from "firebase/app";
@@ -25,16 +26,18 @@ function App() {
  const [tasks,setTasks] = useState<Task[]>([]);
  const [lists,setLists] = useState<TaskList[]>([]);
  const [tags,setTags] = useState<{id:string;name:string;color:string}[]>([]);
- const [view,setView] = useState<View>("today");
+ const [prefs,setPrefs] = useState<Preferences>(loadPreferences);
+ const [view,setView] = useState<View>(()=>loadPreferences().defaultView);
  const [selected,setSelected] = useState<string|null>(null);
  const [search,setSearch] = useState("");
  const [draft,setDraft] = useState("");
  const [sidebar,setSidebar] = useState(true);
- const [showCompleted,setShowCompleted] = useState(false);
+ const [showCompleted,setShowCompleted] = useState(()=>loadPreferences().showCompleted);
  const [month,setMonth] = useState(new Date());
- const [focusSeconds,setFocusSeconds] = useState(25*60);
+ const [focusSeconds,setFocusSeconds] = useState(()=>loadPreferences().focusMinutes*60);
  const [focusRunning,setFocusRunning] = useState(false);
  const [error,setError] = useState("");
+ useEffect(()=>{savePreferences(prefs);applyPreferences(prefs)},[prefs]);
  useEffect(()=>qaMode ? undefined : auth ? onAuthStateChanged(auth,setUser) : undefined,[]);
  useEffect(()=>{
   if(qaMode)return;
@@ -48,7 +51,7 @@ function App() {
  useEffect(()=>{if(!focusRunning)return;const timer=window.setInterval(()=>setFocusSeconds(s=>{if(s<=1){setFocusRunning(false);return 0;}return s-1;}),1000);return ()=>clearInterval(timer)},[focusRunning]);
  useEffect(()=>{const handler=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==="k"){e.preventDefault();document.getElementById("search")?.focus()}if((e.ctrlKey||e.metaKey)&&e.key==="n"){e.preventDefault();document.getElementById("quick-add")?.focus()}};window.addEventListener("keydown",handler);return ()=>window.removeEventListener("keydown",handler)},[]);
  const write = async (task:Task) => {if(qaMode){setTasks(ts=>[...ts.filter(t=>t.id!==task.id),task]);return;}if(!user||!db)return;try{await setDoc(doc(db,"users",user.uid,"tasks",task.id),{...task,updatedAt:serverTimestamp()},{merge:true})}catch(e){setError(String(e))}};
- const addTask = async () => {if(!draft.trim()||!user)return;const id=uid();const task:Task={id,title:draft.trim(),notes:"",listId:lists.find(l=>l.id===view)?.id ?? "",isCompleted:false,priority:0,dueDate:view==="today"?new Date():null,sortOrder:Date.now()};setDraft("");await write(task);setSelected(id)};
+ const addTask = async () => {if(!draft.trim()||!user)return;const id=uid();const task:Task={id,title:draft.trim(),notes:"",listId:lists.find(l=>l.id===view)?.id ?? "",isCompleted:false,priority:prefs.defaultPriority,dueDate:view==="today"||prefs.defaultDue==="today"?new Date():prefs.defaultDue==="tomorrow"?new Date(Date.now()+86400000):null,sortOrder:Date.now()};setDraft("");await write(task);setSelected(id)};
  const addList = async () => {if(qaMode){const name=prompt("새 목록 이름");if(!name?.trim())return;const id=uid();setLists(ls=>[...ls,{id,name:name.trim(),color:"#4776ef",sortOrder:ls.length}]);setView(id);return;}if(!user||!db)return;const name=prompt("새 목록 이름");if(!name?.trim())return;const id=uid();try{await setDoc(doc(db,"users",user.uid,"lists",id),{id,name:name.trim(),color:"#4776ef",icon:"list",sortOrder:lists.length,createdAt:serverTimestamp()});setView(id)}catch(e){setError(String(e))}};
  const completeTask = async (t:Task) => {
   const completed=!t.isCompleted;
@@ -62,7 +65,7 @@ function App() {
   const id=t.id+"__"+dateKey(next);
   await write({...t,id,isCompleted:false,completedAt:null,dueDate:next,sortOrder:next.getTime()});
  };
- const removeTask = async (id:string)=>{if(qaMode){setTasks(ts=>ts.filter(t=>t.id!==id));setSelected(null);return;}if(!user||!db)return;try{await deleteDoc(doc(db,"users",user.uid,"tasks",id));setSelected(null)}catch(e){setError(String(e))}};
+ const removeTask = async (id:string)=>{if(prefs.confirmDelete&&!confirm("할 일을 삭제할까요?"))return;if(qaMode){setTasks(ts=>ts.filter(t=>t.id!==id));setSelected(null);return;}if(!user||!db)return;try{await deleteDoc(doc(db,"users",user.uid,"tasks",id));setSelected(null)}catch(e){setError(String(e))}};
  const visible = useMemo(()=>tasks.filter(t=>{
   if(search&&!((t.title+" "+(t.notes??"")).toLowerCase().includes(search.toLowerCase())))return false;
   if(view==="completed")return t.isCompleted;
@@ -81,7 +84,7 @@ function App() {
  return <div className="shell">
   {sidebar&&<aside className="sidebar">
    <div className="brand"><div className="logo-mark">✓</div><strong>BetterTick</strong><button className="icon-button push" title="사이드바 닫기" onClick={()=>setSidebar(false)}><Menu size={17}/></button></div>
-   <div className="profile"><div className="avatar">{(user.displayName??"U").slice(0,1)}</div><span>{user.displayName??user.email}</span><button className="icon-button" title="로그아웃" onClick={()=>auth&&signOut(auth)}><Settings2 size={16}/></button></div>
+   <div className="profile"><div className="avatar">{(user.displayName??"U").slice(0,1)}</div><span>{user.displayName??user.email}</span><button className="icon-button" title="로그아웃" onClick={()=>setView("settings")}><Settings2 size={16}/></button></div>
    <div className="nav-section">{nav.map(item=><button key={item.id} className={"nav-item "+(view===item.id?"active":"")} onClick={()=>{setView(item.id);setSelected(null)}}><item.icon size={18}/><span>{item.name}</span><span className="count">{item.id==="today"?tasks.filter(t=>!t.isCompleted&&taskDate(t)&&dateKey(taskDate(t)!)<=today).length:""}</span></button>)}</div>
    <div className="section-heading">내 목록 <button className="icon-button" onClick={addList} title="목록 추가"><Plus size={17}/></button></div>
    <div className="nav-section">{lists.slice().sort((a,b)=>(a.sortOrder??0)-(b.sortOrder??0)).map(l=><button key={l.id} className={"nav-item "+(view===l.id?"active":"")} onClick={()=>{setView(l.id);setSelected(null)}}><span className="list-dot" style={{background:l.color||"#4776ef"}}/><span>{l.name}</span><span className="count">{tasks.filter(t=>t.listId===l.id&&!t.isCompleted).length}</span></button>)}</div>
@@ -89,7 +92,7 @@ function App() {
   </aside>}
   <main className="main">
    <header className="toolbar">{!sidebar&&<button className="icon-button" onClick={()=>setSidebar(true)}><Menu size={19}/></button>}<div className="search-box"><Search size={17}/><input id="search" value={search} onChange={e=>setSearch(e.target.value)} placeholder="할 일 검색 (Ctrl+K)"/></div><button className="icon-button" title="오늘" onClick={()=>{setView("today");setSelected(null)}}><Sun size={19}/></button></header>
-   {view==="tags"&&db?<Tags db={db} userId={user.uid}/> : view==="habits"&&db?<Habits db={db} userId={user.uid}/> : view==="matrix"?<Matrix tasks={tasks} onSelect={id=>{setSelected(id);setView("all")}}/> : view==="focus"?<section className="focus"><Timer size={36}/><h1>집중 타이머</h1><div className="timer">{String(Math.floor(focusSeconds/60)).padStart(2,"0")}:{String(focusSeconds%60).padStart(2,"0")}</div><div className="actions"><button className="primary" onClick={()=>setFocusRunning(!focusRunning)}>{focusRunning?"일시정지":"시작"}</button><button onClick={()=>{setFocusRunning(false);setFocusSeconds(1500)}}>초기화</button></div></section>:
+   {view==="settings"?<Settings value={prefs} onChange={p=>{setPrefs(p);setShowCompleted(p.showCompleted);if(!focusRunning)setFocusSeconds(p.focusMinutes*60)}} onClose={()=>setView(prefs.defaultView)}/> : view==="tags"&&db?<Tags db={db} userId={user.uid}/> : view==="habits"&&db?<Habits db={db} userId={user.uid}/> : view==="matrix"?<Matrix tasks={tasks} onSelect={id=>{setSelected(id);setView("all")}}/> : view==="focus"?<section className="focus"><Timer size={36}/><h1>집중 타이머</h1><div className="timer">{String(Math.floor(focusSeconds/60)).padStart(2,"0")}:{String(focusSeconds%60).padStart(2,"0")}</div><div className="actions"><button className="primary" onClick={()=>setFocusRunning(!focusRunning)}>{focusRunning?"일시정지":"시작"}</button><button onClick={()=>{setFocusRunning(false);setFocusSeconds(prefs.focusMinutes*60)}}>초기화</button></div></section>:
    view==="calendar"?<section className="content"><div className="heading"><h1>캘린더</h1><div className="actions"><button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()-1,1))}><ChevronLeft size={18}/></button><strong>{month.getFullYear()}년 {month.getMonth()+1}월</strong><button onClick={()=>setMonth(new Date(month.getFullYear(),month.getMonth()+1,1))}><ChevronRight size={18}/></button></div></div><div className="calendar">{["일","월","화","수","목","금","토"].map(d=><div className="weekday" key={d}>{d}</div>)}{Array.from({length:Math.ceil((new Date(month.getFullYear(),month.getMonth(),1).getDay()+new Date(month.getFullYear(),month.getMonth()+1,0).getDate())/7)*7},(_,i)=>{const d=i-new Date(month.getFullYear(),month.getMonth(),1).getDay()+1;const date=new Date(month.getFullYear(),month.getMonth(),d);const matching=tasks.filter(t=>taskDate(t)&&dateKey(taskDate(t)!)===dateKey(date));return <div key={i} className={"day "+(date.getMonth()!==month.getMonth()?"muted":"")}><span className={dateKey(date)===today?"today-pill":""}>{date.getDate()}</span>{matching.slice(0,3).map(t=><button className="calendar-task" key={t.id} onClick={()=>{setSelected(t.id);setView("all")}}>{t.title}</button>)}</div>})}</div></section>:
    view==="board"?<section className="content"><div className="heading"><h1>칸반 보드</h1></div><div className="board">{[0,1,2,3].map(p=><div className="board-column" key={p}><h3>{["우선순위 없음","낮음","보통","높음"][p]} <span>{visible.filter(t=>t.priority===p).length}</span></h3>{visible.filter(t=>t.priority===p).map(t=><button className="board-card" key={t.id} onClick={()=>setSelected(t.id)}>{t.title}</button>)}</div>)}</div></section>:
    <section className="content"><div className="heading"><div><h1>{[...nav,{id:"board",name:"칸반 보드"}].find(n=>n.id===view)?.name??lists.find(l=>l.id===view)?.name??"할 일"}</h1><p>{visible.length}개의 할 일</p></div><button className="subtle" onClick={()=>setShowCompleted(!showCompleted)}>{showCompleted?"완료 숨기기":"완료 표시"}</button></div>
