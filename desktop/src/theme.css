@@ -2015,3 +2015,43 @@ button.primary {
     min-width: 34px;
   }
 }
+/* Keep text comfortable and give quick capture a single focus treatment. */
+@media (min-width: 761px) {
+  .nav-item {
+    font-size: 13px;
+  }
+  .task-body {
+    font-size: 14px;
+  }
+  .task-body small {
+    font-size: 11px;
+  }
+  .task-row-tags > span,
+  .priority-label {
+    font-size: 10px;
+  }
+  .add-task input {
+    font-size: 12px;
+  }
+  .heading p {
+    font-size: 12px;
+  }
+  .view-controls,
+  .view-controls button,
+  .view-controls select {
+    font-size: 11px;
+  }
+}
+.add-task input:focus-visible {
+  outline: none;
+}
+.add-task:focus-within {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.habit-head,
+.habit-row {
+  min-width: 540px;
+  grid-template-columns: minmax(120px, 2fr) repeat(7, minmax(40px, 1fr));
+  padding-left: 10px;
+  padding-right: 10px;
+}
