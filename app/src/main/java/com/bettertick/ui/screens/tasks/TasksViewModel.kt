@@ -147,6 +147,10 @@ class TasksViewModel @Inject constructor(
         }
     }
 
+    fun applyStatus(task: Task, action: com.bettertick.data.model.TaskStatusAction, shownDate: LocalDate?) {
+        viewModelScope.launch { taskRepository.applyStatus(task, action, shownDate) }
+    }
+
     fun deleteTask(taskId: String) {
         viewModelScope.launch {
             taskRepository.deleteTask(taskId)

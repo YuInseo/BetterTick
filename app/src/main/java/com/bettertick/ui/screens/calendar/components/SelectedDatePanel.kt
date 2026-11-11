@@ -105,6 +105,8 @@ fun SelectedDatePanel(
     onDragTaskRelease: (Task) -> Unit = {},
     /** Drag released inside the list — new top-to-bottom ids for the day. */
     onReorder: (List<String>) -> Unit = {},
+    /** Checkbox long-press: 완료 / 취소됨 / 내일로 미루기 (task, action). */
+    onStatusAction: (Task, com.bettertick.data.model.TaskStatusAction) -> Unit = { _, _ -> },
     tags: List<Tag> = emptyList(),
     onCreateTag: suspend (String) -> String = { "" }
 ) {
@@ -211,7 +213,8 @@ fun SelectedDatePanel(
                                 onDragTaskRelease(t)
                             },
                             resolvedTags = taskTags,
-                            onToggleLeave = { day, type -> onUpdateTask(task.withLeaveToggled(day, type)) }
+                            onToggleLeave = { day, type -> onUpdateTask(task.withLeaveToggled(day, type)) },
+                            onStatusAction = { action -> onStatusAction(task, action) }
                         )
                         if (lineBelow) ReorderLine()
                         }
@@ -253,7 +256,8 @@ fun SelectedDatePanel(
                         onClick = { detailFor = task },
                         overrideDate = selectedDate,
                         listName = detailListName(task),
-                        resolvedTags = taskTags
+                        resolvedTags = taskTags,
+                        onStatusAction = { action -> onStatusAction(task, action) }
                     )
                 }
                 Spacer(Modifier.height(6.dp))
@@ -361,7 +365,8 @@ private fun DraggableTaskRow(
     onDragUpdate: (ActiveDrag?) -> Unit,
     onDragRelease: (Task) -> Unit,
     resolvedTags: List<Tag> = emptyList(),
-    onToggleLeave: ((LocalDate, String) -> Unit)? = null
+    onToggleLeave: ((LocalDate, String) -> Unit)? = null,
+    onStatusAction: ((com.bettertick.data.model.TaskStatusAction) -> Unit)? = null
 ) {
     // Track the item's position in the root Composition so drag offsets
     // can be translated to root-space for hit-testing against date cells
@@ -376,21 +381,30 @@ private fun DraggableTaskRow(
             .fillMaxWidth()
             .onGloballyPositioned { coords -> rootPos = coords.positionInRoot() }
             .pointerInput(task.id) {
+                // Long-press on the checkbox (left 48dp) opens the status
+                // menu instead of starting a drag.
+                val checkboxZone = 48.dp.toPx()
+                var ignored = false
                 detectDragGesturesAfterLongPress(
                     onDragStart = { localOffset ->
+                        ignored = localOffset.x < checkboxZone
+                        if (ignored) return@detectDragGesturesAfterLongPress
                         val rootOffset = rootPos + localOffset
                         dragRootPointer = rootOffset
                         latestDragUpdate(ActiveDrag(task, rootOffset, rootOffset))
                     },
                     onDragEnd = {
+                        if (ignored) return@detectDragGesturesAfterLongPress
                         latestDragRelease(task)
                         dragRootPointer = null
                     },
                     onDragCancel = {
+                        if (ignored) return@detectDragGesturesAfterLongPress
                         latestDragUpdate(null)
                         dragRootPointer = null
                     },
                     onDrag = { change, amount ->
+                        if (ignored) return@detectDragGesturesAfterLongPress
                         change.consume()
                         val next = (dragRootPointer ?: rootPos) + amount
                         dragRootPointer = next
@@ -411,7 +425,8 @@ private fun DraggableTaskRow(
             resolvedTags = resolvedTags,
             rowBackground = DarkCard,
             onToggleLeave = onToggleLeave,
-            showLeaveChips = false
+            showLeaveChips = false,
+            onStatusAction = onStatusAction
         )
     }
 }

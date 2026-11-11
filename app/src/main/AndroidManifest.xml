@@ -70,6 +70,14 @@
             android:theme="@style/Theme.BetterTick.Invisible" />
 
         <activity
+            android:name=".widget.calendar.WidgetTaskMenuActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.BetterTick.Invisible" />
+
+        <activity
             android:name=".widget.calendar.WeeklyCalendarActionDispatcher"
             android:exported="true"
             android:launchMode="singleTop"
