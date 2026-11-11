@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -942,7 +943,7 @@ private fun DragAwareWeekStrip(
             // 좌우로 밀어서 지난주 / 다음주.
             .pointerInput(Unit) {
                 val threshold = 56.dp.toPx()
-                androidx.compose.foundation.gestures.detectHorizontalDragGestures(
+                detectHorizontalDragGestures(
                     onDragStart = { swipeX = 0f; swiping = true },
                     onDragEnd = {
                         when {
