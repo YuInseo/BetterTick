@@ -26,7 +26,7 @@ test("Tauri Rust application and icon source exist",()=>{
 test("recurring task successor uses deterministic id and keeps completion reversible",()=>{
  const source=read("../src/App.tsx");
  assert.match(source,/const id=t\.id\+"__"\+dateKey\(next\)/);
- assert.match(source,/isCompleted:!t\.isCompleted/);
+ assert.match(source,/const completed=!t\.isCompleted/);
  assert.match(source,/if\(!completed\|\|!t\.repeatRule/);
 });
 
