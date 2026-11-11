@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { dateKey, taskDate, type Task } from "./domain";
@@ -80,6 +81,10 @@ export function Calendar({
     </button>
   );
   function move(dir: number) {
+    if (mode === "year") {
+      setMonth(new Date(month.getFullYear() + dir, month.getMonth(), 1));
+      return;
+    }
     if (mode === "month")
       setMonth(new Date(month.getFullYear(), month.getMonth() + dir, 1));
     else {
@@ -92,28 +97,32 @@ export function Calendar({
     <section className="content calendar-content">
       <div className="heading">
         <div>
-          <h1>캘린더</h1>
-          <p>할 일을 날짜 또는 시간 칸으로 끌어 놓으세요</p>
+          <h1>{tr("캘린더")}</h1>
+          <p>{tr("할 일을 날짜 또는 시간 칸으로 끌어 놓으세요")}</p>
         </div>
         <div className="actions">
-          <button aria-label="이전 기간" onClick={() => move(-1)}>
+          <button aria-label={tr("이전 기간")} onClick={() => move(-1)}>
             <ChevronLeft size={18} />
           </button>
           <strong>
-            {month.getFullYear()}년 {month.getMonth() + 1}월
+            {month.toLocaleDateString(prefs.language, {
+              year: "numeric",
+              month: "long",
+            })}
           </strong>
-          <button aria-label="다음 기간" onClick={() => move(1)}>
+          <button aria-label={tr("다음 기간")} onClick={() => move(1)}>
             <ChevronRight size={18} />
           </button>
         </div>
       </div>
       <div className="view-controls">
-        <button onClick={() => setMonth(new Date())}>오늘로</button>
+        <button onClick={() => setMonth(new Date())}>{tr("오늘로")}</button>
         {[
-          ["month", "월"],
-          ["week", "주"],
-          ["day", "일"],
-          ["agenda", "일정"],
+          ["month", prefs.language === "en" ? "Month" : "월"],
+          ["year", prefs.language === "en" ? "Year" : "연"],
+          ["week", tr("주")],
+          ["day", prefs.language === "en" ? "Day" : "일"],
+          ["agenda", tr("일정")],
         ].map(([id, label]) => (
           <button
             className={mode === id ? "active" : ""}
@@ -125,10 +134,50 @@ export function Calendar({
         ))}
       </div>
       <div className="unscheduled">
-        <span>날짜 미지정</span>
+        <span>{tr("날짜 미지정")}</span>
         {active.filter((t) => !taskDate(t)).map(card)}
       </div>
-      {mode === "agenda" ? (
+      {mode === "year" ? (
+        <div className="year-calendar">
+          {Array.from({ length: 12 }, (_, m) => (
+            <article key={m}>
+              <h3>
+                {new Date(month.getFullYear(), m, 1).toLocaleDateString(
+                  prefs.language,
+                  { month: "long" },
+                )}
+              </h3>
+              <div>
+                {Array.from(
+                  { length: new Date(month.getFullYear(), m + 1, 0).getDate() },
+                  (_, i) => {
+                    const date = new Date(month.getFullYear(), m, i + 1),
+                      count = active.filter(
+                        (t) =>
+                          taskDate(t) &&
+                          dateKey(taskDate(t)!) === dateKey(date),
+                      ).length;
+                    return (
+                      <button
+                        key={i}
+                        title={dateKey(date) + (count ? " · " + count : "")}
+                        className={count ? "has-tasks" : ""}
+                        onClick={() => {
+                          setMonth(date);
+                          setMode("day");
+                        }}
+                      >
+                        {i + 1}
+                        {count > 0 && <small>{count}</small>}
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : mode === "agenda" ? (
         <div className="agenda">
           {active
             .filter((t) => taskDate(t))
@@ -149,9 +198,15 @@ export function Calendar({
           {Array.from(
             { length: 7 },
             (_, i) =>
-              ["일", "월", "화", "수", "목", "금", "토"][
-                (i + prefs.weekStartsOn) % 7
-              ],
+              [
+                tr("일"),
+                tr("월"),
+                tr("화"),
+                tr("수"),
+                tr("목"),
+                tr("금"),
+                tr("토"),
+              ][(i + prefs.weekStartsOn) % 7],
           ).map((d) => (
             <div className="weekday" key={d}>
               {d}
@@ -169,7 +224,7 @@ export function Calendar({
               onDoubleClick={() => onAdd(dateKey(date))}
             >
               <button
-                aria-label={dateKey(date) + " 할 일 추가"}
+                aria-label={dateKey(date) + tr(" 할 일 추가")}
                 className={
                   dateKey(date) === dateKey(new Date()) ? "today-pill" : ""
                 }

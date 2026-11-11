@@ -243,20 +243,18 @@ test("export and import include tags habits sessions and preferences", async ({
 test("malformed backup leaves existing tasks untouched", async ({ page }) => {
   await add(page, "Keep me");
   await closeDetail(page);
-  await page
-    .locator(".backup-import input")
-    .setInputFiles({
-      name: "bad.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(
-        JSON.stringify({
-          format: "bettertick-backup",
-          version: 1,
-          tasks: [{ id: "bad", title: "bad" }],
-          lists: [],
-        }),
-      ),
-    });
+  await page.locator(".backup-import input").setInputFiles({
+    name: "bad.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(
+      JSON.stringify({
+        format: "bettertick-backup",
+        version: 1,
+        tasks: [{ id: "bad", title: "bad" }],
+        lists: [],
+      }),
+    ),
+  });
   await expect(page.locator(".toast")).toContainText("가져오기 실패");
   await expect(page.locator(".task-body")).toContainText("Keep me");
 });
@@ -365,13 +363,11 @@ test("notes render safe Markdown and attachment downloads persist", async ({
   await page.getByRole("button", { name: "미리보기", exact: true }).click();
   await expect(page.locator(".markdown h2")).toHaveText("Agenda");
   await expect(page.locator(".markdown script")).toHaveCount(0);
-  await page
-    .getByLabel("첨부 파일 추가", { exact: true })
-    .setInputFiles({
-      name: "memo.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.from("Memo"),
-    });
+  await page.getByLabel("첨부 파일 추가", { exact: true }).setInputFiles({
+    name: "memo.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("Memo"),
+  });
   await expect(page.locator(".attachment a")).toHaveText("memo.txt");
   await page.reload();
   await nav(page, "노트");
@@ -395,4 +391,22 @@ test("countdowns create edit and persist", async ({ page }) => {
   await page.getByLabel("디데이 이름").fill("Release");
   await page.getByRole("button", { name: "디데이 저장" }).click();
   await expect(page.locator(".countdown-grid")).toContainText("Release");
+});
+test("English setting updates navigation and survives reload", async ({
+  page,
+}) => {
+  await page.locator(".profile .icon-button").click();
+  await page.locator(".settings-options select").first().selectOption("en");
+  await expect(page.locator(".sidebar")).toContainText("Today");
+  await expect(
+    page.getByRole("heading", { name: "Settings", exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.locator(".sidebar")).toContainText("Today");
+  await page
+    .locator(".sidebar .nav-item")
+    .filter({ hasText: "Calendar" })
+    .click();
+  await page.getByRole("button", { name: "Year", exact: true }).click();
+  await expect(page.locator(".year-calendar article")).toHaveCount(12);
 });

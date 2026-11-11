@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -51,8 +52,8 @@ export function Countdowns({
     <section className="content">
       <div className="heading">
         <div>
-          <h1>디데이</h1>
-          <p>기념일과 중요한 날을 기억하세요</p>
+          <h1>{tr("디데이")}</h1>
+          <p>{tr("기념일과 중요한 날을 기억하세요")}</p>
         </div>
         <button
           className="primary"
@@ -66,7 +67,7 @@ export function Countdowns({
             })
           }
         >
-          디데이 추가
+          {tr(" 디데이 추가 ")}
         </button>
       </div>
       {editing && (
@@ -81,26 +82,26 @@ export function Countdowns({
           }}
         >
           <label>
-            이름
+            {tr(" 이름 ")}
             <input
               required
-              aria-label="디데이 이름"
+              aria-label={tr("디데이 이름")}
               value={editing.name}
               onChange={(e) => setEditing({ ...editing, name: e.target.value })}
             />
           </label>
           <label>
-            날짜
+            {tr(" 날짜 ")}
             <input
               required
               type="date"
-              aria-label="디데이 날짜"
+              aria-label={tr("디데이 날짜")}
               value={editing.date}
               onChange={(e) => setEditing({ ...editing, date: e.target.value })}
             />
           </label>
           <input
-            aria-label="디데이 색상"
+            aria-label={tr("디데이 색상")}
             type="color"
             value={editing.color}
             onChange={(e) => setEditing({ ...editing, color: e.target.value })}
@@ -113,11 +114,11 @@ export function Countdowns({
                 setEditing({ ...editing, yearly: e.target.checked })
               }
             />
-            매년 반복
+            {tr(" 매년 반복 ")}
           </label>
-          <button className="primary">디데이 저장</button>
+          <button className="primary">{tr("디데이 저장")}</button>
           <button type="button" onClick={() => setEditing(null)}>
-            취소
+            {tr(" 취소 ")}
           </button>
         </form>
       )}
@@ -139,16 +140,16 @@ export function Countdowns({
                   </strong>
                   <time>
                     {c.date}
-                    {c.yearly ? " · 매년" : ""}
+                    {c.yearly ? tr(" · 매년") : ""}
                   </time>
                 </button>
                 <button
                   className="danger"
                   onClick={() => {
-                    if (confirm("디데이를 삭제할까요?")) onDelete(c.id);
+                    if (confirm(tr("디데이를 삭제할까요?"))) onDelete(c.id);
                   }}
                 >
-                  삭제
+                  {tr(" 삭제 ")}
                 </button>
               </article>
             );
@@ -194,13 +195,13 @@ export function Timeline({
     <section className="content">
       <div className="heading">
         <div>
-          <h1>타임라인</h1>
-          <p>기간을 지정하고 일정을 끌어서 이동하세요</p>
+          <h1>{tr("타임라인")}</h1>
+          <p>{tr("기간을 지정하고 일정을 끌어서 이동하세요")}</p>
         </div>
         <div className="view-controls">
-          <button onClick={() => setWeek((n) => n - 1)}>이전</button>
-          <button onClick={() => setWeek(0)}>오늘</button>
-          <button onClick={() => setWeek((n) => n + 1)}>다음</button>
+          <button onClick={() => setWeek((n) => n - 1)}>{tr("이전")}</button>
+          <button onClick={() => setWeek(0)}>{tr("오늘")}</button>
+          <button onClick={() => setWeek((n) => n + 1)}>{tr("다음")}</button>
         </div>
       </div>
       <div

@@ -1,3 +1,4 @@
+import { tr, setLanguage } from "./i18n";
 import {
   Settings,
   loadPreferences,
@@ -15,7 +16,11 @@ import {
   onAuthStateChanged,
   type User,
 } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
@@ -77,12 +82,18 @@ const qaMode = import.meta.env.VITE_QA_MODE === "true";
 const configured = Object.values(config).every(Boolean);
 const app = configured ? (getApps()[0] ?? initializeApp(config)) : null;
 const auth = app ? getAuth(app) : null;
-const db = app ? getFirestore(app) : null;
+const db = app
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    })
+  : null;
 const uid = () => crypto.randomUUID();
 function App() {
   const [user, setUser] = useState<User | null>(
     qaMode || !configured
-      ? ({ uid: "local", displayName: "로컬 사용자", email: "" } as User)
+      ? ({ uid: "local", displayName: tr("로컬 사용자"), email: "" } as User)
       : null,
   );
   const [error, setError] = useState("");
@@ -134,6 +145,7 @@ function App() {
         : key;
   };
   const [prefs, setPrefs] = useState<Preferences>(loadPreferences);
+  setLanguage(prefs.language);
   const [view, setView] = useState<View>(() => loadPreferences().defaultView);
   const [selected, setSelected] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -176,6 +188,30 @@ function App() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+  }, []);
+  useEffect(() => {
+    if (!("__TAURI_INTERNALS__" in window)) return;
+    let disposed = false;
+    let release: (() => Promise<void>) | undefined;
+    import("@tauri-apps/plugin-global-shortcut")
+      .then(async (shortcut) => {
+        if (disposed) return;
+        await shortcut.register("CommandOrControl+Shift+A", async (event) => {
+          if (event.state !== "Pressed") return;
+          const { getCurrentWindow } = await import("@tauri-apps/api/window");
+          await getCurrentWindow().show();
+          await getCurrentWindow().setFocus();
+          setView("inbox");
+          setTimeout(() => document.getElementById("quick-add")?.focus(), 0);
+        });
+        release = () => shortcut.unregister("CommandOrControl+Shift+A");
+        if (disposed) await release();
+      })
+      .catch((e) => setError(String(e)));
+    return () => {
+      disposed = true;
+      void release?.();
+    };
   }, []);
   const notify = async (message: string) => {
     setError(message);
@@ -225,7 +261,7 @@ function App() {
     if (!draft.trim() || !user) return;
     const parsed = parseQuickAdd(draft);
     if (!parsed.title) {
-      setError("할 일 제목을 입력하세요.");
+      setError(tr("할 일 제목을 입력하세요."));
       return;
     }
     const id = uid();
@@ -264,7 +300,7 @@ function App() {
     setSelected(id);
   };
   const addList = async () => {
-    const name = prompt("새 목록 이름");
+    const name = prompt(tr("새 목록 이름"));
     if (!name?.trim()) return;
     const id = uid();
     await listStore.put({
@@ -288,14 +324,15 @@ function App() {
     }
   };
   const removeTask = async (id: string) => {
-    if (prefs.confirmDelete && !confirm("할 일을 휴지통으로 이동할까요?"))
+    if (prefs.confirmDelete && !confirm(tr("할 일을 휴지통으로 이동할까요?")))
       return;
     const t = tasks.find((t) => t.id === id);
     if (t) await write({ ...t, deletedAt: new Date().toISOString() });
     setSelected(null);
   };
   const deleteList = async (l: TaskList) => {
-    if (!confirm("목록을 삭제하고 할 일을 받은 편지함으로 이동할까요?")) return;
+    if (!confirm(tr("목록을 삭제하고 할 일을 받은 편지함으로 이동할까요?")))
+      return;
     for (const t of tasks.filter((t) => t.listId === l.id))
       await write({ ...t, listId: "" });
     await listStore.remove(l.id);
@@ -419,9 +456,11 @@ function App() {
   const importData = async (file: File) => {
     try {
       if (file.size > 10_000_000)
-        throw Error("백업 파일은 10MB 이하여야 합니다.");
+        throw Error(tr("백업 파일은 10MB 이하여야 합니다."));
       const parsed = validateBackup(JSON.parse(await file.text()));
-      if (!confirm("백업 데이터를 가져올까요? 동일한 ID의 항목은 덮어씁니다."))
+      if (
+        !confirm(tr("백업 데이터를 가져올까요? 동일한 ID의 항목은 덮어씁니다."))
+      )
         return;
       for (const t of parsed.tasks) await write(t);
       for (const l of parsed.lists) await listStore.put(l);
@@ -436,19 +475,19 @@ function App() {
         setPrefs(next);
         setShowCompleted(next.showCompleted);
       }
-      setError("백업을 가져왔습니다.");
+      setError(tr("백업을 가져왔습니다."));
     } catch (e) {
-      setError("가져오기 실패: " + String(e));
+      setError(tr("가져오기 실패: ") + String(e));
     }
   };
   const active = tasks.find((t) => t.id === selected);
   const nav = [
-    { id: "today", name: "오늘", icon: Sun },
-    { id: "upcoming", name: "예정", icon: CalendarDays },
-    { id: "inbox", name: "받은 편지함", icon: Inbox },
-    { id: "all", name: "전체", icon: ListTodo },
-    { id: "completed", name: "완료", icon: Check },
-    { id: "trash", name: "휴지통", icon: Trash2 },
+    { id: "today", name: tr("오늘"), icon: Sun },
+    { id: "upcoming", name: tr("예정"), icon: CalendarDays },
+    { id: "inbox", name: tr("받은 편지함"), icon: Inbox },
+    { id: "all", name: tr("전체"), icon: ListTodo },
+    { id: "completed", name: tr("완료"), icon: Check },
+    { id: "trash", name: tr("휴지통"), icon: Trash2 },
   ];
   if (!user)
     return (
@@ -456,14 +495,14 @@ function App() {
         <div className="login-card">
           <div className="logo-mark">✓</div>
           <h1>BetterTick</h1>
-          <p>모바일과 PC에서 할 일을 함께 관리하세요.</p>
+          <p>{tr("모바일과 PC에서 할 일을 함께 관리하세요.")}</p>
           <button
             className="primary"
             onClick={() =>
-              setUser({ uid: "local", displayName: "로컬 사용자" } as User)
+              setUser({ uid: "local", displayName: tr("로컬 사용자") } as User)
             }
           >
-            로그인 없이 시작
+            {tr(" 로그인 없이 시작 ")}
           </button>
           <button
             className="primary"
@@ -474,7 +513,7 @@ function App() {
               )
             }
           >
-            Google 계정으로 로그인
+            {tr(" Google 계정으로 로그인 ")}
           </button>
           {error && <p className="error">{error}</p>}
         </div>
@@ -489,7 +528,7 @@ function App() {
             <strong>BetterTick</strong>
             <button
               className="icon-button push"
-              title="사이드바 닫기"
+              title={tr("사이드바 닫기")}
               onClick={() => setSidebar(false)}
             >
               <Menu size={17} />
@@ -502,7 +541,7 @@ function App() {
             <span>{user.displayName ?? user.email}</span>
             <button
               className="icon-button"
-              title="설정"
+              title={tr("설정")}
               onClick={() => setView("settings")}
             >
               <Settings2 size={16} />
@@ -537,8 +576,12 @@ function App() {
             ))}
           </div>
           <div className="section-heading">
-            내 목록{" "}
-            <button className="icon-button" onClick={addList} title="목록 추가">
+            {tr(" 내 목록")}{" "}
+            <button
+              className="icon-button"
+              onClick={addList}
+              title={tr("목록 추가")}
+            >
               <Plus size={17} />
             </button>
           </div>
@@ -578,11 +621,11 @@ function App() {
               ))}
           </div>
           <div className="section-heading">
-            스마트 필터
+            {tr(" 스마트 필터 ")}
             <button
-              title="필터 추가"
+              title={tr("필터 추가")}
               onClick={() => {
-                const name = prompt("필터 이름");
+                const name = prompt(tr("필터 이름"));
                 if (!name?.trim()) return;
                 filterStore.put({
                   id: uid(),
@@ -614,52 +657,62 @@ function App() {
           </div>
           <div className="sidebar-bottom">
             <button className="nav-item" onClick={() => setView("notes")}>
-              <ListTodo size={18} /> 노트
+              <ListTodo size={18} />
+              {tr(" 노트 ")}
             </button>
             <button className="nav-item" onClick={() => setView("timeline")}>
-              <Clock3 size={18} /> 타임라인
+              <Clock3 size={18} />
+              {tr(" 타임라인 ")}
             </button>
             <button className="nav-item" onClick={() => setView("countdowns")}>
-              <CalendarDays size={18} /> 디데이
+              <CalendarDays size={18} />
+              {tr(" 디데이 ")}
             </button>
             <button className="nav-item" onClick={() => setView("statistics")}>
-              <LayoutGrid size={18} /> 통계
+              <LayoutGrid size={18} />
+              {tr(" 통계 ")}
             </button>
             <button
               className={"nav-item " + (view === "calendar" ? "active" : "")}
               onClick={() => setView("calendar")}
             >
-              <CalendarDays size={18} /> 캘린더
+              <CalendarDays size={18} />
+              {tr(" 캘린더 ")}
             </button>
             <button
               className={"nav-item " + (view === "tags" ? "active" : "")}
               onClick={() => setView("tags")}
             >
-              <Tag size={18} /> 태그
+              <Tag size={18} />
+              {tr(" 태그 ")}
             </button>
             <button
               className={"nav-item " + (view === "habits" ? "active" : "")}
               onClick={() => setView("habits")}
             >
-              <Check size={18} /> 습관
+              <Check size={18} />
+              {tr(" 습관 ")}
             </button>
             <button
               className={"nav-item " + (view === "matrix" ? "active" : "")}
               onClick={() => setView("matrix")}
             >
-              <LayoutGrid size={18} /> 아이젠하워
+              <LayoutGrid size={18} />
+              {tr(" 아이젠하워 ")}
             </button>
             <button
               className={"nav-item " + (view === "board" ? "active" : "")}
               onClick={() => setView("board")}
             >
-              <LayoutGrid size={18} /> 칸반 보드
+              <LayoutGrid size={18} />
+              {tr(" 칸반 보드 ")}
             </button>
             <button
               className={"nav-item " + (view === "focus" ? "active" : "")}
               onClick={() => setView("focus")}
             >
-              <Timer size={18} /> 집중
+              <Timer size={18} />
+              {tr(" 집중 ")}
             </button>
           </div>
         </aside>
@@ -677,18 +730,18 @@ function App() {
               id="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="할 일 검색 (Ctrl+K)"
+              placeholder={tr("할 일 검색 (Ctrl+K)")}
             />
           </div>
           <button
             className="icon-button"
-            title="백업 내보내기"
+            title={tr("백업 내보내기")}
             onClick={exportData}
           >
-            내보내기
+            {tr(" 내보내기 ")}
           </button>
           <label className="backup-import">
-            가져오기
+            {tr(" 가져오기 ")}
             <input
               type="file"
               accept=".json,application/json"
@@ -702,7 +755,7 @@ function App() {
           </label>
           <button
             className="icon-button"
-            title="오늘"
+            title={tr("오늘")}
             onClick={() => {
               setView("today");
               setSelected(null);
@@ -713,6 +766,8 @@ function App() {
         </header>
         <div className="focus-container" hidden={view !== "focus"}>
           <Focus
+            key={dataUid}
+            storageKey={"bettertick.desktop.timer.v1." + dataUid}
             prefs={prefs}
             tasks={tasks}
             sessions={sessionStore.items}
@@ -792,7 +847,7 @@ function App() {
             onSave={write}
             onSelect={(id) => setSelected(id)}
             onAdd={(date) => {
-              const title = prompt("할 일 제목");
+              const title = prompt(tr("할 일 제목"));
               if (title?.trim()) {
                 const id = uid();
                 write({
@@ -811,7 +866,7 @@ function App() {
         ) : view === "board" ? (
           <section className="content">
             <div className="heading">
-              <h1>칸반 보드</h1>
+              <h1>{tr("칸반 보드")}</h1>
             </div>
             <div className="board">
               {[0, 1, 2, 3].map((p) => (
@@ -828,7 +883,11 @@ function App() {
                   }}
                 >
                   <h3>
-                    {["우선순위 없음", "낮음", "보통", "높음"][p]}{" "}
+                    {
+                      [tr("우선순위 없음"), tr("낮음"), tr("보통"), tr("높음")][
+                        p
+                      ]
+                    }{" "}
                     <span>
                       {visible.filter((t) => t.priority === p).length}
                     </span>
@@ -857,55 +916,58 @@ function App() {
             <div className="heading">
               <div>
                 <h1>
-                  {[...nav, { id: "board", name: "칸반 보드" }].find(
+                  {[...nav, { id: "board", name: tr("칸반 보드") }].find(
                     (n) => n.id === view,
                   )?.name ??
                     lists.find((l) => l.id === view)?.name ??
                     filterStore.items.find((f) => f.id === view)?.name ??
-                    (view === "notes" ? "노트" : "할 일")}
+                    (view === "notes" ? tr("노트") : tr("할 일"))}
                 </h1>
-                <p>{visible.length}개의 할 일</p>
+                <p>
+                  {visible.length}
+                  {tr("개의 할 일")}
+                </p>
               </div>
               <button
                 className="subtle"
                 onClick={() => setShowCompleted(!showCompleted)}
               >
-                {showCompleted ? "완료 숨기기" : "완료 표시"}
+                {showCompleted ? tr("완료 숨기기") : tr("완료 표시")}
               </button>
             </div>
             <div className="view-controls">
               <label>
-                정렬
+                {tr(" 정렬 ")}
                 <select
-                  aria-label="정렬"
+                  aria-label={tr("정렬")}
                   value={sort}
                   onChange={(e) => setSort(e.target.value)}
                 >
-                  <option value="priority">우선순위</option>
-                  <option value="date">날짜</option>
-                  <option value="title">제목</option>
-                  <option value="manual">직접 정렬</option>
+                  <option value="priority">{tr("우선순위")}</option>
+                  <option value="date">{tr("날짜")}</option>
+                  <option value="title">{tr("제목")}</option>
+                  <option value="manual">{tr("직접 정렬")}</option>
                 </select>
               </label>
               <label>
-                그룹
+                {tr(" 그룹 ")}
                 <select
-                  aria-label="그룹"
+                  aria-label={tr("그룹")}
                   value={group}
                   onChange={(e) => setGroup(e.target.value)}
                 >
-                  <option value="none">없음</option>
-                  <option value="list">목록</option>
-                  <option value="date">날짜</option>
-                  <option value="section">섹션</option>
+                  <option value="none">{tr("없음")}</option>
+                  <option value="list">{tr("목록")}</option>
+                  <option value="date">{tr("날짜")}</option>
+                  <option value="section">{tr("섹션")}</option>
                 </select>
               </label>
               <select
-                aria-label="태그 필터"
+                aria-label={tr("태그 필터")}
                 value={tagFilter}
                 onChange={(e) => setTagFilter(e.target.value)}
               >
-                <option value="">모든 태그</option>
+                <option value="">{tr("모든 태그")}</option>
                 {tags.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -917,28 +979,28 @@ function App() {
                   <button
                     onClick={() => {
                       const l = lists.find((l) => l.id === view)!;
-                      const name = prompt("목록 이름", l.name);
+                      const name = prompt(tr("목록 이름"), l.name);
                       if (name?.trim())
                         listStore.put({ ...l, name: name.trim() });
                     }}
                   >
-                    목록 이름 변경
+                    {tr(" 목록 이름 변경 ")}
                   </button>
                   <button
                     onClick={() => {
                       const l = lists.find((l) => l.id === view)!;
                       const folder = prompt(
-                        "폴더 이름 (비우면 폴더 해제)",
+                        tr("폴더 이름 (비우면 폴더 해제)"),
                         l.folder ?? "",
                       );
                       if (folder !== null)
                         listStore.put({ ...l, folder: folder.trim() });
                     }}
                   >
-                    폴더 이동
+                    {tr(" 폴더 이동 ")}
                   </button>
                   <input
-                    aria-label="목록 색상"
+                    aria-label={tr("목록 색상")}
                     type="color"
                     value={lists.find((l) => l.id === view)!.color}
                     onChange={(e) =>
@@ -954,14 +1016,14 @@ function App() {
                       deleteList(lists.find((l) => l.id === view)!)
                     }
                   >
-                    목록 삭제
+                    {tr(" 목록 삭제 ")}
                   </button>
                 </>
               )}
               {filterStore.items.some((f) => f.id === view) && (
                 <>
                   <select
-                    aria-label="필터 우선순위"
+                    aria-label={tr("필터 우선순위")}
                     value={
                       filterStore.items.find((f) => f.id === view)!.priority
                     }
@@ -972,7 +1034,7 @@ function App() {
                       })
                     }
                   >
-                    <option value="-1">모든 우선순위</option>
+                    <option value="-1">{tr("모든 우선순위")}</option>
                     {[0, 1, 2, 3].map((p) => (
                       <option key={p} value={p}>
                         {p}
@@ -986,34 +1048,41 @@ function App() {
                       setView("all");
                     }}
                   >
-                    필터 삭제
+                    {tr(" 필터 삭제 ")}
                   </button>
                 </>
               )}
             </div>
             {checked.length > 0 && (
               <div className="batch-bar">
-                <strong>{checked.length}개 선택</strong>
+                <strong>
+                  {checked.length}
+                  {tr("개 선택")}
+                </strong>
                 <button onClick={() => batch("complete")}>
-                  선택 완료 전환
+                  {tr(" 선택 완료 전환 ")}
                 </button>
-                <button onClick={() => batch("delete")}>선택 삭제</button>
+                <button onClick={() => batch("delete")}>
+                  {tr("선택 삭제")}
+                </button>
                 <select
-                  aria-label="선택 목록 이동"
+                  aria-label={tr("선택 목록 이동")}
                   value="_"
                   onChange={(e) => batch(e.target.value)}
                 >
                   <option value="_" disabled>
-                    목록 이동
+                    {tr(" 목록 이동 ")}
                   </option>
-                  <option value="">받은 편지함</option>
+                  <option value="">{tr("받은 편지함")}</option>
                   {lists.map((l) => (
                     <option key={l.id} value={l.id}>
                       {l.name}
                     </option>
                   ))}
                 </select>
-                <button onClick={() => setChecked([])}>선택 해제</button>
+                <button onClick={() => setChecked([])}>
+                  {tr("선택 해제")}
+                </button>
               </div>
             )}
             <form
@@ -1028,18 +1097,18 @@ function App() {
                 id="quick-add"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder="할 일 추가 · 내일 #태그 !3 (Ctrl+N)"
+                placeholder={tr("할 일 추가 · 내일 #태그 !3 (Ctrl+N)")}
               />
               <button type="submit" disabled={!draft.trim()}>
-                추가
+                {tr(" 추가 ")}
               </button>
             </form>
             <div className="tasks">
               {visible.length === 0 ? (
                 <div className="empty">
                   <Circle size={35} />
-                  <h3>할 일이 없어요</h3>
-                  <p>새로운 할 일을 추가해 보세요.</p>
+                  <h3>{tr("할 일이 없어요")}</h3>
+                  <p>{tr("새로운 할 일을 추가해 보세요.")}</p>
                 </div>
               ) : (
                 visible.map((t) => (
@@ -1072,7 +1141,7 @@ function App() {
                   >
                     <input
                       type="checkbox"
-                      aria-label={"선택 " + t.title}
+                      aria-label={tr("선택 ") + t.title}
                       checked={checked.includes(t.id)}
                       onChange={(e) =>
                         setChecked((ids) =>
@@ -1086,17 +1155,17 @@ function App() {
                       <small className="group-label">
                         {group === "list"
                           ? (lists.find((l) => l.id === t.listId)?.name ??
-                            "받은 편지함")
+                            tr("받은 편지함"))
                           : group === "section"
-                            ? t.section || "섹션 없음"
+                            ? t.section || tr("섹션 없음")
                             : taskDate(t)
                               ? dateKey(taskDate(t)!)
-                              : "날짜 없음"}
+                              : tr("날짜 없음")}
                       </small>
                     )}
                     <button
                       className={"check " + (t.isCompleted ? "checked" : "")}
-                      title="완료 전환"
+                      title={tr("완료 전환")}
                       onClick={() => completeTask(t)}
                     >
                       {t.isCompleted && <Check size={13} />}
@@ -1109,7 +1178,9 @@ function App() {
                         {t.title}
                       </span>
                       <small>
-                        {taskDate(t) ? formatDate(taskDate(t)!) : "날짜 없음"}
+                        {taskDate(t)
+                          ? formatDate(taskDate(t)!)
+                          : tr("날짜 없음")}
                         {t.dueTime
                           ? " · " +
                             (prefs.timeFormat === "12h"
@@ -1120,7 +1191,7 @@ function App() {
                                   : " AM")
                               : t.dueTime)
                           : ""}
-                        {t.notes ? " · 메모" : ""}
+                        {t.notes ? tr(" · 메모") : ""}
                         {t.subtasks?.length
                           ? " · " +
                             t.subtasks.filter((s) => s.done).length +
@@ -1134,22 +1205,22 @@ function App() {
                         <button
                           onClick={() => write({ ...t, deletedAt: null })}
                         >
-                          복원
+                          {tr(" 복원 ")}
                         </button>
                         <button
                           className="danger"
                           onClick={() => {
-                            if (confirm("영구 삭제할까요?")) {
+                            if (confirm(tr("영구 삭제할까요?"))) {
                               taskStore.remove(t.id);
                               setSelected(null);
                             }
                           }}
                         >
-                          영구 삭제
+                          {tr(" 영구 삭제 ")}
                         </button>
                       </>
                     )}
-                    {t.pinned && <span title="고정됨">📌</span>}
+                    {t.pinned && <span title={tr("고정됨")}>📌</span>}
                     {t.priority > 0 && (
                       <Flag size={15} className={"priority p" + t.priority} />
                     )}
@@ -1163,7 +1234,7 @@ function App() {
       {active && (
         <aside className="detail">
           <div className="detail-top">
-            <span>할 일 상세</span>
+            <span>{tr("할 일 상세")}</span>
             <button className="icon-button" onClick={() => setSelected(null)}>
               <X size={19} />
             </button>
@@ -1181,7 +1252,8 @@ function App() {
             onBlur={(e) => write({ ...active, title: e.target.value })}
           />
           <label>
-            <CalendarDays size={17} /> 날짜{" "}
+            <CalendarDays size={17} />
+            {tr(" 날짜")}{" "}
             <input
               type="date"
               value={taskDate(active) ? dateKey(taskDate(active)!) : ""}
@@ -1196,7 +1268,8 @@ function App() {
             />
           </label>
           <label>
-            <Flag size={17} /> 우선순위{" "}
+            <Flag size={17} />
+            {tr(" 우선순위")}{" "}
             <select
               value={active.priority}
               onChange={(e) =>
@@ -1204,10 +1277,10 @@ function App() {
               }
             >
               {[
-                ["0", "없음"],
-                ["1", "낮음"],
-                ["2", "보통"],
-                ["3", "높음"],
+                ["0", tr("없음")],
+                ["1", tr("낮음")],
+                ["2", tr("보통")],
+                ["3", tr("높음")],
               ].map(([v, n]) => (
                 <option key={v} value={v}>
                   {n}
@@ -1216,12 +1289,13 @@ function App() {
             </select>
           </label>
           <label>
-            <Hash size={17} /> 목록{" "}
+            <Hash size={17} />
+            {tr(" 목록")}{" "}
             <select
               value={active.listId || ""}
               onChange={(e) => write({ ...active, listId: e.target.value })}
             >
-              <option value="">받은 편지함</option>
+              <option value="">{tr("받은 편지함")}</option>
               {lists.map((l) => (
                 <option value={l.id} key={l.id}>
                   {l.name}
@@ -1230,23 +1304,25 @@ function App() {
             </select>
           </label>
           <label>
-            <Clock3 size={17} /> 반복{" "}
+            <Clock3 size={17} />
+            {tr(" 반복")}{" "}
             <select
               value={active.repeatRule ?? ""}
               onChange={(e) =>
                 write({ ...active, repeatRule: e.target.value || null })
               }
             >
-              <option value="">반복 안 함</option>
-              <option value="DAILY">매일</option>
-              <option value="WEEKDAYS">평일</option>
-              <option value="YEARLY">매년</option>
-              <option value="WEEKLY">매주</option>
-              <option value="MONTHLY">매월</option>
+              <option value="">{tr("반복 안 함")}</option>
+              <option value="DAILY">{tr("매일")}</option>
+              <option value="WEEKDAYS">{tr("평일")}</option>
+              <option value="YEARLY">{tr("매년")}</option>
+              <option value="WEEKLY">{tr("매주")}</option>
+              <option value="MONTHLY">{tr("매월")}</option>
             </select>
           </label>
           <label>
-            <Tag size={17} /> 태그{" "}
+            <Tag size={17} />
+            {tr(" 태그")}{" "}
             <select
               value=""
               onChange={(e) => {
@@ -1257,7 +1333,7 @@ function App() {
                   });
               }}
             >
-              <option value="">태그 추가</option>
+              <option value="">{tr("태그 추가")}</option>
               {tags
                 .filter((t) => !active.tagIds?.includes(t.id))
                 .map((t) => (
@@ -1287,7 +1363,7 @@ function App() {
             })}
           </div>
           <label>
-            시작 날짜
+            {tr(" 시작 날짜 ")}
             <input
               type="date"
               value={active.startDate ?? ""}
@@ -1295,7 +1371,7 @@ function App() {
             />
           </label>
           <label>
-            노트로 사용
+            {tr(" 노트로 사용 ")}
             <input
               type="checkbox"
               checked={!!active.isNote}
@@ -1303,16 +1379,16 @@ function App() {
             />
           </label>
           <label>
-            시간
+            {tr(" 시간 ")}
             <input
-              aria-label="마감 시간"
+              aria-label={tr("마감 시간")}
               type="time"
               value={active.dueTime ?? ""}
               onChange={(e) => write({ ...active, dueTime: e.target.value })}
             />
           </label>
           <label>
-            소요 시간(분)
+            {tr(" 소요 시간(분) ")}
             <input
               type="number"
               min="0"
@@ -1327,14 +1403,14 @@ function App() {
             />
           </label>
           <label>
-            섹션
+            {tr(" 섹션 ")}
             <input
               value={active.section ?? ""}
               onChange={(e) => write({ ...active, section: e.target.value })}
             />
           </label>
           <label>
-            고정
+            {tr(" 고정 ")}
             <input
               type="checkbox"
               checked={!!active.pinned}
@@ -1342,9 +1418,9 @@ function App() {
             />
           </label>
           <label>
-            알림
+            {tr(" 알림 ")}
             <select
-              aria-label="알림 추가"
+              aria-label={tr("알림 추가")}
               value=""
               onChange={(e) => {
                 if (
@@ -1362,12 +1438,12 @@ function App() {
                   });
               }}
             >
-              <option value="">알림 추가</option>
-              <option value="0">정시</option>
-              <option value="5">5분 전</option>
-              <option value="30">30분 전</option>
-              <option value="60">1시간 전</option>
-              <option value="1440">1일 전</option>
+              <option value="">{tr("알림 추가")}</option>
+              <option value="0">{tr("정시")}</option>
+              <option value="5">{tr("5분 전")}</option>
+              <option value="30">{tr("30분 전")}</option>
+              <option value="60">{tr("1시간 전")}</option>
+              <option value="1440">{tr("1일 전")}</option>
             </select>
           </label>
           <div className="task-tags">
@@ -1383,14 +1459,14 @@ function App() {
                   })
                 }
               >
-                {m === 0 ? "정시" : m + "분 전"} ×
+                {m === 0 ? tr("정시") : m + tr("분 전")} ×
               </button>
             ))}
           </div>
           {active.repeatRule && (
             <>
               <label>
-                반복 간격
+                {tr(" 반복 간격 ")}
                 <input
                   type="number"
                   min="1"
@@ -1408,7 +1484,7 @@ function App() {
                 />
               </label>
               <label>
-                반복 종료
+                {tr(" 반복 종료 ")}
                 <input
                   type="date"
                   value={active.repeatUntil ?? ""}
@@ -1418,7 +1494,7 @@ function App() {
                 />
               </label>
               <label>
-                완료일 기준
+                {tr(" 완료일 기준 ")}
                 <input
                   type="checkbox"
                   checked={!!active.repeatFromCompletion}
@@ -1435,7 +1511,7 @@ function App() {
               write({
                 ...active,
                 id,
-                title: active.title + " (복사)",
+                title: active.title + tr(" (복사)"),
                 isCompleted: false,
                 completedAt: null,
                 deletedAt: null,
@@ -1445,17 +1521,18 @@ function App() {
               setSelected(id);
             }}
           >
-            할 일 복제
+            {tr(" 할 일 복제 ")}
           </button>
           <div className="notes-label">
-            하위 할 일 ({(active.subtasks ?? []).filter((s) => s.done).length}/
+            {tr(" 하위 할 일 (")}
+            {(active.subtasks ?? []).filter((s) => s.done).length}/
             {(active.subtasks ?? []).length})
           </div>
           <div className="subtask-list">
             {(active.subtasks ?? []).map((st) => (
               <div className="subtask" key={st.id}>
                 <input
-                  aria-label={"완료 " + st.title}
+                  aria-label={tr("완료 ") + st.title}
                   type="checkbox"
                   checked={st.done}
                   onChange={() =>
@@ -1473,7 +1550,7 @@ function App() {
                   {st.title}
                 </span>
                 <button
-                  aria-label={"삭제 " + st.title}
+                  aria-label={tr("삭제 ") + st.title}
                   onClick={() =>
                     write({
                       ...active,
@@ -1504,17 +1581,17 @@ function App() {
             }}
           >
             <input
-              aria-label="하위 할 일 입력"
-              placeholder="하위 할 일 추가"
+              aria-label={tr("하위 할 일 입력")}
+              placeholder={tr("하위 할 일 추가")}
               value={subtaskDraft}
               onChange={(e) => setSubtaskDraft(e.target.value)}
             />
-            <button type="submit">추가</button>
+            <button type="submit">{tr("추가")}</button>
           </form>
           <div className="notes-label">
-            메모{" "}
+            {tr(" 메모")}{" "}
             <button onClick={() => setPreviewNotes(!previewNotes)}>
-              {previewNotes ? "편집" : "미리보기"}
+              {previewNotes ? tr("편집") : tr("미리보기")}
             </button>
           </div>
           {previewNotes ? (
@@ -1522,7 +1599,7 @@ function App() {
           ) : (
             <textarea
               className="notes"
-              placeholder="상세 내용을 입력하세요..."
+              placeholder={tr("상세 내용을 입력하세요...")}
               value={active.notes ?? ""}
               onChange={(e) =>
                 setTasks((ts) =>
@@ -1535,16 +1612,16 @@ function App() {
             />
           )}
           <label className="attachment-add">
-            첨부 파일 추가 (1MB)
+            {tr(" 첨부 파일 추가 (1MB) ")}
             <input
-              aria-label="첨부 파일 추가"
+              aria-label={tr("첨부 파일 추가")}
               type="file"
               onChange={async (e) => {
                 const file = e.target.files?.[0];
                 e.target.value = "";
                 if (!file) return;
                 if (file.size > 1000000) {
-                  setError("첨부 파일은 1MB 이하여야 합니다.");
+                  setError(tr("첨부 파일은 1MB 이하여야 합니다."));
                   return;
                 }
                 const reader = new FileReader();
@@ -1571,7 +1648,7 @@ function App() {
                 {file.name}
               </a>
               <button
-                aria-label={file.name + " 첨부 삭제"}
+                aria-label={file.name + tr(" 첨부 삭제")}
                 onClick={() =>
                   write({
                     ...active,
@@ -1587,7 +1664,8 @@ function App() {
           ))}
           <div className="detail-footer">
             <button className="danger" onClick={() => removeTask(active.id)}>
-              <Trash2 size={16} /> 삭제
+              <Trash2 size={16} />
+              {tr(" 삭제 ")}
             </button>
             <button
               className="primary"
@@ -1595,7 +1673,7 @@ function App() {
                 write(tasks.find((t) => t.id === active.id) ?? active)
               }
             >
-              저장
+              {tr(" 저장 ")}
             </button>
           </div>
         </aside>

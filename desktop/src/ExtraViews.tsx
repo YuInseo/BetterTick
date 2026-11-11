@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 import { useState } from "react";
 import {
   dateKey,
@@ -36,7 +37,7 @@ export function Habits({
       name: "",
       color: "#4776ef",
       target: 1,
-      unit: "회",
+      unit: tr("회"),
       targetDays: [0, 1, 2, 3, 4, 5, 6],
       isArchived: false,
     });
@@ -44,18 +45,18 @@ export function Habits({
     <section className="content">
       <div className="heading">
         <div>
-          <h1>습관</h1>
-          <p>작은 실천을 매일 쌓아보세요</p>
+          <h1>{tr("습관")}</h1>
+          <p>{tr("작은 실천을 매일 쌓아보세요")}</p>
         </div>
         <button className="primary" onClick={add}>
-          + 습관 추가
+          {tr(" + 습관 추가 ")}
         </button>
       </div>
       <div className="view-controls">
-        <button onClick={() => setOffset((o) => o - 1)}>이전 주</button>
-        <button onClick={() => setOffset(0)}>오늘</button>
+        <button onClick={() => setOffset((o) => o - 1)}>{tr("이전 주")}</button>
+        <button onClick={() => setOffset(0)}>{tr("오늘")}</button>
         <button disabled={offset >= 0} onClick={() => setOffset((o) => o + 1)}>
-          다음 주
+          {tr(" 다음 주 ")}
         </button>
         <label>
           <input
@@ -63,7 +64,7 @@ export function Habits({
             checked={archive}
             onChange={(e) => setArchive(e.target.checked)}
           />{" "}
-          보관한 습관
+          {tr(" 보관한 습관 ")}
         </label>
       </div>
       {editing && (
@@ -76,21 +77,21 @@ export function Habits({
             setEditing(null);
           }}
         >
-          <h3>습관 설정</h3>
+          <h3>{tr("습관 설정")}</h3>
           <label>
-            이름
+            {tr(" 이름 ")}
             <input
               required
-              aria-label="습관 이름"
+              aria-label={tr("습관 이름")}
               value={editing.name}
               onChange={(e) => setEditing({ ...editing, name: e.target.value })}
             />
           </label>
           <label>
-            목표
+            {tr(" 목표 ")}
             <input
               type="number"
-              aria-label="습관 목표"
+              aria-label={tr("습관 목표")}
               min="1"
               max="9999"
               value={editing.target}
@@ -103,15 +104,15 @@ export function Habits({
             />
           </label>
           <label>
-            단위
+            {tr(" 단위 ")}
             <input
-              aria-label="습관 단위"
+              aria-label={tr("습관 단위")}
               value={editing.unit}
               onChange={(e) => setEditing({ ...editing, unit: e.target.value })}
             />
           </label>
           <label>
-            색상
+            {tr(" 색상 ")}
             <input
               type="color"
               value={editing.color}
@@ -121,7 +122,15 @@ export function Habits({
             />
           </label>
           <div className="weekdays">
-            {["일", "월", "화", "수", "목", "금", "토"].map((d, i) => (
+            {[
+              tr("일"),
+              tr("월"),
+              tr("화"),
+              tr("수"),
+              tr("목"),
+              tr("금"),
+              tr("토"),
+            ].map((d, i) => (
               <label key={d}>
                 <input
                   type="checkbox"
@@ -140,16 +149,16 @@ export function Habits({
             ))}
           </div>
           <button className="primary" disabled={!editing.targetDays.length}>
-            습관 저장
+            {tr(" 습관 저장 ")}
           </button>
           <button type="button" onClick={() => setEditing(null)}>
-            취소
+            {tr(" 취소 ")}
           </button>
         </form>
       )}
       <div className="habit-table">
         <div className="habit-head">
-          <span>습관 / 연속 달성</span>
+          <span>{tr("습관 / 연속 달성")}</span>
           {days.map((d) => (
             <span key={d}>{d.slice(5)}</span>
           ))}
@@ -167,22 +176,25 @@ export function Habits({
                   {h.name}
                 </button>
                 <small>
-                  {habitStreak(h, logs)}일 연속 · 목표 {h.target}
+                  {habitStreak(h, logs)}
+                  {tr("일 연속 · 목표 ")}
+                  {h.target}
                   {h.unit}
                 </small>
                 <button
                   className="habit-remove"
                   onClick={() => onSave({ ...h, isArchived: !h.isArchived })}
                 >
-                  {h.isArchived ? "복원" : "보관"}
+                  {h.isArchived ? tr("복원") : tr("보관")}
                 </button>
                 <button
                   className="habit-remove"
                   onClick={() => {
-                    if (confirm("습관과 기록을 삭제할까요?")) onDelete(h.id);
+                    if (confirm(tr("습관과 기록을 삭제할까요?")))
+                      onDelete(h.id);
                   }}
                 >
-                  삭제
+                  {tr(" 삭제 ")}
                 </button>
               </div>
               {days.map((d) => {
@@ -231,7 +243,7 @@ export function Habits({
       </div>
       {!habits.some((h) => h.isArchived === archive) && (
         <div className="empty">
-          <h3>첫 습관을 추가해 보세요</h3>
+          <h3>{tr("첫 습관을 추가해 보세요")}</h3>
         </div>
       )}
     </section>
@@ -248,17 +260,17 @@ export function Matrix({
 }) {
   const today = dateKey(new Date());
   const qs = [
-    { title: "긴급하고 중요", important: true, urgent: true },
-    { title: "중요하지만 긴급하지 않음", important: true, urgent: false },
-    { title: "긴급하지만 덜 중요", important: false, urgent: true },
-    { title: "긴급하지 않고 덜 중요", important: false, urgent: false },
+    { title: tr("긴급하고 중요"), important: true, urgent: true },
+    { title: tr("중요하지만 긴급하지 않음"), important: true, urgent: false },
+    { title: tr("긴급하지만 덜 중요"), important: false, urgent: true },
+    { title: tr("긴급하지 않고 덜 중요"), important: false, urgent: false },
   ];
   return (
     <section className="content">
       <div className="heading">
         <div>
-          <h1>아이젠하워 매트릭스</h1>
-          <p>카드를 끌어서 중요도와 일정을 변경하세요</p>
+          <h1>{tr("아이젠하워 매트릭스")}</h1>
+          <p>{tr("카드를 끌어서 중요도와 일정을 변경하세요")}</p>
         </div>
       </div>
       <div className="matrix">
@@ -327,26 +339,32 @@ export function Statistics({
   return (
     <section className="content">
       <div className="heading">
-        <h1>통계</h1>
+        <h1>{tr("통계")}</h1>
       </div>
       <div className="stat-cards">
         <article>
-          <span>완료한 할 일</span>
+          <span>{tr("완료한 할 일")}</span>
           <strong>{complete.length}</strong>
           <small>
-            전체 {total}개 중{" "}
+            {tr(" 전체 ")}
+            {total}
+            {tr("개 중")}{" "}
             {total ? Math.round((complete.length / total) * 100) : 0}%
           </small>
         </article>
         <article>
-          <span>집중 시간</span>
+          <span>{tr("집중 시간")}</span>
           <strong>
-            {Math.floor(sessions.reduce((n, s) => n + s.seconds, 0) / 60)}분
+            {Math.floor(sessions.reduce((n, s) => n + s.seconds, 0) / 60)}
+            {tr("분 ")}
           </strong>
-          <small>{sessions.length}번의 집중</small>
+          <small>
+            {sessions.length}
+            {tr("번의 집중")}
+          </small>
         </article>
         <article>
-          <span>습관 달성</span>
+          <span>{tr("습관 달성")}</span>
           <strong>
             {
               logs.filter(
@@ -355,12 +373,12 @@ export function Statistics({
                   (habits.find((h) => h.id === l.habitId)?.target ?? Infinity),
               ).length
             }
-            회
+            {tr(" 회 ")}
           </strong>
-          <small>실천 기록</small>
+          <small>{tr("실천 기록")}</small>
         </article>
       </div>
-      <h2>최근 7일</h2>
+      <h2>{tr("최근 7일")}</h2>
       <div className="stats-days">
         {Array.from({ length: 7 }, (_, i) => {
           const d = new Date();
@@ -377,7 +395,10 @@ export function Statistics({
             <div key={key}>
               <span>{key.slice(5)}</span>
               <progress max={Math.max(10, count)} value={count} />
-              <strong>{count}개 완료</strong>
+              <strong>
+                {count}
+                {tr("개 완료")}
+              </strong>
             </div>
           );
         })}

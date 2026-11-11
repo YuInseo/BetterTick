@@ -161,3 +161,15 @@ test("malformed backups and unsafe document ids are rejected", () => {
 });
 test("wrong collection types reject entire backup before any writes", () =>
   assert.throws(() => validateBackup({ ...backup(), tags: {} })));
+test("monthly repeat from completion anchors to completion day", () =>
+  assert.equal(
+    dateKey(
+      taskDate(
+        nextOccurrence(
+          task({ repeatFromCompletion: true }),
+          new Date("2026-11-12T12:00:00"),
+        ),
+      ),
+    ),
+    "2026-12-12",
+  ));

@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 import { useEffect, useState } from "react";
 export type Preferences = {
   theme: "system" | "light" | "dark";
@@ -86,6 +87,7 @@ export function savePreferences(p: Preferences) {
   localStorage.setItem(storageKey, JSON.stringify(p));
 }
 export function applyPreferences(p: Preferences) {
+  document.documentElement.lang = p.language;
   const dark =
     p.theme === "dark" ||
     (p.theme === "system" &&
@@ -167,18 +169,18 @@ export function Settings({
   return (
     <section className="settings-page">
       <div className="heading">
-        <h1>설정</h1>
-        <button onClick={onClose}>닫기 ×</button>
+        <h1>{tr("설정")}</h1>
+        <button onClick={onClose}>{tr("닫기 ×")}</button>
       </div>
       <div className="settings-layout">
         <nav>
           {[
-            ["general", "일반"],
-            ["appearance", "화면"],
-            ["tasks", "할 일"],
-            ["focus", "집중"],
-            ["notifications", "알림"],
-            ["desktop", "데스크톱"],
+            ["general", tr("일반")],
+            ["appearance", tr("화면")],
+            ["tasks", tr("할 일")],
+            ["focus", tr("집중")],
+            ["notifications", tr("알림")],
+            ["desktop", tr("데스크톱")],
           ].map(([id, label]) => (
             <button
               key={id}
@@ -192,23 +194,23 @@ export function Settings({
         <div className="settings-options">
           {tab === "general" && (
             <>
-              <h2>일반</h2>
+              <h2>{tr("일반")}</h2>
               <label>
-                언어
+                {tr(" 언어 ")}
                 {select("language", [
-                  ["한국어", "ko"],
+                  [tr("한국어"), "ko"],
                   ["English", "en"],
                 ])}
               </label>
               <label>
-                한 주의 시작
+                {tr(" 한 주의 시작 ")}
                 {select("weekStartsOn", [
-                  ["일요일", 0],
-                  ["월요일", 1],
+                  [tr("일요일"), 0],
+                  [tr("월요일"), 1],
                 ])}
               </label>
               <label>
-                날짜 형식
+                {tr(" 날짜 형식 ")}
                 {select("dateFormat", [
                   ["2026-11-12", "yyyy-mm-dd"],
                   ["11/12/2026", "mm/dd/yyyy"],
@@ -216,35 +218,35 @@ export function Settings({
                 ])}
               </label>
               <label>
-                시간 형식
+                {tr(" 시간 형식 ")}
                 {select("timeFormat", [
-                  ["24시간", "24h"],
-                  ["12시간", "12h"],
+                  [tr("24시간"), "24h"],
+                  [tr("12시간"), "12h"],
                 ])}
               </label>
               <label>
-                시작 화면
+                {tr(" 시작 화면 ")}
                 {select("defaultView", [
-                  ["오늘", "today"],
-                  ["받은 편지함", "inbox"],
-                  ["전체", "all"],
+                  [tr("오늘"), "today"],
+                  [tr("받은 편지함"), "inbox"],
+                  [tr("전체"), "all"],
                 ])}
               </label>
             </>
           )}
           {tab === "appearance" && (
             <>
-              <h2>화면</h2>
+              <h2>{tr("화면")}</h2>
               <label>
-                테마
+                {tr(" 테마 ")}
                 {select("theme", [
-                  ["시스템", "system"],
-                  ["라이트", "light"],
-                  ["다크", "dark"],
+                  [tr("시스템"), "system"],
+                  [tr("라이트"), "light"],
+                  [tr("다크"), "dark"],
                 ])}
               </label>
               <label>
-                강조 색상
+                {tr(" 강조 색상 ")}
                 <input
                   type="color"
                   value={value.accent}
@@ -252,65 +254,87 @@ export function Settings({
                 />
               </label>
               <label>
-                화면 밀도
+                {tr(" 화면 밀도 ")}
                 {select("density", [
-                  ["기본", "comfortable"],
-                  ["압축", "compact"],
+                  [tr("기본"), "comfortable"],
+                  [tr("압축"), "compact"],
                 ])}
               </label>
             </>
           )}
           {tab === "tasks" && (
             <>
-              <h2>할 일</h2>
+              <h2>{tr("할 일")}</h2>
               <label>
-                기본 우선순위
+                {tr(" 기본 우선순위 ")}
                 {select("defaultPriority", [
-                  ["없음", 0],
-                  ["낮음", 1],
-                  ["보통", 2],
-                  ["높음", 3],
+                  [tr("없음"), 0],
+                  [tr("낮음"), 1],
+                  [tr("보통"), 2],
+                  [tr("높음"), 3],
                 ])}
               </label>
               <label>
-                새 할 일 기본 날짜
+                {tr(" 새 할 일 기본 날짜 ")}
                 {select("defaultDue", [
-                  ["없음", "none"],
-                  ["오늘", "today"],
-                  ["내일", "tomorrow"],
+                  [tr("없음"), "none"],
+                  [tr("오늘"), "today"],
+                  [tr("내일"), "tomorrow"],
                 ])}
               </label>
-              <label>완료한 할 일 표시{toggle("showCompleted")}</label>
-              <label>삭제 전 확인{toggle("confirmDelete")}</label>
+              <label>
+                {tr("완료한 할 일 표시")}
+                {toggle("showCompleted")}
+              </label>
+              <label>
+                {tr("삭제 전 확인")}
+                {toggle("confirmDelete")}
+              </label>
             </>
           )}
           {tab === "focus" && (
             <>
-              <h2>집중</h2>
-              <label>집중 시간(분){number("focusMinutes", 1, 180)}</label>
-              <label>짧은 휴식(분){number("shortBreakMinutes", 1, 60)}</label>
-              <label>긴 휴식(분){number("longBreakMinutes", 1, 120)}</label>
-              <label>종료 알림음{toggle("focusSound")}</label>
+              <h2>{tr("집중")}</h2>
+              <label>
+                {tr("집중 시간(분)")}
+                {number("focusMinutes", 1, 180)}
+              </label>
+              <label>
+                {tr("짧은 휴식(분)")}
+                {number("shortBreakMinutes", 1, 60)}
+              </label>
+              <label>
+                {tr("긴 휴식(분)")}
+                {number("longBreakMinutes", 1, 120)}
+              </label>
+              <label>
+                {tr("종료 알림음")}
+                {toggle("focusSound")}
+              </label>
             </>
           )}
           {tab === "notifications" && (
             <>
-              <h2>알림</h2>
-              <label>데스크톱 알림{toggle("desktopNotifications")}</label>
+              <h2>{tr("알림")}</h2>
+              <label>
+                {tr("데스크톱 알림")}
+                {toggle("desktopNotifications")}
+              </label>
               <button className="primary" onClick={permission}>
-                알림 권한 요청
+                {tr(" 알림 권한 요청 ")}
               </button>
               <p className="settings-note">
-                앱이 실행 중일 때 예약한 시간에 알림을 표시합니다. 앱을 종료한
-                동안에는 알림이 전달되지 않습니다.
+                {tr(
+                  " 앱이 실행 중일 때 예약한 시간에 알림을 표시합니다. 앱을 종료한 동안에는 알림이 전달되지 않습니다. ",
+                )}
               </p>
             </>
           )}
           {tab === "desktop" && (
             <>
-              <h2>데스크톱</h2>
+              <h2>{tr("데스크톱")}</h2>
               <label>
-                시작 시 최소화
+                {tr(" 시작 시 최소화 ")}
                 <input
                   type="checkbox"
                   disabled={!native}
@@ -319,7 +343,7 @@ export function Settings({
                 />
               </label>
               <label>
-                시스템 시작 시 실행
+                {tr(" 시스템 시작 시 실행 ")}
                 <input
                   type="checkbox"
                   disabled={!native}
@@ -338,17 +362,18 @@ export function Settings({
                 />
               </label>
               <p className="settings-note">
-                Windows 설치 앱에서 시스템 시작 실행과 최소화 시작을 지원합니다.
-                브라우저에서는 사용할 수 없습니다.
+                {tr(
+                  " Windows 설치 앱에서 시스템 시작 실행과 최소화 시작을 지원합니다. 브라우저에서는 사용할 수 없습니다. ",
+                )}
               </p>
             </>
           )}
           {nativeError && <p className="error">{nativeError}</p>}
           <div className="settings-footer">
             <button onClick={() => onChange({ ...defaults })}>
-              기본값 복원
+              {tr(" 기본값 복원 ")}
             </button>
-            <span>설정은 이 기기에 자동 저장됩니다.</span>
+            <span>{tr("설정은 이 기기에 자동 저장됩니다.")}</span>
           </div>
         </div>
       </div>

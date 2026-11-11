@@ -1,30 +1,43 @@
 # BetterTick Desktop
 
-Rust + Tauri 2 + React/TypeScript 기반 Windows 데스크톱 클라이언트.
+React 19 / TypeScript / Tauri 2 기반 Windows 데스크톱 할 일 앱.
 
-## 개발 실행
-1. Node.js 20+, Rust stable, Windows WebView2 및 Tauri Windows 빌드 도구 설치
-2. `npm install`
-3. `.env.example`을 `.env`로 복사하고 Firebase **웹 앱** 설정 입력 (Android와 같은 Firebase 프로젝트)
-4. Firebase Console Authentication에서 Google 로그인 활성화
-5. `npm run tauri dev`
+## 실행
 
-## 빌드
-`npm run tauri build` — Windows NSIS/MSI 설치 파일 생성
+Node.js 22 이상에서 `npm ci && npm run dev`를 실행합니다. Firebase 설정 없이 바로 로컬 모드로 시작하며, 작업은 브라우저 또는 Windows WebView의 기기별 저장 공간에 유지됩니다.
 
-## 현재 구현
-- Rust/Tauri 네이티브 창 및 트레이 메뉴
-- Firebase Google 로그인 (웹 팝업 방식; Tauri WebView 환경에서 제공업체 제한 가능)
-- Firestore 실시간 할 일 및 목록 동기화
-- 오늘, 예정, 받은 편지함, 전체, 완료 보기
-- 할 일 생성/수정/완료/삭제, 날짜/우선순위/목록/메모
-- 월간 캘린더, 우선순위별 칸반, 기본 집중 타이머
-- 검색, Ctrl+K, Ctrl+N, 반응형 3단 레이아웃
+Windows 설치 파일: `npm run tauri build`. Rust stable, Microsoft C++ Build Tools 및 WebView2가 필요합니다. GitHub Actions의 **Desktop Windows Build**가 Linux 회귀 검사 후 Windows에서도 검사하고 EXE / MSI를 아티팩트로 제공합니다.
 
-## 미완성
-- Google OAuth의 Tauri 시스템 브라우저 딥링크 인증
-- 습관, 반복 규칙 편집, 태그 편집, 캘린더 드래그, 집중 세션 저장
-- SQLite 오프라인 큐, OS 알림 예약, 글로벌 단축키, 자동 업데이트
-- CI 빌드 검증 및 Windows 설치 파일 확인
+선택적 Firebase 동기화를 사용하려면 `.env.example`의 웹 앱 설정을 입력합니다. 사용자별 `users/{uid}` 경로를 보호하는 Firestore 규칙이 필요합니다. 설정된 환경에서도 로그인 화면에서 로컬 사용을 선택할 수 있습니다. Firebase 모드에는 IndexedDB 기반 영구 캐시와 오프라인 쓰기 큐를 사용합니다.
 
-Firebase 보안 규칙은 사용자 본인의 `users/{uid}` 경로만 접근 가능하도록 설정하세요.
+## 기능
+
+- 할 일 생성·수정·완료, 체크리스트, 노트 전환, 고정, 복제, 시작/마감 날짜, 마감 시간, 소요 시간, 섹션.
+- 목록 이름·색상·폴더 관리. 목록 삭제 시 기존 작업은 받은 편지함으로 이동.
+- 태그 생성·수정·삭제·필터링, 스마트 필터, 정렬·그룹 표시, 직접 순서 이동, 선택 작업 일괄 이동·완료·휴지통 처리.
+- 휴지통 복원 및 별도의 영구 삭제.
+- 빠른 추가에서 `내일 보고서 #업무 !3`, `tomorrow Report #work !2`, ISO 날짜 인식.
+- 매일·평일·매주·매월·매년 반복, 간격·종료일·완료일 기준 설정. 월말·윤년 보정, 회차 ID 중복 방지, 다음 회차 체크리스트 초기화.
+- 월·주·일·일정·연간 캘린더, 날짜 및 시간 슬롯 드래그 일정 변경, 타임라인 기간 표시와 이동.
+- 우선순위 칸반과 아이젠하워 매트릭스 간 드래그 변경.
+- 정량 습관 목표·요일·색상 설정, 지난 주 기록, 연속 달성, 기록 취소 및 습관 보관·복원.
+- 뽀모도로·짧은/긴 휴식·스톱워치, 할 일 연결, 일시정지·재개·초기화, 집중 기록·통계. 화면 전환·새로고침 후에도 실제 마감 시각을 기준으로 복구.
+- 디데이 생성·편집·삭제·매년 반복.
+- 안전한 Markdown 미리보기, 체크리스트/표/코드 블록, 1MB 이하 첨부 다운로드.
+- 전체 데이터 JSON 백업·가져오기 및 가져오기 전 데이터 형식 검증.
+- 한국어/영어, 라이트/다크/시스템 테마, 강조색, 밀도, 주 시작일, 날짜·시간 형식, 기본 작업값 및 타이머 설정.
+- 앱 실행 중 시간 알림과 집중 종료 알림. Windows에서는 알림 플러그인 사용.
+- Windows 자동 시작, 최소화 시작, 트레이 복원·종료, 창 닫기 시 트레이 유지, 전역 빠른 추가 `Ctrl+Shift+A`. 앱 내부 `Ctrl+K`, `Ctrl+N`.
+
+## 검사
+
+- `npm test`: 날짜·반복·백업 검증과 실제 React UI 조작 검사.
+- `npm run build`: TypeScript 및 프로덕션 번들 검사.
+- `npx playwright install --with-deps chromium && npm run test:e2e`: 실제 Chromium에서 작업 생명주기, 캘린더·칸반 드래그, 습관·태그, 저장 복원, 백업, 집중 타이머와 설정 검사.
+- 실행 환경에 브라우저가 이미 있다면 `PLAYWRIGHT_EXECUTABLE_PATH`에 실행 파일 경로 지정 가능.
+
+## 현재 범위와 한계
+
+TickTick과 기능 및 디자인이 완전히 동일하다고 인증된 버전은 아닙니다. 외부 서비스 연동·협업·AI·음성 입력은 이번 범위에서 제외합니다. 다중 매트릭스 사용자 정의, 무제한 계층 하위 작업, 고급 반복 규칙 전체, 데스크톱 독립 위젯/스티키 창, 자동 업데이트 및 앱 종료 중 OS 예약 알림은 아직 지원하지 않습니다.
+
+로컬 저장은 기기별 Web Storage이므로 저장 공간 한도가 있습니다. 첨부가 많으면 백업을 내보내 관리하세요. 백업은 같은 ID를 덮어쓰는 병합 방식이며, 여러 저장소에 걸친 트랜잭션 복원은 아닙니다. Windows 전역 단축키·트레이·자동 시작의 OS 동작은 브라우저 E2E 검증 대상이 아닙니다.

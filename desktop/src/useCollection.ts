@@ -24,8 +24,12 @@ export function useCollection<T extends { id: string }>(
   };
   const [items, setItems] = useState<T[]>(read);
   const savedKey = useRef(key);
+  const loadedKey = useRef(key);
   useEffect(() => {
-    setItems(read());
+    if (loadedKey.current !== key) {
+      loadedKey.current = key;
+      setItems(read());
+    }
     if (!db) return;
     return onSnapshot(
       collection(db, "users", userId, name),

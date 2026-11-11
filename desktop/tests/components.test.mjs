@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import { buildSync } from "esbuild";
 import { writeFileSync, unlinkSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 const dom = new JSDOM("<!doctype html><html><body></body></html>", {
   url: "http://localhost",
 });
@@ -37,7 +38,7 @@ globalThis.prompt = () => null;
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const path = new URL("../.component-test.mjs", import.meta.url);
 const result = buildSync({
-  entryPoints: [new URL("../src/App.tsx", import.meta.url).pathname],
+  entryPoints: [fileURLToPath(new URL("../src/App.tsx", import.meta.url))],
   bundle: true,
   write: false,
   format: "esm",
@@ -160,4 +161,56 @@ test("every navigation renders a real screen", async () => {
     assert.ok(document.querySelector(".main"));
   }
   assert.match(document.querySelector(".focus").textContent, /집중 타이머/);
+});
+test("language selection updates navigation and persists", async () => {
+  await user.click(document.querySelector(".profile .icon-button"));
+  await user.selectOptions(
+    document.querySelector(".settings-options select"),
+    "en",
+  );
+  assert.match(document.querySelector(".sidebar").textContent, /Today/);
+  assert.match(
+    document.querySelector(".settings-page").textContent,
+    /Settings/,
+  );
+  assert.equal(document.documentElement.lang, "en");
+  cleanup();
+  render(React.createElement(App));
+  assert.match(document.querySelector(".sidebar").textContent, /Today/);
+});
+test("expired focus restored after closing records one session without losing it", async () => {
+  cleanup();
+  const now = Date.now();
+  localStorage.setItem(
+    "bettertick.desktop.timer.v1.local",
+    JSON.stringify({
+      mode: "focus",
+      remaining: 1,
+      running: true,
+      deadline: now - 1000,
+      startedAt: now - 61000,
+      segmentStart: now - 61000,
+      elapsed: 0,
+      taskId: "",
+      round: 0,
+    }),
+  );
+  render(React.createElement(App));
+  await waitFor(() =>
+    assert.equal(
+      JSON.parse(
+        localStorage.getItem("bettertick.desktop.data.v1.local.sessions") ||
+          "[]",
+      ).length,
+      1,
+    ),
+  );
+  cleanup();
+  render(React.createElement(App));
+  assert.equal(
+    JSON.parse(
+      localStorage.getItem("bettertick.desktop.data.v1.local.sessions"),
+    ).length,
+    1,
+  );
 });

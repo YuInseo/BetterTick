@@ -1,3 +1,4 @@
+import { tr } from "./i18n";
 import { useEffect, useRef, useState } from "react";
 import type { FocusSession, Task } from "./domain";
 import type { Preferences } from "./Settings";
@@ -12,20 +13,23 @@ type TimerState = {
   taskId: string;
   round: number;
 };
-const key = "bettertick.desktop.timer.v1";
+
 export function Focus({
+  storageKey,
   prefs,
   tasks,
   sessions,
   onSession,
   onNotify,
 }: {
+  storageKey: string;
   prefs: Preferences;
   tasks: Task[];
   sessions: FocusSession[];
   onSession: (s: FocusSession) => void;
   onNotify: (s: string) => void;
 }) {
+  const key = storageKey;
   const minutes = (mode: TimerState["mode"]) =>
     mode === "short"
       ? prefs.shortBreakMinutes
@@ -46,7 +50,20 @@ export function Focus({
   const [timer, setTimer] = useState<TimerState>(() => {
     try {
       const old = JSON.parse(localStorage.getItem(key) || "null");
-      return old ?? fresh();
+      return old &&
+        ["focus", "short", "long", "stopwatch"].includes(old.mode) &&
+        [
+          "remaining",
+          "deadline",
+          "startedAt",
+          "segmentStart",
+          "elapsed",
+          "round",
+        ].every((k) => Number.isFinite(old[k]) && old[k] >= 0) &&
+        typeof old.running === "boolean" &&
+        typeof old.taskId === "string"
+        ? old
+        : fresh();
     } catch {
       return fresh();
     }
@@ -97,8 +114,8 @@ export function Focus({
         }
         notifyRef.current(
           timer.mode === "focus"
-            ? "이번 집중을 완료했어요. 잠시 쉬어가세요."
-            : "휴식이 끝났어요.",
+            ? tr("이번 집중을 완료했어요. 잠시 쉬어가세요.")
+            : tr("휴식이 끝났어요."),
         );
         setTimer((t) => ({
           ...t,
@@ -172,17 +189,20 @@ export function Focus({
       <div className="view-controls">
         {(
           [
-            ["focus", "番茄专注"],
-            ["short", "짧은 휴식"],
-            ["long", "긴 휴식"],
-            ["stopwatch", "스톱워치"],
+            ["focus", tr("뽀모도로")],
+            ["short", tr("짧은 휴식")],
+            ["long", tr("긴 휴식")],
+            ["stopwatch", tr("스톱워치")],
           ] as const
         ).map(([mode, label]) => (
           <button
             key={mode}
             className={timer.mode === mode ? "active" : ""}
             onClick={() => {
-              if (timer.running && !confirm("진행 중인 타이머를 초기화할까요?"))
+              if (
+                timer.running &&
+                !confirm(tr("진행 중인 타이머를 초기화할까요?"))
+              )
                 return;
               setTimer({
                 ...fresh(mode),
@@ -191,18 +211,18 @@ export function Focus({
               });
             }}
           >
-            {label === "番茄专注" ? "뽀모도로" : label}
+            {label}
           </button>
         ))}
       </div>
-      <h1>집중 타이머</h1>
+      <h1>{tr("집중 타이머")}</h1>
       <select
-        aria-label="집중할 할 일"
+        aria-label={tr("집중할 할 일")}
         value={timer.taskId}
         disabled={timer.running}
         onChange={(e) => setTimer({ ...timer, taskId: e.target.value })}
       >
-        <option value="">할 일 없이 집중</option>
+        <option value="">{tr("할 일 없이 집중")}</option>
         {tasks
           .filter((t) => !t.isCompleted && !t.deletedAt)
           .map((t) => (
@@ -217,7 +237,7 @@ export function Focus({
       </div>
       <div className="actions">
         <button className="primary" onClick={toggle}>
-          {timer.running ? "일시정지" : "시작"}
+          {timer.running ? tr("일시정지") : tr("시작")}
         </button>
         <button
           onClick={() =>
@@ -228,12 +248,13 @@ export function Focus({
             })
           }
         >
-          초기화
+          {tr(" 초기화 ")}
         </button>
-        <button onClick={finish}>기록하고 종료</button>
+        <button onClick={finish}>{tr("기록하고 종료")}</button>
       </div>
       <p>
-        {timer.round}회 완료 · 오늘 집중{" "}
+        {timer.round}
+        {tr("회 완료 · 오늘 집중")}{" "}
         {Math.floor(
           sessions
             .filter(
@@ -243,7 +264,7 @@ export function Focus({
             )
             .reduce((n, s) => n + s.seconds, 0) / 60,
         )}
-        분
+        {tr(" 분 ")}
       </p>
       <button
         onClick={() =>
@@ -256,9 +277,9 @@ export function Focus({
           })
         }
       >
-        휴식 준비
+        {tr(" 휴식 준비 ")}
       </button>
-      <h3>최근 집중 기록</h3>
+      <h3>{tr("최근 집중 기록")}</h3>
       <div className="session-list">
         {sessions
           .slice()
@@ -267,11 +288,11 @@ export function Focus({
           .map((s) => (
             <div key={s.id}>
               <span>
-                {tasks.find((t) => t.id === s.taskId)?.title ?? "자유 집중"}
+                {tasks.find((t) => t.id === s.taskId)?.title ?? tr("자유 집중")}
               </span>
               <span>
-                {Math.max(1, Math.round(s.seconds / 60))}분 ·{" "}
-                {new Date(s.endedAt).toLocaleString()}
+                {Math.max(1, Math.round(s.seconds / 60))}
+                {tr("분 ·")} {new Date(s.endedAt).toLocaleString()}
               </span>
             </div>
           ))}

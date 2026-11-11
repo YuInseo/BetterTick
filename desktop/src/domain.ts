@@ -101,8 +101,12 @@ export function nextOccurrence(t: Task, now = new Date()): Task | null {
     1,
     Math.min(365, Math.floor(t.repeatInterval || 1)),
   );
-  const day = t.recurrenceDay ?? original.getDate(),
-    month = t.recurrenceMonth ?? original.getMonth();
+  const day = t.repeatFromCompletion
+      ? d.getDate()
+      : (t.recurrenceDay ?? original.getDate()),
+    month = t.repeatFromCompletion
+      ? d.getMonth()
+      : (t.recurrenceMonth ?? original.getMonth());
   if (t.repeatRule === "DAILY") d.setDate(d.getDate() + interval);
   else if (t.repeatRule === "WEEKDAYS") {
     do {
@@ -251,6 +255,20 @@ export function validateBackup(input: unknown) {
       t.priority < 0 ||
       t.priority > 3 ||
       (t.dueDate && !asDate(t.dueDate)) ||
+      (t.notes !== undefined && typeof t.notes !== "string") ||
+      (t.startDate !== undefined &&
+        t.startDate !== "" &&
+        (!/^\d{4}-\d{2}-\d{2}$/.test(t.startDate) || !asDate(t.startDate))) ||
+      (t.dueTime !== undefined &&
+        t.dueTime !== "" &&
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(t.dueTime)) ||
+      (t.repeatInterval !== undefined &&
+        (!Number.isInteger(t.repeatInterval) ||
+          t.repeatInterval < 1 ||
+          t.repeatInterval > 365)) ||
+      (t.reminderMinutes !== undefined &&
+        (!Array.isArray(t.reminderMinutes) ||
+          t.reminderMinutes.some((m) => !Number.isFinite(m) || m < 0))) ||
       (t.subtasks !== undefined &&
         (!Array.isArray(t.subtasks) ||
           t.subtasks.some(
