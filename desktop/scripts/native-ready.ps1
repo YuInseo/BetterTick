@@ -38,7 +38,9 @@ try {
   [System.Windows.Forms.SendKeys]::SendWait('Native UI QA{ENTER}')
   $deadline = (Get-Date).AddSeconds(15)
   do {
-    $task = Find-Text 'Native UI QA'
+    # Chromium exposes the task row as one button including its metadata.
+    $buttons = $window.FindAll($scope, (New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::ControlTypeProperty, [System.Windows.Automation.ControlType]::Button)))
+    $task = $buttons | Where-Object { $_.Current.Name.StartsWith('Native UI QA ') } | Select-Object -First 1
     if (!$task) { Start-Sleep -Milliseconds 250 }
   } until ($task -or (Get-Date) -gt $deadline)
   if (!$task) { throw 'Typing and submitting a task did not create the native task row' }
