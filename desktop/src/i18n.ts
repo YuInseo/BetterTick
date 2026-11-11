@@ -279,6 +279,23 @@ const english: Record<string, string> = {
   "Windows 설치 앱에서 시스템 시작 실행과 최소화 시작을 지원합니다. 브라우저에서는 사용할 수 없습니다.":
     "Startup and minimized launch are available in the Windows app. They are unavailable in a browser.",
 };
+Object.assign(english, {
+  "워크스페이스 도구": "Workspace tools",
+  "할 일 화면": "Tasks view",
+  "달력 화면": "Calendar view",
+  "보드 화면": "Board view",
+  "타이머 화면": "Timer view",
+  "습관 화면": "Habits view",
+  "테마 전환": "Toggle theme",
+  "앱 설정": "App settings",
+  "나만의 워크스페이스": "Your personal workspace",
+  "내 워크스페이스": "My workspace",
+  둘러보기: "Explore",
+  "내 하루, 내 흐름대로": "YOUR DAY, YOUR PACE",
+  "중요한 일부터, 하나씩 집중해요.": "Make room for what matters.",
+  "새 할 일": "New task",
+  "오늘의 진행률": "Today's progress",
+});
 export function tr(text: string): string {
   if (language === "ko") return text;
   const key = text.trim().replace(/\s+/g, " ");

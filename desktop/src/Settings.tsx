@@ -22,8 +22,8 @@ export type Preferences = {
   language: "ko" | "en";
 };
 export const defaults: Preferences = {
-  theme: "system",
-  accent: "#4776ef",
+  theme: "dark",
+  accent: "#c8f58b",
   density: "comfortable",
   weekStartsOn: 0,
   dateFormat: "yyyy-mm-dd",
@@ -95,6 +95,15 @@ export function applyPreferences(p: Preferences) {
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.dataset.density = p.density;
   document.documentElement.style.setProperty("--accent", p.accent);
+  const rgb = p.accent
+    .slice(1)
+    .match(/.{2}/g)
+    ?.map((v) => parseInt(v, 16)) ?? [200, 245, 139];
+  const light = rgb[0] * 0.299 + rgb[1] * 0.587 + rgb[2] * 0.114;
+  document.documentElement.style.setProperty(
+    "--accent-ink",
+    light > 160 ? "#17210e" : "#ffffff",
+  );
 }
 export function Settings({
   value,

@@ -24,6 +24,12 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import {
   CalendarDays,
+  CheckCheck,
+  ChevronRight,
+  Download,
+  Upload,
+  Moon,
+  Pin,
   Check,
   Circle,
   Clock3,
@@ -43,6 +49,7 @@ import {
   X,
 } from "lucide-react";
 import "./style.css";
+import "./theme.css";
 import { useCollection } from "./useCollection";
 import { Focus } from "./Focus";
 import { Calendar } from "./Calendar";
@@ -182,7 +189,7 @@ function App() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "n") {
         e.preventDefault();
-        setView("inbox");
+        if (!document.getElementById("quick-add")) setView("inbox");
         setTimeout(() => document.getElementById("quick-add")?.focus(), 0);
       }
     };
@@ -528,12 +535,80 @@ function App() {
     );
   return (
     <div className="shell">
+      <aside className="workspace-rail" aria-label={tr("워크스페이스 도구")}>
+        <button
+          className="rail-logo"
+          title="BetterTick"
+          onClick={() => {
+            setView("today");
+            setSelected(null);
+          }}
+        >
+          <CheckCheck size={24} />
+        </button>
+        <div className="rail-navigation">
+          {[
+            { id: "today", label: tr("할 일 화면"), icon: ListTodo },
+            { id: "calendar", label: tr("달력 화면"), icon: CalendarDays },
+            { id: "board", label: tr("보드 화면"), icon: LayoutGrid },
+            { id: "focus", label: tr("타이머 화면"), icon: Timer },
+            { id: "habits", label: tr("습관 화면"), icon: Check },
+          ].map((item) => (
+            <button
+              key={item.id}
+              title={item.label}
+              aria-label={item.label}
+              className={"rail-button " + (view === item.id ? "is-active" : "")}
+              onClick={() => {
+                setView(item.id);
+                setSelected(null);
+              }}
+            >
+              <item.icon size={20} />
+            </button>
+          ))}
+        </div>
+        <div className="rail-bottom">
+          <button
+            className="rail-button"
+            title={tr("테마 전환")}
+            aria-label={tr("테마 전환")}
+            onClick={() =>
+              setPrefs({
+                ...prefs,
+                theme:
+                  document.documentElement.dataset.theme === "dark"
+                    ? "light"
+                    : "dark",
+              })
+            }
+          >
+            {prefs.theme === "light" ? <Moon size={19} /> : <Sun size={19} />}
+          </button>
+          <button
+            className="rail-button"
+            title={tr("앱 설정")}
+            aria-label={tr("앱 설정")}
+            onClick={() => {
+              setView("settings");
+              setSelected(null);
+            }}
+          >
+            <Settings2 size={19} />
+          </button>
+          <div className="rail-user">
+            {(user.displayName ?? "U").slice(0, 1)}
+          </div>
+        </div>
+      </aside>
       {sidebar && (
         <aside className="sidebar">
           <div className="sidebar-header">
             <div className="brand">
-              <div className="logo-mark">✓</div>
-              <strong>BetterTick</strong>
+              <div className="workspace-wordmark">
+                <strong>BetterTick</strong>
+                <small>PERSONAL WORKSPACE</small>
+              </div>
               <button
                 className="icon-button push"
                 title={tr("사이드바 닫기")}
@@ -546,7 +621,10 @@ function App() {
               <div className="avatar">
                 {(user.displayName ?? "U").slice(0, 1)}
               </div>
-              <span>{user.displayName ?? user.email}</span>
+              <span>
+                <strong>{user.displayName ?? user.email}</strong>
+                <small>{tr("나만의 워크스페이스")}</small>
+              </span>
               <button
                 className="icon-button"
                 title={tr("설정")}
@@ -728,6 +806,21 @@ function App() {
       )}
       <main className="main">
         <header className="toolbar">
+          <div className="breadcrumbs">
+            <span>{tr("내 워크스페이스")}</span>
+            <ChevronRight size={13} />
+            <strong>
+              {[
+                ...nav,
+                { id: "calendar", name: tr("캘린더") },
+                { id: "focus", name: tr("집중") },
+                { id: "habits", name: tr("습관") },
+                { id: "settings", name: tr("설정") },
+              ].find((n) => n.id === view)?.name ??
+                lists.find((l) => l.id === view)?.name ??
+                tr("둘러보기")}
+            </strong>
+          </div>
           {!sidebar && (
             <button className="icon-button" onClick={() => setSidebar(true)}>
               <Menu size={19} />
@@ -747,10 +840,11 @@ function App() {
             title={tr("백업 내보내기")}
             onClick={exportData}
           >
-            {tr(" 내보내기 ")}
+            <Download size={16} />
           </button>
           <label className="backup-import">
-            {tr(" 가져오기 ")}
+            <Upload size={16} />
+            <span>{tr("가져오기")}</span>
             <input
               type="file"
               accept=".json,application/json"
@@ -935,9 +1029,19 @@ function App() {
             </div>
           </section>
         ) : (
-          <section className="content">
-            <div className="heading">
-              <div>
+          <section className="content task-content">
+            <div className="heading task-heading">
+              <div className="hero-copy">
+                <div className="eyebrow">
+                  <span className="status-dot" />
+                  {view === "today"
+                    ? new Date().toLocaleDateString(prefs.language, {
+                        month: "long",
+                        day: "numeric",
+                        weekday: "long",
+                      })
+                    : tr("내 하루, 내 흐름대로")}
+                </div>
                 <h1>
                   {[...nav, { id: "board", name: tr("칸반 보드") }].find(
                     (n) => n.id === view,
@@ -949,15 +1053,54 @@ function App() {
                 <p>
                   {visible.length}
                   {tr("개의 할 일")}
+                  <span className="hero-description">
+                    {tr("중요한 일부터, 하나씩 집중해요.")}
+                  </span>
                 </p>
               </div>
-              <button
-                className="subtle"
-                onClick={() => setShowCompleted(!showCompleted)}
-              >
-                {showCompleted ? tr("완료 숨기기") : tr("완료 표시")}
-              </button>
+              <div className="heading-actions">
+                <button
+                  className="hero-add"
+                  onClick={() => document.getElementById("quick-add")?.focus()}
+                >
+                  <Plus size={16} />
+                  {tr("새 할 일")}
+                </button>
+                <button
+                  className="subtle"
+                  onClick={() => setShowCompleted(!showCompleted)}
+                >
+                  {showCompleted ? tr("완료 숨기기") : tr("완료 표시")}
+                </button>
+              </div>
             </div>
+            {view === "today" &&
+              (() => {
+                const dated = tasks.filter(
+                    (t) =>
+                      !t.deletedAt &&
+                      taskDate(t) &&
+                      dateKey(taskDate(t)!) === today,
+                  ),
+                  done = dated.filter((t) => t.isCompleted).length;
+                return (
+                  <div className="day-progress">
+                    <div>
+                      <CheckCheck size={17} />
+                      <span>{tr("오늘의 진행률")}</span>
+                      <strong>
+                        {done}
+                        <span> / {dated.length}</span>
+                      </strong>
+                    </div>
+                    <progress
+                      value={done}
+                      max={Math.max(1, dated.length)}
+                      aria-label={tr("오늘의 진행률")}
+                    />
+                  </div>
+                );
+              })()}
             <div className="view-controls">
               <label>
                 {tr(" 정렬 ")}
@@ -1136,7 +1279,11 @@ function App() {
               ) : (
                 visible.map((t) => (
                   <div
-                    className={"task " + (selected === t.id ? "selected" : "")}
+                    className={
+                      "task " +
+                      (t.isCompleted ? "is-completed " : "") +
+                      (selected === t.id ? "selected" : "")
+                    }
                     key={t.id}
                     draggable
                     onDragStart={(e) =>
@@ -1201,29 +1348,53 @@ function App() {
                       <span className={t.isCompleted ? "done" : ""}>
                         {t.title}
                       </span>
-                      <small>
-                        {taskDate(t)
-                          ? formatDate(taskDate(t)!)
-                          : tr("날짜 없음")}
-                        {t.dueTime
-                          ? " · " +
-                            (prefs.timeFormat === "12h"
-                              ? (Number(t.dueTime.slice(0, 2)) % 12 || 12) +
-                                t.dueTime.slice(2) +
-                                (Number(t.dueTime.slice(0, 2)) >= 12
-                                  ? " PM"
-                                  : " AM")
-                              : t.dueTime)
-                          : ""}
-                        {t.notes ? tr(" · 메모") : ""}
-                        {t.subtasks?.length
-                          ? " · " +
-                            t.subtasks.filter((s) => s.done).length +
-                            "/" +
-                            t.subtasks.length
-                          : ""}
+                      <small className="task-meta">
+                        <span className="project-label">
+                          <i
+                            style={{
+                              background:
+                                lists.find((l) => l.id === t.listId)?.color ??
+                                prefs.accent,
+                            }}
+                          />
+                          {lists.find((l) => l.id === t.listId)?.name ??
+                            tr("받은 편지함")}
+                        </span>
+                        <span className="meta-separator">/</span>
+                        <span>
+                          {taskDate(t)
+                            ? formatDate(taskDate(t)!)
+                            : tr("날짜 없음")}
+                          {t.dueTime
+                            ? " · " +
+                              (prefs.timeFormat === "12h"
+                                ? (Number(t.dueTime.slice(0, 2)) % 12 || 12) +
+                                  t.dueTime.slice(2) +
+                                  (Number(t.dueTime.slice(0, 2)) >= 12
+                                    ? " PM"
+                                    : " AM")
+                                : t.dueTime)
+                            : ""}
+                          {t.notes ? tr(" · 메모") : ""}
+                          {t.subtasks?.length
+                            ? " · " +
+                              t.subtasks.filter((s) => s.done).length +
+                              "/" +
+                              t.subtasks.length
+                            : ""}
+                        </span>
                       </small>
                     </button>
+                    <div className="task-row-tags">
+                      {(t.tagIds ?? []).slice(0, 2).map((id) => {
+                        const tag = tags.find((x) => x.id === id);
+                        return tag ? (
+                          <span key={id} style={{ color: tag.color }}>
+                            {tag.name}
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
                     {t.deletedAt && (
                       <>
                         <button
@@ -1244,9 +1415,24 @@ function App() {
                         </button>
                       </>
                     )}
-                    {t.pinned && <span title={tr("고정됨")}>📌</span>}
+                    {t.pinned && (
+                      <Pin
+                        size={13}
+                        className="pin-mark"
+                        aria-label={tr("고정됨")}
+                      />
+                    )}
                     {t.priority > 0 && (
-                      <Flag size={15} className={"priority p" + t.priority} />
+                      <span className={"priority-label p" + t.priority}>
+                        <Flag size={12} />
+                        <span>
+                          {
+                            [tr("없음"), tr("낮음"), tr("보통"), tr("높음")][
+                              t.priority
+                            ]
+                          }
+                        </span>
+                      </span>
                     )}
                   </div>
                 ))

@@ -1,6 +1,6 @@
 [package]
 name = "bettertick-desktop"
-version = "0.1.0"
+version = "0.2.0"
 description = "BetterTick desktop application"
 authors = ["BetterTick"]
 edition = "2021"
