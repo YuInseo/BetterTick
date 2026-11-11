@@ -214,3 +214,31 @@ test("expired focus restored after closing records one session without losing it
     1,
   );
 });
+
+test("trash completion cannot create a new recurring occurrence", async () => {
+  await add("Discard");
+  const t = JSON.parse(
+    localStorage.getItem("bettertick.desktop.data.v1.local.tasks"),
+  )[0];
+  cleanup();
+  localStorage.setItem(
+    "bettertick.desktop.data.v1.local.tasks",
+    JSON.stringify([
+      { ...t, deletedAt: new Date().toISOString(), repeatRule: "DAILY" },
+    ]),
+  );
+  render(React.createElement(App));
+  await nav("휴지통");
+  await user.click(screen.getByTitle("완료 전환"));
+  assert.equal(
+    JSON.parse(localStorage.getItem("bettertick.desktop.data.v1.local.tasks"))
+      .length,
+    1,
+  );
+  assert.equal(
+    JSON.parse(
+      localStorage.getItem("bettertick.desktop.data.v1.local.tasks"),
+    )[0].isCompleted,
+    false,
+  );
+});

@@ -312,6 +312,7 @@ function App() {
     setView(id);
   };
   const completeTask = async (t: Task) => {
+    if (t.deletedAt) return;
     const completed = !t.isCompleted;
     await write({
       ...t,
@@ -339,6 +340,12 @@ function App() {
     setView("inbox");
   };
   const batch = async (action: string) => {
+    if (
+      action === "delete" &&
+      prefs.confirmDelete &&
+      !confirm(tr("할 일을 휴지통으로 이동할까요?"))
+    )
+      return;
     for (const t of tasks.filter((t) => checked.includes(t.id))) {
       if (action === "delete")
         await write({ ...t, deletedAt: new Date().toISOString() });
@@ -1182,6 +1189,7 @@ function App() {
                     <button
                       className={"check " + (t.isCompleted ? "checked" : "")}
                       title={tr("완료 전환")}
+                      disabled={!!t.deletedAt}
                       onClick={() => completeTask(t)}
                     >
                       {t.isCompleted && <Check size={13} />}

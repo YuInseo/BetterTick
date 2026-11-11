@@ -1350,3 +1350,12 @@ button.primary,
 :root[data-theme="dark"] .sidebar-header {
   background: #20242d;
 }
+.sidebar-header::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -20px;
+  height: 20px;
+  background: inherit;
+}
