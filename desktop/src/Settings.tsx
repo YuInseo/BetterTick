@@ -93,6 +93,12 @@ export function applyPreferences(p: Preferences) {
     (p.theme === "system" &&
       matchMedia("(prefers-color-scheme: dark)").matches);
   document.documentElement.dataset.theme = dark ? "dark" : "light";
+  if ("__TAURI_INTERNALS__" in window)
+    void import("@tauri-apps/api/window")
+      .then(({ getCurrentWindow }) =>
+        getCurrentWindow().setTheme(dark ? "dark" : "light"),
+      )
+      .catch((error) => console.warn("Window theme could not be applied", error));
   document.documentElement.dataset.density = p.density;
   document.documentElement.style.setProperty("--accent", p.accent);
   const rgb = p.accent
