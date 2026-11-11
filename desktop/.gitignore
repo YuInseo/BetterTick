@@ -7,3 +7,5 @@ src-tauri/gen/
 test-results/
 playwright-report/
 *.tsbuildinfo
+
+.component-test.mjs
