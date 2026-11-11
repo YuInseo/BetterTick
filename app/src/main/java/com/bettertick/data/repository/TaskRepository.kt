@@ -190,6 +190,14 @@ class TaskRepository @Inject constructor(
         refreshWidget()
     }
 
+    /** One server round-trip so the local cache (and every cache listener)
+     *  picks up edits made on other devices while the app was closed. */
+    suspend fun refreshFromServer() {
+        kotlinx.coroutines.withTimeoutOrNull(10_000) {
+            firestoreProvider.tasksCollection().get(Source.SERVER).await()
+        }
+    }
+
     suspend fun toggleComplete(taskId: String, isCompleted: Boolean) {
         // 1) 즉시 optimistic 반영 → UI 곧바로 토글
         _optimisticCompleted.update { it + (taskId to isCompleted) }

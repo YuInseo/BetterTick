@@ -1,5 +1,7 @@
 package com.bettertick.widget.focus
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import android.content.Context
 import android.graphics.Color as AndroidColor
 import android.util.Log
@@ -50,12 +52,15 @@ class FocusDistributionWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         Log.i("FocusDistWidget", "provideGlance start id=$id")
         val cached = WidgetServiceLocator.focusWeekCache.value
-        val sessions = if (cached.isNotEmpty()) cached else
+        val initial = if (cached.isNotEmpty()) cached else
             WidgetServiceLocator.safeLoad(emptyList()) {
                 WidgetServiceLocator.focusRepository.observeThisWeekSessions().first()
             }
 
-        provideContent { Content(sessions) }
+        provideContent {
+            val live by WidgetServiceLocator.focusWeekCache.collectAsState()
+            Content(if (live.isNotEmpty()) live else initial)
+        }
     }
 
     @androidx.compose.runtime.Composable

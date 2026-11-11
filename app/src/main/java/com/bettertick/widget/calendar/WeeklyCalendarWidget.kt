@@ -1,5 +1,7 @@
 package com.bettertick.widget.calendar
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color as AndroidColor
@@ -62,18 +64,22 @@ class WeeklyCalendarWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         Log.i("WeeklyCalendarWidget", "provideGlance start id=$id")
         val cachedTasks = WidgetServiceLocator.tasksCache.value
-        val tasks = if (cachedTasks.isNotEmpty()) cachedTasks else
+        val initialTasks = if (cachedTasks.isNotEmpty()) cachedTasks else
             WidgetServiceLocator.safeLoad(emptyList()) {
                 WidgetServiceLocator.taskRepository.observeAllTasks().first()
             }
         val cachedLists = WidgetServiceLocator.listsCache.value
-        val lists = if (cachedLists.isNotEmpty()) cachedLists else
+        val initialLists = if (cachedLists.isNotEmpty()) cachedLists else
             WidgetServiceLocator.safeLoad(emptyList<TaskList>()) {
                 WidgetServiceLocator.listRepository.observeLists().first()
             }
-        val listById = lists.associateBy { it.id }
 
         provideContent {
+            // Follow the live caches — update() only re-runs this composition.
+            val liveTasks by WidgetServiceLocator.tasksCache.collectAsState()
+            val tasks = if (liveTasks.isNotEmpty()) liveTasks else initialTasks
+            val liveLists by WidgetServiceLocator.listsCache.collectAsState()
+            val listById = (if (liveLists.isNotEmpty()) liveLists else initialLists).associateBy { it.id }
             val state = currentState<Preferences>()
             val today = WidgetDateUtils.today()
             val anchorDate = state[ANCHOR_DATE_KEY]

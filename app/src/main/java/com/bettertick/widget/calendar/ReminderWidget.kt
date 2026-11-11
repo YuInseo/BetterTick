@@ -119,12 +119,10 @@ class ReminderWidget : GlanceAppWidget() {
                 WidgetServiceLocator.taskRepository.observeAllTasks().first()
             }
         val cachedLists = WidgetServiceLocator.listsCache.value
-        val lists = if (cachedLists.isNotEmpty()) cachedLists else
+        val initialLists = if (cachedLists.isNotEmpty()) cachedLists else
             WidgetServiceLocator.safeLoad(emptyList<TaskList>()) {
                 WidgetServiceLocator.listRepository.observeLists().first()
             }
-
-        val listById = lists.associateBy { it.id }
         val widgetId = runCatching { GlanceAppWidgetManager(context).getAppWidgetId(id) }.getOrDefault(0)
 
         provideContent {
@@ -139,6 +137,8 @@ class ReminderWidget : GlanceAppWidget() {
             // (e.g. a checkbox that never turns into ✓).
             val liveTasks by WidgetServiceLocator.tasksCache.collectAsState()
             val tasks = if (liveTasks.isNotEmpty()) liveTasks else initialTasks
+            val liveLists by WidgetServiceLocator.listsCache.collectAsState()
+            val listById = (if (liveLists.isNotEmpty()) liveLists else initialLists).associateBy { it.id }
             val settings = WidgetServiceLocator.reminderSettings(ctxInside, widgetId)
             val state = currentState<Preferences>()
             val today = WidgetDateUtils.today()
