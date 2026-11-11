@@ -61,9 +61,10 @@ function App() {
   const next=new Date(taskDate(t)!);
   if(t.repeatRule==="DAILY")next.setDate(next.getDate()+1);
   else if(t.repeatRule==="WEEKLY")next.setDate(next.getDate()+7);
-  else if(t.repeatRule==="MONTHLY")next.setMonth(next.getMonth()+1);
+  else if(t.repeatRule==="MONTHLY"){const day=next.getDate();next.setDate(1);next.setMonth(next.getMonth()+1);next.setDate(Math.min(day,new Date(next.getFullYear(),next.getMonth()+1,0).getDate()));}
   else return;
   const id=t.id+"__"+dateKey(next);
+  if(tasks.some(existing=>existing.id===id))return;
   await write({...t,id,isCompleted:false,completedAt:null,dueDate:next,sortOrder:next.getTime()});
  };
  const removeTask = async (id:string)=>{if(prefs.confirmDelete&&!confirm("할 일을 삭제할까요?"))return;if(qaMode){setTasks(ts=>ts.filter(t=>t.id!==id));setSelected(null);return;}if(!user||!db)return;try{await deleteDoc(doc(db,"users",user.uid,"tasks",id));setSelected(null)}catch(e){setError(String(e))}};
@@ -72,8 +73,8 @@ function App() {
   if(view==="completed")return t.isCompleted;
   if(!showCompleted&&t.isCompleted)return false;
   const due=taskDate(t);const key=due?dateKey(due):"";
-  if(view==="today")return !!due&&key<=today;
-  if(view==="upcoming")return !!due&&key>today;
+  if(view==="today")return !!due&&key<=dateKey(new Date());
+  if(view==="upcoming")return !!due&&key>dateKey(new Date());
   if(view==="inbox")return !t.listId;
   if(view==="all"||view==="calendar"||view==="focus"||view==="board")return true;
   return t.listId===view;
