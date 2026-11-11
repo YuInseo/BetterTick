@@ -1,5 +1,7 @@
 package com.bettertick.widget.calendar
 
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -112,17 +114,15 @@ class ReminderWidget : GlanceAppWidget() {
         // warmed up), fall back to a one-shot cold read so the first paint
         // after a cold boot still shows real data.
         val cachedTasks = WidgetServiceLocator.tasksCache.value
-        val tasks = if (cachedTasks.isNotEmpty()) cachedTasks else
+        val initialTasks = if (cachedTasks.isNotEmpty()) cachedTasks else
             WidgetServiceLocator.safeLoad(emptyList()) {
                 WidgetServiceLocator.taskRepository.observeAllTasks().first()
             }
         val cachedLists = WidgetServiceLocator.listsCache.value
-        val lists = if (cachedLists.isNotEmpty()) cachedLists else
+        val initialLists = if (cachedLists.isNotEmpty()) cachedLists else
             WidgetServiceLocator.safeLoad(emptyList<TaskList>()) {
                 WidgetServiceLocator.listRepository.observeLists().first()
             }
-
-        val listById = lists.associateBy { it.id }
         val widgetId = runCatching { GlanceAppWidgetManager(context).getAppWidgetId(id) }.getOrDefault(0)
 
         provideContent {
@@ -132,6 +132,13 @@ class ReminderWidget : GlanceAppWidget() {
             // the composable means every SETTINGS_VERSION_KEY bump picks
             // up the fresh SharedPreferences.
             val ctxInside = LocalContext.current
+            // Follow the live cache: update() only re-runs this composition,
+            // so a list captured above would keep showing the pre-tap state
+            // (e.g. a checkbox that never turns into ✓).
+            val liveTasks by WidgetServiceLocator.tasksCache.collectAsState()
+            val tasks = if (liveTasks.isNotEmpty()) liveTasks else initialTasks
+            val liveLists by WidgetServiceLocator.listsCache.collectAsState()
+            val listById = (if (liveLists.isNotEmpty()) liveLists else initialLists).associateBy { it.id }
             val settings = WidgetServiceLocator.reminderSettings(ctxInside, widgetId)
             val state = currentState<Preferences>()
             val today = WidgetDateUtils.today()
@@ -166,10 +173,12 @@ class ReminderWidget : GlanceAppWidget() {
                 "priority" -> compareByDescending<Task> { it.priority }
                     .thenBy { it.dueDate?.toDate()?.time ?: Long.MAX_VALUE }
                 "title" -> compareBy<Task> { it.title.lowercase() }
-                // Repeating first, then by due time — matches the in-app
-                // calendar panel's ordering so widget and app stay in sync.
-                else -> compareByDescending<Task> { !it.repeatRule.isNullOrBlank() }
-                    .thenBy { it.dueDate?.toDate()?.time ?: Long.MAX_VALUE }
+                // Time of day (repeating tasks keep their series start date, so
+                // compare the clock time); untimed last — same as the calendar.
+                else -> compareBy<Task> { t ->
+                    t.dueDate?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalTime()
+                        ?.takeIf { it != java.time.LocalTime.MIDNIGHT }?.toSecondOfDay() ?: Int.MAX_VALUE
+                }
             }
             val dayTasks = (overdue + visible.filter { it.occursOn(selectedDate) })
                 .distinctBy { it.id }
@@ -265,7 +274,13 @@ class ReminderWidget : GlanceAppWidget() {
                             Column(
                                 modifier = GlanceModifier
                                     .padding(horizontal = 12.dp)
-                                    .clickable(actionStartActivity<MainActivity>())
+                                    .clickable(
+                                        // 근무 opens the app; other rows open 완료/취소됨/미루기.
+                                        if (task.isShiftTask()) actionStartActivity<MainActivity>()
+                                        else actionStartActivityWithIntent(
+                                            WidgetTaskMenuActivity.intent(context, task.id, selectedDate)
+                                        )
+                                    )
                             ) {
                                 TaskRow(task, listById, settings.showDetail, pal, fs, selectedDate, settings.isMemo)
                                 Spacer(GlanceModifier.height(10.dp))

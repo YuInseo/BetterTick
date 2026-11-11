@@ -68,7 +68,8 @@ fun SwipeableTaskItem(
     onPin: (() -> Unit)? = null,
     onWontDo: (() -> Unit)? = null,
     onToggleLeave: ((LocalDate, String) -> Unit)? = null,
-    showLeaveChips: Boolean = true
+    showLeaveChips: Boolean = true,
+    onStatusAction: ((com.bettertick.data.model.TaskStatusAction) -> Unit)? = null
 ) {
     fun handler(a: SwipeAction): (() -> Unit)? = when (a) {
         SwipeAction.NONE -> null
@@ -154,7 +155,8 @@ fun SwipeableTaskItem(
                 resolvedTags = resolvedTags,
                 onLongClick = onLongClick,
                 onToggleLeave = onToggleLeave,
-                showLeaveChips = showLeaveChips
+                showLeaveChips = showLeaveChips,
+                onStatusAction = onStatusAction
             )
         }
     }

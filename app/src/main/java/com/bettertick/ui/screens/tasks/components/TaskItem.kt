@@ -1,5 +1,7 @@
 package com.bettertick.ui.screens.tasks.components
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -94,7 +96,9 @@ fun TaskItem(
     /** 근무 할일의 병가 / 지휴 토글 (day, type). Null shows the used leave read-only. */
     onToggleLeave: ((LocalDate, String) -> Unit)? = null,
     /** False hides the 병가 / 지휴 chip row under a 근무 title. */
-    showLeaveChips: Boolean = true
+    showLeaveChips: Boolean = true,
+    /** Checkbox long-press menu: 완료 / 취소됨 / 내일로 미루기. Null = no menu. */
+    onStatusAction: ((com.bettertick.data.model.TaskStatusAction) -> Unit)? = null
 ) {
     val isShift = task.isShiftTask()
     val shiftDay = if (isShift) task.shiftDay(overrideDate) else null
@@ -140,22 +144,52 @@ fun TaskItem(
             Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
                 ShiftBadge(task.shiftKindOn(shiftDay), leave)
             }
-        } else Box(
-            modifier = Modifier
-                .size(44.dp)
-                .clickable {
-                    if (!task.isCompleted && !task.isAbandoned) {
-                        com.bettertick.ui.components.CompletionFeedback.play(context, haptic)
+        } else {
+            var statusMenu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .combinedClickable(
+                        onClick = {
+                            if (!task.isCompleted && !task.isAbandoned) {
+                                com.bettertick.ui.components.CompletionFeedback.play(context, haptic)
+                            }
+                            onToggleComplete()
+                        },
+                        onLongClick = onStatusAction?.let {
+                            {
+                                haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                statusMenu = true
+                            }
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                TickCheckbox(
+                    priority = task.priority,
+                    isCompleted = task.isCompleted,
+                    isAbandoned = task.isAbandoned
+                )
+                if (onStatusAction != null) {
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = statusMenu,
+                        onDismissRequest = { statusMenu = false }
+                    ) {
+                        com.bettertick.data.model.TaskStatusAction.choicesFor(task).forEach { action ->
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(action.label) },
+                                onClick = {
+                                    statusMenu = false
+                                    if (action == com.bettertick.data.model.TaskStatusAction.COMPLETE) {
+                                        com.bettertick.ui.components.CompletionFeedback.play(context, haptic)
+                                    }
+                                    onStatusAction(action)
+                                }
+                            )
+                        }
                     }
-                    onToggleComplete()
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            TickCheckbox(
-                priority = task.priority,
-                isCompleted = task.isCompleted,
-                isAbandoned = task.isAbandoned
-            )
+                }
+            }
         }
 
         Column(
