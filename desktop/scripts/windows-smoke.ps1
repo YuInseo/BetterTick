@@ -10,7 +10,9 @@ public static class BetterTickWindow {
 '@
 $app = Join-Path $PSScriptRoot '../src-tauri/target/release/bettertick-desktop.exe'
 if (!(Test-Path $app)) { throw "Built executable missing: $app" }
-$process = Start-Process -FilePath $app -PassThru
+$previousBrowserArguments = $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9333 --remote-debugging-address=127.0.0.1'
+$process = Start-Process -FilePath $app -PassThru -RedirectStandardError (Join-Path $PSScriptRoot '../test-results/native-stderr.log') -RedirectStandardOutput (Join-Path $PSScriptRoot '../test-results/native-stdout.log')
 try {
   $deadline = (Get-Date).AddSeconds(45)
   do {
@@ -23,11 +25,16 @@ try {
   if (![BetterTickWindow]::IsWindowVisible($handle)) { throw 'Desktop window is not visible' }
   if ($process.MainWindowTitle -ne 'BetterTick') { throw "Unexpected window title: $($process.MainWindowTitle)" }
   Write-Host 'PASS: Built Windows executable starts and displays the BetterTick window.'
-  Start-Sleep -Seconds 4
+  # Wait for the actual WebView UI instead of assuming a fixed startup delay.
+  & node (Join-Path $PSScriptRoot 'native-ready.mjs')
+  if ($LASTEXITCODE -ne 0) { throw 'The native WebView did not pass its UI check' }
+  $process.Refresh()
+  if ($process.HasExited) { throw "Native process exited after UI readiness (exit $($process.ExitCode))" }
+  if ($process.MainWindowHandle -ne [IntPtr]::Zero) { $handle = $process.MainWindowHandle }
   [void][BetterTickWindow]::PostMessage($handle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
   Start-Sleep -Seconds 2
   $process.Refresh()
-  if ($process.HasExited) { throw 'Closing the window terminated the tray application' }
+  if ($process.HasExited) { throw "Closing the window terminated the tray application (exit $($process.ExitCode)): $(Get-Content (Join-Path $PSScriptRoot '../test-results/native-stderr.log') -Raw)" }
   if ([BetterTickWindow]::IsWindowVisible($handle)) { throw 'Window did not hide to tray' }
   Write-Host 'PASS: Closing the window keeps the process alive and hides to tray.'
   # Ctrl+Shift+A exercises the registered native shortcut and restores the hidden window.
@@ -42,5 +49,6 @@ try {
   if (![BetterTickWindow]::IsWindowVisible($handle)) { throw 'Global quick-add shortcut did not restore the native window' }
   Write-Host 'PASS: Ctrl+Shift+A restores the native window from tray.'
 } finally {
+  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $previousBrowserArguments
   if (!$process.HasExited) { Stop-Process -Id $process.Id -Force }
 }

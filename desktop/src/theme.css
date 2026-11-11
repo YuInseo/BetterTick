@@ -11,6 +11,7 @@
   --faint-text: #879180;
   --line: #2a302a;
   --accent: #c8f58b;
+  --accent-text: var(--accent);
   --accent-ink: #17210e;
   --floating-shadow: 0 22px 80px #0005;
   color: var(--text);
@@ -27,6 +28,7 @@
   text-rendering: optimizeLegibility;
 }
 :root[data-theme="light"] {
+  --accent-text: color-mix(in srgb, var(--accent) 42%, #24301d);
   --app-bg: #fafbf8;
   --sidebar-bg: #f1f3ed;
   --rail-bg: #e8ece3;
@@ -134,7 +136,7 @@ select:focus-visible {
 }
 .rail-button.is-active {
   background: color-mix(in srgb, var(--accent) 11%, transparent);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .rail-button.is-active::before {
   content: "";
@@ -226,7 +228,7 @@ select:focus-visible {
   height: 28px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--accent) 14%, var(--sidebar-bg));
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 11px;
 }
 .profile > span {
@@ -278,11 +280,11 @@ select:focus-visible {
 .nav-item.active,
 :root[data-theme="dark"] .nav-item.active {
   background: color-mix(in srgb, var(--accent) 12%, var(--sidebar-bg));
-  color: var(--accent);
+  color: var(--accent-text);
   font-weight: 550;
 }
 .nav-item.active .count {
-  color: var(--accent);
+  color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 .count {
@@ -530,7 +532,7 @@ select:focus-visible {
   color: var(--muted-text);
 }
 .day-progress svg {
-  color: var(--accent);
+  color: var(--accent-text);
   stroke-width: 1.65;
 }
 .day-progress strong {
@@ -552,7 +554,7 @@ select:focus-visible {
   border-radius: 9px;
   overflow: hidden;
   background: var(--line);
-  color: var(--accent);
+  color: var(--accent-text);
   accent-color: var(--accent);
 }
 .day-progress progress::-webkit-progress-bar {
@@ -589,7 +591,7 @@ select:focus-visible {
   min-height: 29px;
 }
 .view-controls button.active {
-  color: var(--accent);
+  color: var(--accent-text);
   background: color-mix(in srgb, var(--accent) 10%, var(--panel-bg));
   border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
 }
@@ -937,7 +939,7 @@ button.primary {
 }
 .subtask-add button {
   font-size: 11px;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .danger {
   color: #d88c84;
@@ -1044,7 +1046,7 @@ button.primary {
 .calendar-task,
 :root[data-theme="dark"] .calendar-task {
   background: color-mix(in srgb, var(--accent) 11%, var(--panel-bg));
-  color: var(--accent);
+  color: var(--accent-text);
   font-size: 10px;
   border-radius: 4px;
   padding: 5px 6px;
@@ -1123,7 +1125,7 @@ button.primary {
 .habit-check.is-done {
   background: color-mix(in srgb, var(--accent) 13%, var(--panel-bg));
   border-color: color-mix(in srgb, var(--accent) 25%, var(--line));
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .habit-check:hover:not(:disabled) {
   border-color: var(--muted-text);
@@ -1166,7 +1168,7 @@ button.primary {
 }
 .settings-layout nav button.active {
   background: var(--panel-bg);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .settings-options h2 {
   font-size: 18px;
@@ -1203,7 +1205,7 @@ button.primary {
   font-size: 11px;
 }
 .focus {
-  color: var(--accent);
+  color: var(--accent-text);
   gap: 3px;
   padding: 45px 22px;
   background: var(--app-bg);
@@ -1275,7 +1277,7 @@ button.primary {
 .stat-cards strong {
   font-size: 32px;
   font-weight: 550;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .stats-days > div {
   color: var(--muted-text);
@@ -1339,7 +1341,7 @@ button.primary {
 }
 .markdown a,
 .attachment a {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 .timeline,
 .timeline-row > button,

@@ -28,6 +28,13 @@ pub fn run() {
                 .build(app)?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running BetterTick");
+        .build(tauri::generate_context!())
+        .expect("error while building BetterTick")
+        .run(|_app, event| {
+            // A closed window must not end the tray application. Explicit
+            // tray Quit uses app.exit(0), which supplies an exit code.
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = event {
+                if code.is_none() { api.prevent_exit(); }
+            }
+        });
 }

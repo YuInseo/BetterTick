@@ -76,6 +76,7 @@ test("redesigned workspace remains usable across desktop and phone widths", asyn
     await page.screenshot({
       path: `test-results/modern-workspace-${width}.png`,
       fullPage: true,
+      animations: "disabled",
     });
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > window.innerWidth,
@@ -93,6 +94,7 @@ test("redesigned workspace remains usable across desktop and phone widths", asyn
   await page.screenshot({
     path: "test-results/modern-task-detail.png",
     fullPage: true,
+    animations: "disabled",
   });
   await page.locator(".detail-top button").click();
   await page.getByRole("button", { name: "테마 전환", exact: true }).click();
@@ -100,6 +102,7 @@ test("redesigned workspace remains usable across desktop and phone widths", asyn
   await page.screenshot({
     path: "test-results/modern-workspace-light.png",
     fullPage: true,
+    animations: "disabled",
   });
   await page
     .locator(".task")
