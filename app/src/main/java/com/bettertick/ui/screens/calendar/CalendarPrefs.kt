@@ -78,6 +78,11 @@ object CalendarPrefs {
     var customColors by mutableStateOf<List<Int>>(emptyList())
         private set
 
+    /** Per-day manual order set by dragging rows in the date panel:
+     *  date → task ids top to bottom. Days without an entry use time order. */
+    var dayOrders by mutableStateOf<Map<java.time.LocalDate, List<String>>>(emptyMap())
+        private set
+
     /** Transient (not persisted): hides the global + button while the
      *  할 일 배정하기 panel occupies the bottom of the calendar. */
     var arrangePanelOpen by mutableStateOf(false)
@@ -105,6 +110,45 @@ object CalendarPrefs {
         }.toMap()
         customColors = p.getString("custom_colors", "").orEmpty().split(",")
             .mapNotNull { it.toLongOrNull()?.toInt() }
+        val keepFrom = java.time.LocalDate.now().minusDays(60)
+        dayOrders = p.getString("day_orders", "").orEmpty().split(";").mapNotNull { entry ->
+            val (d, ids) = entry.split("=", limit = 2).takeIf { it.size == 2 } ?: return@mapNotNull null
+            val date = runCatching { java.time.LocalDate.parse(d) }.getOrNull() ?: return@mapNotNull null
+            if (date.isBefore(keepFrom)) null
+            else date to ids.split(",").filter { it.isNotBlank() }
+        }.toMap()
+    }
+
+    fun updateDayOrder(date: java.time.LocalDate, ids: List<String>?) {
+        dayOrders = if (ids.isNullOrEmpty()) dayOrders - date else dayOrders + (date to ids)
+        edit {
+            putString("day_orders", dayOrders.entries.joinToString(";") { (d, l) -> "$d=${l.joinToString(",")}" })
+        }
+    }
+
+    /**
+     * Applies the day's manual order to [tasks] (already time-sorted). Tasks
+     * the user hasn't placed yet slot in before the first placed task that
+     * starts later, so a new 7:00 task still lands near 7:00.
+     */
+    fun applyDayOrder(date: java.time.LocalDate, tasks: List<Task>): List<Task> {
+        val order = dayOrders[date] ?: return tasks
+        val rank = order.withIndex().associate { (i, id) -> id to i }
+        val (placed, unplaced) = tasks.partition { it.id in rank }
+        if (placed.isEmpty()) return tasks
+        val result = placed.sortedBy { rank[it.id] }.toMutableList()
+        unplaced.forEach { t ->
+            val key = timeKey(t)
+            val idx = result.indexOfFirst { it.id in rank && timeKey(it) > key }
+            if (idx < 0) result += t else result.add(idx, t)
+        }
+        return result
+    }
+
+    private fun timeKey(t: Task): Int {
+        val lt = t.dueDate?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())?.toLocalTime()
+            ?: return Int.MAX_VALUE
+        return if (lt == java.time.LocalTime.MIDNIGHT) Int.MAX_VALUE else lt.toSecondOfDay()
     }
 
     private const val INBOX_KEY = "__inbox__"
@@ -205,6 +249,9 @@ fun Color.toHex(): String = "#%06X".format(toArgb() and 0xFFFFFF)
 
 /** Resolves the paint color for a task inside calendar views. */
 val LocalTaskColor = compositionLocalOf<(Task) -> Color> { { ThemeState.accentColor } }
+
+/** False inside the selected-week strip — its chips show titles only. */
+val LocalChipShowTime = compositionLocalOf { true }
 
 data class ChipColors(val background: Color, val content: Color, val bar: Color? = null)
 
