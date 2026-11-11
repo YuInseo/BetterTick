@@ -190,6 +190,53 @@ class TaskRepository @Inject constructor(
         refreshWidget()
     }
 
+    /**
+     * 완료 / 취소됨 / 내일로 미루기 / 되돌리기. [shownDate] is the day the task
+     * was tapped on (calendar day or widget day) — a recurring task only
+     * moves that one occurrence.
+     */
+    suspend fun applyStatus(task: Task, action: com.bettertick.data.model.TaskStatusAction, shownDate: LocalDate?) {
+        when (action) {
+            com.bettertick.data.model.TaskStatusAction.COMPLETE -> {
+                if (task.isAbandoned) setAbandoned(task.id, false)
+                toggleComplete(task.id, true)
+            }
+            com.bettertick.data.model.TaskStatusAction.REOPEN -> {
+                if (task.isAbandoned) setAbandoned(task.id, false)
+                if (task.isCompleted) toggleComplete(task.id, false)
+            }
+            com.bettertick.data.model.TaskStatusAction.CANCEL -> {
+                if (task.isCompleted) toggleComplete(task.id, false)
+                setAbandoned(task.id, true)
+            }
+            com.bettertick.data.model.TaskStatusAction.POSTPONE -> postponeToTomorrow(task, shownDate)
+        }
+    }
+
+    /** 내일로 미루기: the day after the shown day (or after today, if that day already passed). */
+    private suspend fun postponeToTomorrow(task: Task, shownDate: LocalDate?) {
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now()
+        val due = task.dueDate?.toDate()?.toInstant()?.atZone(zone)
+        val from = shownDate ?: due?.toLocalDate() ?: today
+        val target = (if (from.isBefore(today)) today else from).plusDays(1)
+        if (!task.repeatRule.isNullOrBlank()) {
+            moveOccurrence(task.id, from, target)
+            return
+        }
+        val time = due?.toLocalTime() ?: java.time.LocalTime.MIDNIGHT
+        setDueDate(task.id, Timestamp(Date.from(target.atTime(time).atZone(zone).toInstant())))
+        refreshWidget()
+    }
+
+    /** One server round-trip so the local cache (and every cache listener)
+     *  picks up edits made on other devices while the app was closed. */
+    suspend fun refreshFromServer() {
+        kotlinx.coroutines.withTimeoutOrNull(10_000) {
+            firestoreProvider.tasksCollection().get(Source.SERVER).await()
+        }
+    }
+
     suspend fun toggleComplete(taskId: String, isCompleted: Boolean) {
         // 1) 즉시 optimistic 반영 → UI 곧바로 토글
         _optimisticCompleted.update { it + (taskId to isCompleted) }

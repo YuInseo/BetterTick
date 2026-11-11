@@ -441,7 +441,8 @@ fun TasksScreen(
                                     viewModel.updateTask(task.withLeaveToggled(day, type))
                                 },
                                 onPin = { viewModel.updateTask(task.copy(isPinned = !task.isPinned)) },
-                                onWontDo = { viewModel.updateTask(task.copy(isAbandoned = true)) }
+                                onWontDo = { viewModel.updateTask(task.copy(isAbandoned = true)) },
+                                onStatusAction = { action -> viewModel.applyStatus(task, action, null) }
                             )
                         }
                     }
