@@ -104,6 +104,30 @@ test("redesigned workspace remains usable across desktop and phone widths", asyn
     fullPage: true,
     animations: "disabled",
   });
+  const contrast = await page
+    .locator(".sidebar .nav-item.active")
+    .evaluate((element) => {
+      const style = getComputedStyle(element),
+        canvas = document.createElement("canvas");
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext("2d")!;
+      const lum = (color: string) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, 1, 1);
+        const rgb = Array.from(ctx.getImageData(0, 0, 1, 1).data)
+          .slice(0, 3)
+          .map((n) => {
+            const c = n / 255;
+            return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+          });
+        return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722;
+      };
+      const a = lum(style.color),
+        b = lum(style.backgroundColor);
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    });
+  expect(contrast).toBeGreaterThanOrEqual(4.5);
   await page
     .locator(".task")
     .filter({ hasText: "Clover 채팅 오류 확인" })

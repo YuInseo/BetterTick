@@ -28,7 +28,7 @@
   text-rendering: optimizeLegibility;
 }
 :root[data-theme="light"] {
-  --accent-text: color-mix(in srgb, var(--accent) 42%, #24301d);
+  --accent-text: color-mix(in srgb, var(--accent) 32%, #24301d);
   --app-bg: #fafbf8;
   --sidebar-bg: #f1f3ed;
   --rail-bg: #e8ece3;
