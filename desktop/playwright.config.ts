@@ -1,3 +1,4 @@
+process.env.VITE_QA_MODE="true";
 import { defineConfig } from "@playwright/test";
 export default defineConfig({
  testDir:"./tests",testMatch:"**/*.spec.ts",retries:1,
