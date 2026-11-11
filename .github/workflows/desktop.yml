@@ -27,6 +27,14 @@ jobs:
       - run: npm run build
       - run: npm run tauri build
       - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: BetterTick-QA-Reports
+          path: |
+            desktop/playwright-report/**
+            desktop/test-results/**
+          if-no-files-found: ignore
+      - uses: actions/upload-artifact@v4
         with:
           name: BetterTick-Windows
           path: |
