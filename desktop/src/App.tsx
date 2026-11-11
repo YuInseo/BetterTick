@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, Check, ChevronLeft, ChevronRight, Circle, Clock3, Flag, Hash, Inbox, LayoutGrid, ListTodo, Menu, Plus, Search, Settings2, Sun, Tag, Timer, Trash2, X } from "lucide-react";
 import "./style.css";
 
-type Task = { id: string; title: string; notes?: string; listId: string; dueDate?: any; isCompleted: boolean; priority: number; createdAt?: any; sortOrder?: number };
+type Task = { id: string; title: string; notes?: string; listId: string; dueDate?: any; isCompleted: boolean; priority: number; repeatRule?: string|null; tagIds?: string[]; createdAt?: any; sortOrder?: number };
 type TaskList = { id: string; name: string; color: string; icon?: string; sortOrder?: number };
 type View = "inbox" | "today" | "upcoming" | "all" | "completed" | "calendar" | "focus" | "board" | string;
 const config = { apiKey: import.meta.env.VITE_FIREBASE_API_KEY, authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN, projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID, appId: import.meta.env.VITE_FIREBASE_APP_ID };
@@ -23,6 +23,7 @@ function App() {
  const [user,setUser] = useState<User|null>(null);
  const [tasks,setTasks] = useState<Task[]>([]);
  const [lists,setLists] = useState<TaskList[]>([]);
+ const [tags,setTags] = useState<{id:string;name:string;color:string}[]>([]);
  const [view,setView] = useState<View>("today");
  const [selected,setSelected] = useState<string|null>(null);
  const [search,setSearch] = useState("");
@@ -39,13 +40,26 @@ function App() {
   const path = "users/"+user.uid;
   const a = onSnapshot(collection(db,path,"tasks"), snap=>setTasks(snap.docs.map(d=>({ ...d.data(),id:d.id } as Task))), e=>setError(e.message));
   const b = onSnapshot(collection(db,path,"lists"), snap=>setLists(snap.docs.map(d=>({ ...d.data(),id:d.id } as TaskList))), e=>setError(e.message));
-  return ()=>{a();b()};
+  const c = onSnapshot(collection(db,path,"tags"),snap=>setTags(snap.docs.map(d=>({ ...d.data(),id:d.id } as {id:string;name:string;color:string}))),e=>setError(e.message));
+  return ()=>{a();b();c()};
  },[user]);
  useEffect(()=>{if(!focusRunning)return;const timer=window.setInterval(()=>setFocusSeconds(s=>{if(s<=1){setFocusRunning(false);return 0;}return s-1;}),1000);return ()=>clearInterval(timer)},[focusRunning]);
  useEffect(()=>{const handler=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==="k"){e.preventDefault();document.getElementById("search")?.focus()}if((e.ctrlKey||e.metaKey)&&e.key==="n"){e.preventDefault();document.getElementById("quick-add")?.focus()}};window.addEventListener("keydown",handler);return ()=>window.removeEventListener("keydown",handler)},[]);
  const write = async (task:Task) => {if(!user||!db)return;try{await setDoc(doc(db,"users",user.uid,"tasks",task.id),{...task,updatedAt:serverTimestamp()},{merge:true})}catch(e){setError(String(e))}};
  const addTask = async () => {if(!draft.trim()||!user)return;const id=uid();const task:Task={id,title:draft.trim(),notes:"",listId:lists.find(l=>l.id===view)?.id ?? "",isCompleted:false,priority:0,dueDate:view==="today"?new Date():null,sortOrder:Date.now()};setDraft("");await write(task);setSelected(id)};
  const addList = async () => {if(!user||!db)return;const name=prompt("새 목록 이름");if(!name?.trim())return;const id=uid();try{await setDoc(doc(db,"users",user.uid,"lists",id),{id,name:name.trim(),color:"#4776ef",icon:"list",sortOrder:lists.length,createdAt:serverTimestamp()});setView(id)}catch(e){setError(String(e))}};
+ const completeTask = async (t:Task) => {
+  const completed=!t.isCompleted;
+  await write({...t,isCompleted:completed,completedAt:completed?new Date():null} as Task);
+  if(!completed||!t.repeatRule||!taskDate(t))return;
+  const next=new Date(taskDate(t)!);
+  if(t.repeatRule==="DAILY")next.setDate(next.getDate()+1);
+  else if(t.repeatRule==="WEEKLY")next.setDate(next.getDate()+7);
+  else if(t.repeatRule==="MONTHLY")next.setMonth(next.getMonth()+1);
+  else return;
+  const id=uid();
+  await write({...t,id,isCompleted:false,dueDate:next,sortOrder:Date.now()});
+ };
  const removeTask = async (id:string)=>{if(!user||!db)return;try{await deleteDoc(doc(db,"users",user.uid,"tasks",id));setSelected(null)}catch(e){setError(String(e))}};
  const visible = useMemo(()=>tasks.filter(t=>{
   if(search&&!((t.title+" "+(t.notes??"")).toLowerCase().includes(search.toLowerCase())))return false;
@@ -78,9 +92,9 @@ function App() {
    view==="board"?<section className="content"><div className="heading"><h1>칸반 보드</h1></div><div className="board">{[0,1,2,3].map(p=><div className="board-column" key={p}><h3>{["우선순위 없음","낮음","보통","높음"][p]} <span>{visible.filter(t=>t.priority===p).length}</span></h3>{visible.filter(t=>t.priority===p).map(t=><button className="board-card" key={t.id} onClick={()=>setSelected(t.id)}>{t.title}</button>)}</div>)}</div></section>:
    <section className="content"><div className="heading"><div><h1>{[...nav,{id:"board",name:"칸반 보드"}].find(n=>n.id===view)?.name??lists.find(l=>l.id===view)?.name??"할 일"}</h1><p>{visible.length}개의 할 일</p></div><button className="subtle" onClick={()=>setShowCompleted(!showCompleted)}>{showCompleted?"완료 숨기기":"완료 표시"}</button></div>
    <form className="add-task" onSubmit={e=>{e.preventDefault();void addTask()}}><Plus size={19}/><input id="quick-add" value={draft} onChange={e=>setDraft(e.target.value)} placeholder="할 일 추가 (Ctrl+N)"/><button type="submit" disabled={!draft.trim()}>추가</button></form>
-   <div className="tasks">{visible.length===0?<div className="empty"><Circle size={35}/><h3>할 일이 없어요</h3><p>새로운 할 일을 추가해 보세요.</p></div>:visible.map(t=><div className={"task "+(selected===t.id?"selected":"")} key={t.id}><button className={"check "+(t.isCompleted?"checked":"")} title="완료 전환" onClick={()=>write({...t,isCompleted:!t.isCompleted,completedAt:!t.isCompleted?new Date():null} as Task)}>{t.isCompleted&&<Check size={13}/>}</button><button className="task-body" onClick={()=>setSelected(t.id)}><span className={t.isCompleted?"done":""}>{t.title}</span><small>{taskDate(t)?dateKey(taskDate(t)!):"날짜 없음"}{t.notes?" · 메모":""}</small></button>{t.priority>0&&<Flag size={15} className={"priority p"+t.priority}/>}</div>)}</div></section>}
+   <div className="tasks">{visible.length===0?<div className="empty"><Circle size={35}/><h3>할 일이 없어요</h3><p>새로운 할 일을 추가해 보세요.</p></div>:visible.map(t=><div className={"task "+(selected===t.id?"selected":"")} key={t.id}><button className={"check "+(t.isCompleted?"checked":"")} title="완료 전환" onClick={()=>completeTask(t)}>{t.isCompleted&&<Check size={13}/>}</button><button className="task-body" onClick={()=>setSelected(t.id)}><span className={t.isCompleted?"done":""}>{t.title}</span><small>{taskDate(t)?dateKey(taskDate(t)!):"날짜 없음"}{t.notes?" · 메모":""}</small></button>{t.priority>0&&<Flag size={15} className={"priority p"+t.priority}/>}</div>)}</div></section>}
   </main>
-  {active&&<aside className="detail"><div className="detail-top"><span>할 일 상세</span><button className="icon-button" onClick={()=>setSelected(null)}><X size={19}/></button></div><textarea className="detail-title" value={active.title} onChange={e=>setTasks(ts=>ts.map(t=>t.id===active.id?{...t,title:e.target.value}:t))} onBlur={()=>write(active)}/><label><CalendarDays size={17}/> 날짜 <input type="date" value={taskDate(active)?dateKey(taskDate(active)!):""} onChange={e=>write({...active,dueDate:e.target.value?new Date(e.target.value+"T12:00:00"):null})}/></label><label><Flag size={17}/> 우선순위 <select value={active.priority} onChange={e=>write({...active,priority:Number(e.target.value)})}>{[["0","없음"],["1","낮음"],["2","보통"],["3","높음"]].map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label><label><Hash size={17}/> 목록 <select value={active.listId||""} onChange={e=>write({...active,listId:e.target.value})}><option value="">받은 편지함</option>{lists.map(l=><option value={l.id} key={l.id}>{l.name}</option>)}</select></label><div className="notes-label">메모</div><textarea className="notes" placeholder="상세 내용을 입력하세요..." value={active.notes??""} onChange={e=>setTasks(ts=>ts.map(t=>t.id===active.id?{...t,notes:e.target.value}:t))} onBlur={()=>write(active)}/><div className="detail-footer"><button className="danger" onClick={()=>removeTask(active.id)}><Trash2 size={16}/> 삭제</button><button className="primary" onClick={()=>write(active)}>저장</button></div></aside>}
+  {active&&<aside className="detail"><div className="detail-top"><span>할 일 상세</span><button className="icon-button" onClick={()=>setSelected(null)}><X size={19}/></button></div><textarea className="detail-title" value={active.title} onChange={e=>setTasks(ts=>ts.map(t=>t.id===active.id?{...t,title:e.target.value}:t))} onBlur={()=>write(active)}/><label><CalendarDays size={17}/> 날짜 <input type="date" value={taskDate(active)?dateKey(taskDate(active)!):""} onChange={e=>write({...active,dueDate:e.target.value?new Date(e.target.value+"T12:00:00"):null})}/></label><label><Flag size={17}/> 우선순위 <select value={active.priority} onChange={e=>write({...active,priority:Number(e.target.value)})}>{[["0","없음"],["1","낮음"],["2","보통"],["3","높음"]].map(([v,n])=><option key={v} value={v}>{n}</option>)}</select></label><label><Hash size={17}/> 목록 <select value={active.listId||""} onChange={e=>write({...active,listId:e.target.value})}><option value="">받은 편지함</option>{lists.map(l=><option value={l.id} key={l.id}>{l.name}</option>)}</select></label><label><Clock3 size={17}/> 반복 <select value={active.repeatRule??""} onChange={e=>write({...active,repeatRule:e.target.value||null})}><option value="">반복 안 함</option><option value="DAILY">매일</option><option value="WEEKLY">매주</option><option value="MONTHLY">매월</option></select></label><label><Tag size={17}/> 태그 <select value="" onChange={e=>{if(e.target.value&&!active.tagIds?.includes(e.target.value))write({...active,tagIds:[...(active.tagIds??[]),e.target.value]})}}><option value="">태그 추가</option>{tags.filter(t=>!active.tagIds?.includes(t.id)).map(t=><option value={t.id} key={t.id}>{t.name}</option>)}</select></label><div className="task-tags">{(active.tagIds??[]).map(id=>{const tag=tags.find(t=>t.id===id);return tag?<button key={id} onClick={()=>write({...active,tagIds:(active.tagIds??[]).filter(x=>x!==id)})} style={{background:tag.color+"22",color:tag.color}}>{tag.name} ×</button>:null})}</div><div className="notes-label">메모</div><textarea className="notes" placeholder="상세 내용을 입력하세요..." value={active.notes??""} onChange={e=>setTasks(ts=>ts.map(t=>t.id===active.id?{...t,notes:e.target.value}:t))} onBlur={()=>write(active)}/><div className="detail-footer"><button className="danger" onClick={()=>removeTask(active.id)}><Trash2 size={16}/> 삭제</button><button className="primary" onClick={()=>write(active)}>저장</button></div></aside>}
   {error&&<div className="toast" onClick={()=>setError("")}>{error} <X size={14}/></div>}
  </div>;
 }
