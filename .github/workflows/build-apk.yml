@@ -68,19 +68,6 @@ jobs:
             --build-cache --parallel --console=plain 2>&1 | tee build.log
           echo "exit=$?" > build.exit
 
-      # 테스트용 작은 APK (R8 축소). 실패해도 일반 APK 배포는 그대로 진행된다.
-      - name: Build small test APK (R8)
-        id: small
-        if: steps.build.outcome == 'success'
-        continue-on-error: true
-        env:
-          CI_VERSION_CODE: ${{ steps.meta.outputs.code }}
-          CI_VERSION_NAME: ${{ steps.meta.outputs.name }}
-          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-        run: |
-          ./gradlew assembleSmall -x lint -x test \
-            --build-cache --parallel --console=plain 2>&1 | tail -n 80
-
       - name: Show build log inline
         if: always()
         run: |
@@ -168,8 +155,6 @@ jobs:
         if: steps.build.outcome == 'success'
         run: |
           cp app/build/outputs/apk/debug/app-debug.apk BetterTick.apk
-          cp app/build/outputs/apk/small/app-small.apk BetterTick-small.apk 2>/dev/null \
-            && ls -la BetterTick-small.apk || echo "no small APK this time"
           cat > version.json <<EOF
           {
             "versionCode": ${{ steps.meta.outputs.code }},
@@ -214,7 +199,6 @@ jobs:
           # finished uploading — the app treats version.json as "ready".
           files: |
             BetterTick.apk
-            BetterTick-small.apk
           prerelease: true
           make_latest: "false"
 
@@ -224,6 +208,31 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release upload latest-debug version.json --clobber --repo "$GITHUB_REPOSITORY"
+
+      # 테스트용 작은 APK (R8 축소) — 일반 APK·version.json을 다 올린 뒤에 만든다.
+      # R8은 오래 걸리므로 업데이트 배포를 늦추지 않게 맨 뒤에서, 실패해도 무시.
+      - name: Build small test APK (R8)
+        id: small
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        env:
+          CI_VERSION_CODE: ${{ steps.meta.outputs.code }}
+          CI_VERSION_NAME: ${{ steps.meta.outputs.name }}
+          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
+        run: |
+          set -o pipefail
+          ./gradlew assembleSmall -x lint -x test \
+            --build-cache --parallel --console=plain 2>&1 | tail -n 80
+          cp app/build/outputs/apk/small/app-small.apk BetterTick-small.apk
+          ls -la BetterTick-small.apk
+
+      - name: Upload small test APK
+        if: steps.small.outcome == 'success'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload latest-debug BetterTick-small.apk --clobber --repo "$GITHUB_REPOSITORY"
 
       - name: Fail the job if build failed
         if: steps.build.outcome == 'failure'
