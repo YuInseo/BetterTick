@@ -76,7 +76,7 @@ class FocusDistributionWidget : GlanceAppWidget() {
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(ColorProvider(Color(0xFF1C1C1E)))
+                .background(ColorProvider(Color(0xFF191A1D)))
                 .cornerRadius(20.dp)
                 .clickable(actionStartActivity<MainActivity>())
         ) {
@@ -216,7 +216,7 @@ class FocusDistributionWidget : GlanceAppWidget() {
             modifier = GlanceModifier
                 .width(14.dp)
                 .height(max(totalDp, 2).dp)
-                .background(ColorProvider(Color(0xFF2A2A2C)))
+                .background(ColorProvider(Color(0xFF26272B)))
                 .cornerRadius(3.dp),
             verticalAlignment = Alignment.Bottom
         ) {

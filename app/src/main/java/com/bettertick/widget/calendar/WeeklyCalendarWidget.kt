@@ -111,7 +111,7 @@ class WeeklyCalendarWidget : GlanceAppWidget() {
         Box(
             modifier = GlanceModifier
                 .fillMaxSize()
-                .background(ColorProvider(Color(0xFF1C1C1E)))
+                .background(ColorProvider(Color(0xFF191A1D)))
                 .cornerRadius(20.dp)
                 .clickable(actionStartActivity<MainActivity>())
         ) {
@@ -175,14 +175,7 @@ class WeeklyCalendarWidget : GlanceAppWidget() {
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "‹",
-                            style = TextStyle(
-                                color = WidgetColors.textPrimary,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        )
+                        com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_left, com.bettertick.widget.theme.WidgetColorValues.textPrimary, 17.dp)
                     }
                     Text(
                         text = monthName,
@@ -203,14 +196,7 @@ class WeeklyCalendarWidget : GlanceAppWidget() {
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "›",
-                            style = TextStyle(
-                                color = WidgetColors.textPrimary,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        )
+                        com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_right, com.bettertick.widget.theme.WidgetColorValues.textPrimary, 17.dp)
                     }
                 }
             }
@@ -223,13 +209,7 @@ class WeeklyCalendarWidget : GlanceAppWidget() {
                         .clickable(actionSendBroadcast(addIntent)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "+",
-                        style = TextStyle(
-                            color = WidgetColors.textPrimary,
-                            fontSize = 20.sp
-                        )
-                    )
+                    com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_add, com.bettertick.widget.theme.WidgetColorValues.textPrimary, 18.dp)
                 }
                 Box(
                     modifier = GlanceModifier
@@ -238,14 +218,7 @@ class WeeklyCalendarWidget : GlanceAppWidget() {
                         .clickable(actionStartActivity<MainActivity>()),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "⋮",
-                        style = TextStyle(
-                            color = WidgetColors.textPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    )
+                    com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_more, com.bettertick.widget.theme.WidgetColorValues.textPrimary, 16.dp)
                 }
             }
         }
