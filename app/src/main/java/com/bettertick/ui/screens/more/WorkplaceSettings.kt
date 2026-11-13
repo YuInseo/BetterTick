@@ -36,7 +36,7 @@ import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 import java.time.LocalDate
 
-private val LeaveKinds = listOf("지휴", "연차", "병가")
+private val LeaveKinds = listOf("지휴", "특휴", "연차", "병가")
 private val DangerRed = Color(0xFFE5483F)
 
 private fun koDay(d: LocalDate): String =

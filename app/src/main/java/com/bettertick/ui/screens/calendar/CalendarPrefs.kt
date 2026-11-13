@@ -74,9 +74,8 @@ object CalendarPrefs {
     /** Priority (0 none … 3 high) → ARGB; missing = default. */
     var priorityColors by mutableStateOf<Map<Int, Int>>(emptyMap())
         private set
-    /** Colors the user added under 컬러 픽 > 사용자 정의. */
-    var customColors by mutableStateOf<List<Int>>(emptyList())
-        private set
+    /** Colors the user added — the app-wide 내 색상 ([com.bettertick.ui.theme.UserColors]). */
+    val customColors: List<Int> get() = com.bettertick.ui.theme.UserColors.colors
 
     /** Per-day manual order set by dragging rows in the date panel:
      *  date → task ids top to bottom. Days without an entry use time order. */
@@ -108,8 +107,6 @@ object CalendarPrefs {
         priorityColors = (0..3).mapNotNull { lvl ->
             if (p.contains("priority_color_$lvl")) lvl to p.getInt("priority_color_$lvl", 0) else null
         }.toMap()
-        customColors = p.getString("custom_colors", "").orEmpty().split(",")
-            .mapNotNull { it.toLongOrNull()?.toInt() }
         val keepFrom = java.time.LocalDate.now().minusDays(60)
         dayOrders = p.getString("day_orders", "").orEmpty().split(";").mapNotNull { entry ->
             val (d, ids) = entry.split("=", limit = 2).takeIf { it.size == 2 } ?: return@mapNotNull null
@@ -201,12 +198,7 @@ object CalendarPrefs {
         edit { if (c == null) remove("priority_color_$level") else putInt("priority_color_$level", c.toArgb()) }
     }
 
-    fun addCustomColor(c: Color) {
-        val argb = c.toArgb()
-        if (argb in customColors) return
-        customColors = customColors + argb
-        edit { putString("custom_colors", customColors.joinToString(",") { (it.toLong() and 0xFFFFFFFFL).toString() }) }
-    }
+    fun addCustomColor(c: Color) = com.bettertick.ui.theme.UserColors.add(c)
 
     // ── Color resolution ────────────────────────────────────────────────
 

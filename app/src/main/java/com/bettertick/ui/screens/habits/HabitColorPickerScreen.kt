@@ -34,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,6 +59,7 @@ private val memphisColors = listOf(
     "#F03030", "#F07050", "#F0C030", "#10D0A0", "#20C0D0", "#6060D0", "#C070D0", "#F040A0"
 )
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun HabitColorPickerScreen(
     selectedColor: String,
@@ -65,6 +67,21 @@ fun HabitColorPickerScreen(
     onSelect: (String) -> Unit
 ) {
     var tempSelected by remember { mutableStateOf(selectedColor) }
+    var addingColor by remember { mutableStateOf(false) }
+    if (addingColor) {
+        com.bettertick.ui.screens.calendar.CustomColorDialog(
+            initial = runCatching { Color(android.graphics.Color.parseColor(tempSelected)) }
+                .getOrDefault(com.bettertick.ui.theme.ThemeState.accentColor),
+            onDismiss = { addingColor = false },
+            onConfirm = { c ->
+                com.bettertick.ui.theme.UserColors.add(c)
+                val hex = com.bettertick.ui.theme.UserColors.hex(c.copy(alpha = 1f).toArgb())
+                tempSelected = hex
+                onSelect(hex)
+                addingColor = false
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -156,41 +173,34 @@ fun HabitColorPickerScreen(
             ) {
                 Text("사용자 정의", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.Medium, fontSize = 15.sp)
                 Spacer(Modifier.height(10.dp))
-                Row(
+                // 내 색상 (설정 > 일반 > 색상 관리) + 추가.
+                androidx.compose.foundation.layout.FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    // + button
                     Box(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(DarkSurfaceVariant),
+                            .background(DarkSurfaceVariant)
+                            .clickable { addingColor = true },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Add, contentDescription = "색 추가", tint = TextSecondary, modifier = Modifier.size(20.dp))
                     }
-                    // Sample custom colors shown as placeholders
-                    listOf("#3F51B5", "#E91E63").forEach { hex ->
-                        val c = runCatching { Color(android.graphics.Color.parseColor(hex)) }
-                            .getOrDefault(Color.Gray)
+                    com.bettertick.ui.theme.UserColors.colors.forEach { argb ->
+                        val hex = com.bettertick.ui.theme.UserColors.hex(argb)
+                        val c = Color(argb)
                         val isSelected = tempSelected.equals(hex, ignoreCase = true)
-                        if (isSelected) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .border(2.dp, c, CircleShape)
-                                    .clickable { tempSelected = hex; onSelect(hex) }
-                            )
-                        } else {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(c)
-                                    .clickable { tempSelected = hex; onSelect(hex) }
-                            )
-                        }
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .then(
+                                    if (isSelected) Modifier.border(2.dp, c, CircleShape)
+                                    else Modifier.clip(CircleShape).background(c)
+                                )
+                                .clickable { tempSelected = hex; onSelect(hex) }
+                        )
                     }
                 }
             }

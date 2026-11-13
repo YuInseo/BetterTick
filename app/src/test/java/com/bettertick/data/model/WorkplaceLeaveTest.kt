@@ -59,4 +59,36 @@ class WorkplaceLeaveTest {
             LeavePrefs.recount(emptyList())
         }
     }
+
+    @Test fun typedInMonthTotalReplacesTheRuleForThatMonthOnly() {
+        val before = LeavePrefs.workplaces.toList()
+        before.forEach { LeavePrefs.updateWorkplaceDates(it.id, it.start, day("2030-12-31")) }
+        val c = LeavePrefs.addWorkplace("C회사", day("2031-01-01"), null)
+        try {
+            LeavePrefs.selectEditing(c.id)
+            LeavePrefs.updatePeriod("병가", LeavePeriod.MONTH)
+            LeavePrefs.updateQuota("병가", 5)
+            LeavePrefs.recount(listOf(sickDay("2031-03-10")))
+            assertEquals(4, LeavePrefs.remaining("병가", day("2031-03-01")))
+
+            LeavePrefs.updateMonthTotal("병가", day("2031-03-15"), 1)
+            assertEquals(1, LeavePrefs.monthTotal("병가", day("2031-03-01")))
+            assertEquals(1, LeavePrefs.quota("병가", day("2031-03-01")))
+            assertEquals(0, LeavePrefs.remaining("병가", day("2031-03-01")))
+            // Other months keep the rule.
+            assertEquals(5, LeavePrefs.remaining("병가", day("2031-04-01")))
+            // 0 typed in is still an allowance (→ 1일 초과).
+            LeavePrefs.updateMonthTotal("병가", day("2031-03-15"), 0)
+            assertEquals(-1, LeavePrefs.remaining("병가", day("2031-03-01")))
+
+            LeavePrefs.updateMonthTotal("병가", day("2031-03-15"), null)
+            assertNull(LeavePrefs.monthTotal("병가", day("2031-03-01")))
+            assertEquals(4, LeavePrefs.remaining("병가", day("2031-03-01")))
+        } finally {
+            LeavePrefs.deleteWorkplace(c.id)
+            before.forEach { LeavePrefs.updateWorkplaceDates(it.id, it.start, it.end) }
+            LeavePrefs.selectEditing(LeavePrefs.workplaces.first().id)
+            LeavePrefs.recount(emptyList())
+        }
+    }
 }

@@ -163,6 +163,25 @@ fun SelectedDatePanel(
         if (dragged == null || nestTarget != null || listBounds?.contains(p) != true) null
         else others.count { t -> rowBounds[t.id]?.let { it.center.y < p.y } == true }
     }
+    // Reordering into a parent's group (above one of its subtasks) nests the
+    // dragged task there; a subtask may also stay at the end of its own group.
+    val dropParent: Task? = insertAt?.let { idx ->
+        val d = dragged ?: return@let null
+        var i = 0
+        var found: Task? = null
+        while (i < others.size && found == null) {
+            val t = others[i]
+            var end = i + 1
+            while (end < others.size && others[end].parentId == t.id) end++
+            if (!t.isSubtask && end > i + 1) {
+                val inside = idx in (i + 1) until end
+                val atOwnEnd = idx == end && d.parentId == t.id
+                if (inside || atOwnEnd) found = t
+            }
+            i = end
+        }
+        found?.takeIf { d.parentId == it.id || d.canNestUnder(it, tasks) }
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Active (top) card — rounded both ends, scrollable.
@@ -230,7 +249,7 @@ fun SelectedDatePanel(
                                     else Modifier
                                 )
                         ) {
-                        if (lineAbove) ReorderLine()
+                        if (lineAbove) ReorderLine(nestUnder = dropParent?.title, indent = !nestedRow)
                         DraggableTaskRow(
                             task = task,
                             selectedDate = selectedDate,
@@ -264,14 +283,15 @@ fun SelectedDatePanel(
                                     val newOrder = others.toMutableList().apply { add(idx.coerceIn(0, size), dragged) }
                                     val ids = newOrder.map { it.id }
                                     if (ids != active.map { it.id }) onReorder(ids)
-                                    // A subtask dropped outside its parent's group is let go.
-                                    if (dragged.isSubtask) {
-                                        val parentIdx = others.indexOfFirst { it.id == dragged.parentId }
-                                        if (parentIdx >= 0) {
-                                            var groupEnd = parentIdx + 1
-                                            while (groupEnd < others.size && others[groupEnd].parentId == dragged.parentId) groupEnd++
-                                            if (idx !in (parentIdx + 1)..groupEnd) onUnnest(dragged, selectedDate)
-                                        }
+                                    val into = dropParent
+                                    if (into != null && dragged.parentId != into.id) {
+                                        // Dropped among another task's subtasks: join them.
+                                        onNest(dragged, into)
+                                    } else if (into == null && dragged.isSubtask &&
+                                        others.any { it.id == dragged.parentId }
+                                    ) {
+                                        // A subtask dropped outside its parent's group is let go.
+                                        onUnnest(dragged, selectedDate)
                                     }
                                 }
                                 localDrag = null
@@ -290,7 +310,7 @@ fun SelectedDatePanel(
                                 modifier = Modifier.padding(start = 16.dp, bottom = 6.dp)
                             )
                         }
-                        if (lineBelow) ReorderLine()
+                        if (lineBelow) ReorderLine(nestUnder = dropParent?.title, indent = !nestedRow)
                         }
                     }
                 }
@@ -689,15 +709,30 @@ private fun EmptyState(modifier: Modifier = Modifier) {
 /** Thin line down the left of a parent's subtask rows. */
 private val SubtaskGuide = Color(0x667F7F7F)
 
-/** Insertion marker shown between rows while dragging to reorder. */
+/**
+ * Insertion marker shown between rows while dragging to reorder. Indented,
+ * with a label, when the drop lands inside [nestUnder]'s subtasks.
+ */
 @Composable
-private fun ReorderLine() {
-    Box(
-        modifier = Modifier
-            .padding(horizontal = 16.dp)
-            .fillMaxWidth()
-            .height(2.dp)
-            .clip(RoundedCornerShape(1.dp))
-            .background(MaterialTheme.colorScheme.primary)
-    )
+private fun ReorderLine(nestUnder: String? = null, indent: Boolean = true) {
+    val accent = MaterialTheme.colorScheme.primary
+    // Rows that are already subtasks sit indented, so only indent elsewhere.
+    Column(Modifier.padding(start = if (nestUnder != null && indent) 38.dp else 16.dp, end = 16.dp)) {
+        if (nestUnder != null) {
+            Text(
+                "'$nestUnder'의 하위 할일로",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = accent,
+                modifier = Modifier.padding(bottom = 2.dp)
+            )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(2.dp)
+                .clip(RoundedCornerShape(1.dp))
+                .background(accent)
+        )
+    }
 }

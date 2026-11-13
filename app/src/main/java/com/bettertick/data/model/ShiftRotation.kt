@@ -178,8 +178,8 @@ fun Task.isShiftRotationOf(labels: Set<String>): Boolean {
 /** Shift labels that turn a task into a 근무 일정 (no completion checkbox). */
 val SHIFT_LABELS: Set<String> = setOf("주", "주간", "야", "야간", "비", "비번", "휴", "휴무", "당직", "일근")
 
-/** Leave kinds a shift can be marked with. */
-val LEAVE_TYPES: List<String> = listOf("지휴", "병가", "연차")
+/** Leave kinds a shift can be marked with (특휴 = 특별휴가). */
+val LEAVE_TYPES: List<String> = listOf("지휴", "특휴", "병가", "연차")
 
 /** "주", "야간 (병가)" … — a work-shift entry rather than a to-do. */
 fun Task.isShiftTask(): Boolean = normalizeShiftLabel(title) in SHIFT_LABELS
