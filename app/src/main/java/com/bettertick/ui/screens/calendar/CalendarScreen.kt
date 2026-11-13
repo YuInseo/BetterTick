@@ -699,9 +699,9 @@ fun CalendarScreen(
     // Quick-add bottom sheet — slides up after drag-to-create on the timeline
     createPreset?.let { preset ->
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        var taskTitle by remember(preset) { mutableStateOf("") }
-        var taskNote by remember(preset) { mutableStateOf("") }
-        val focusRequester = remember { FocusRequester() }
+        val quickAdd: com.bettertick.ui.screens.tasks.QuickAddViewModel = hiltViewModel()
+        val qaLists by quickAdd.lists.collectAsState()
+        val qaTags by quickAdd.tags.collectAsState()
 
         ModalBottomSheet(
             onDismissRequest = { createPreset = null },
@@ -709,131 +709,28 @@ fun CalendarScreen(
             containerColor = DarkSurface,
             dragHandle = {}
         ) {
+            // Same sheet as the + button, pre-filled with the dragged block's
+            // day, start time and length.
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .padding(top = 24.dp, bottom = 12.dp)
+                    .padding(top = 12.dp, bottom = 12.dp)
                     .imePadding()
             ) {
-                // Title input
-                BasicTextField(
-                    value = taskTitle,
-                    onValueChange = { taskTitle = it },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester),
-                    textStyle = TextStyle(
-                        fontSize = 20.sp,
-                        color = MaterialTheme.colorScheme.onBackground
-                    ),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = {
-                        if (taskTitle.isNotBlank()) {
-                            val instant = preset.date.atTime(preset.startTime)
-                                .atZone(ZoneId.systemDefault()).toInstant()
-                            viewModel.createTask(
-                                Task(
-                                    title = taskTitle.trim(),
-                                    dueDate = Timestamp(instant.epochSecond, 0),
-                                    durationMinutes = preset.durationMinutes
-                                )
-                            )
-                        }
+                com.bettertick.ui.screens.tasks.components.TaskInputSheet(
+                    onAddTask = { draft ->
+                        quickAdd.addDraft(draft)
                         createPreset = null
-                    }),
-                    decorationBox = { innerTextField ->
-                        if (taskTitle.isEmpty()) {
-                            Text(
-                                "무엇을 하고 싶으신가요?",
-                                fontSize = 20.sp,
-                                color = TextTertiary
-                            )
-                        }
-                        innerTextField()
-                    }
+                    },
+                    onDismiss = { createPreset = null },
+                    initialDate = preset.date,
+                    initialTime = preset.startTime,
+                    initialDuration = preset.durationMinutes,
+                    lists = qaLists,
+                    tags = qaTags,
+                    onCreateTag = { quickAdd.createTag(it) }
                 )
-
-                Spacer(Modifier.height(14.dp))
-
-                // Note input
-                BasicTextField(
-                    value = taskNote,
-                    onValueChange = { taskNote = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = TextStyle(fontSize = 14.sp, color = TextSecondary),
-                    decorationBox = { innerTextField ->
-                        if (taskNote.isEmpty()) {
-                            Text("설명", fontSize = 14.sp, color = TextTertiary)
-                        }
-                        innerTextField()
-                    }
-                )
-
-                Spacer(Modifier.height(20.dp))
-
-                // Action row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val today = remember { java.time.LocalDate.now() }
-                    val isToday = preset.date == today
-                    val dow = listOf("일", "월", "화", "수", "목", "금", "토")
-                    val dowLabel = dow[preset.date.dayOfWeek.value % 7]
-                    val dateLabel = if (isToday) "오늘"
-                        else "${preset.date.monthValue}월 ${preset.date.dayOfMonth}일 ($dowLabel)"
-
-                    // Date chip
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = ThemeState.accentColor.copy(alpha = 0.12f),
-                        border = BorderStroke(1.dp, ThemeState.accentColor.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Outlined.Today,
-                                contentDescription = null,
-                                modifier = Modifier.size(13.dp),
-                                tint = ThemeState.accentColor
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(dateLabel, fontSize = 12.sp, color = ThemeState.accentColor)
-                        }
-                    }
-
-                    Spacer(Modifier.width(2.dp))
-
-                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.Flag, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
-                    }
-                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.Label, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
-                    }
-                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.MoveToInbox, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
-                    }
-                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.MoreHoriz, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
-                    }
-
-                    Spacer(Modifier.weight(1f))
-
-                    IconButton(onClick = {}, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.Outlined.Mic, null, modifier = Modifier.size(20.dp), tint = TextSecondary)
-                    }
-                }
-
-                Spacer(Modifier.height(8.dp))
             }
-        }
-
-        LaunchedEffect(Unit) {
-            focusRequester.requestFocus()
         }
     }
 }

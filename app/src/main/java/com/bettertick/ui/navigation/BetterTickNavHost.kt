@@ -584,7 +584,14 @@ private fun MainContent(
                         photoUrl = authViewModel.userPhotoUrl,
                         isGoogleUser = authViewModel.isGoogleUser,
                         onBack = { navController.popBackStack() },
-                        onDeleteAccount = { /* TODO: implement account deletion */ }
+                        onRename = { authViewModel.updateDisplayName(it) },
+                        onSignOutAll = {
+                            authViewModel.signOutOfAllDevices()
+                            authViewModel.refreshAuthState()
+                        },
+                        onDeleteAccount = {
+                            authViewModel.deleteAccount().also { if (it == null) authViewModel.refreshAuthState() }
+                        }
                     )
                 }
                 composable("addlist") {

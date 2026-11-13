@@ -87,7 +87,7 @@ fun DeviceManagementScreen(
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             DeviceRow(
                 deviceLabel = deviceLabel,
-                description = "Android App, At present",
+                description = "Android 앱 · 현재 기기",
                 isCurrent = true,
                 onSignOut = null
             )
@@ -104,7 +104,7 @@ fun DeviceManagementScreen(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Sign Out on All Devices",
+                text = "이 기기에서 로그아웃",
                 color = OverdueRed,
                 fontWeight = FontWeight.SemiBold
             )
@@ -115,8 +115,8 @@ fun DeviceManagementScreen(
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
-            title = { Text("모든 장치 로그아웃") },
-            text = { Text("모든 장치에서 로그아웃하시겠습니까? 다시 로그인해야 합니다.") },
+            title = { Text("로그아웃") },
+            text = { Text("이 기기에서 로그아웃할까요? 다시 로그인해야 합니다.") },
             confirmButton = {
                 TextButton(onClick = {
                     showSignOutDialog = false
