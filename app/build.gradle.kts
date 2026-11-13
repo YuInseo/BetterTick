@@ -100,6 +100,7 @@ android {
 }
 
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     // Compose BOM
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)

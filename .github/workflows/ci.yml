@@ -31,7 +31,7 @@ jobs:
       - name: Build and lint debug APK
         env:
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-        run: ./gradlew assembleDebug lintDebug --build-cache --parallel --console=plain
+        run: ./gradlew assembleDebug lintDebug testDebugUnitTest --build-cache --parallel --console=plain
 
       - name: Upload Lint Report
         if: always()

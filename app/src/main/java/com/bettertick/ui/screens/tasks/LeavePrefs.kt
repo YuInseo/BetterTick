@@ -11,11 +11,14 @@ import com.bettertick.data.model.isWorkShift
 import com.bettertick.data.model.leaveEntries
 import com.bettertick.data.model.redDaysWorked
 import java.time.LocalDate
+import com.bettertick.data.model.serviceYearOn
+import com.bettertick.data.model.serviceYearRange
 
 /** How often a leave allowance refills — chosen by the user per kind. */
 enum class LeavePeriod(val key: String, val label: String) {
     MONTH("month", "매달"),
-    YEAR("year", "매년"),
+    YEAR("year", "매년 (1월 1일)"),
+    SERVICE_YEAR("service_year", "근무 시작일 기준"),
     NONE("none", "리셋 없음")
 }
 
@@ -28,17 +31,17 @@ enum class LeavePeriod(val key: String, val label: String) {
  *
  * 지휴 can instead be earned automatically ([autoJihyu]): every red day of the
  * Korean calendar (공휴일·대체공휴일, optionally Sundays) with a work shift
- * (주간 / 야간 / 당직) and no leave taken gives one day in that period. The
+ * (주간 / 야간 / 당직 / 일근) and no leave taken gives one day in that period. The
  * user's own days are then added on top (이월 등).
  */
 object LeavePrefs {
     private const val PREFS = "leave_prefs"
     private const val AUTO_TYPE = "지휴"
     /** Shift kinds that earn 지휴 on a red day, in display order. */
-    val WEIGHT_KINDS = listOf("주", "야", "당직")
+    val WEIGHT_KINDS = listOf("주", "야", "당직", "일근")
     /** Shift kinds with their own block color, in display order. */
-    val COLOR_KINDS = listOf("주", "야", "비", "휴", "당직")
-    private val DEFAULT_WEIGHTS = mapOf("주" to 1, "야" to 2, "당직" to 1)
+    val COLOR_KINDS = listOf("주", "야", "비", "휴", "당직", "일근")
+    private val DEFAULT_WEIGHTS = mapOf("주" to 1, "야" to 2, "당직" to 1, "일근" to 1)
 
     private fun defaultPeriod(type: String) = if (type == "지휴") LeavePeriod.MONTH else LeavePeriod.YEAR
 
@@ -49,6 +52,12 @@ object LeavePrefs {
         private set
     /** 연도별 일수: type → (year → days), overriding [quotas] for that year. */
     var yearQuotas by mutableStateOf<Map<String, Map<Int, Int>>>(emptyMap())
+        private set
+
+    /** Shared employment start; calendar-year and service-year allowances stay independent. */
+    var workStartDate by mutableStateOf<LocalDate?>(null)
+        private set
+    var serviceQuotas by mutableStateOf<Map<String, Map<Int, Int>>>(emptyMap())
         private set
 
     /** "type|period" → days used; period is "yyyy-MM", "yyyy" or "all". */
@@ -87,6 +96,8 @@ object LeavePrefs {
         }
         quotas = LEAVE_TYPES.associateWith { p.getInt("quota_$it", 0) }
         yearQuotas = LEAVE_TYPES.associateWith { t -> parseYears(p.getString("years_$t", null)) }
+        workStartDate = p.getString("work_start_date", null)?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+        serviceQuotas = LEAVE_TYPES.associateWith { t -> parseYears(p.getString("service_years_$t", null)) }
         autoJihyu = p.getBoolean("auto_jihyu", true)
         shiftWeights = WEIGHT_KINDS.associateWith { p.getInt("weight_$it", DEFAULT_WEIGHTS[it] ?: 1) }
         includeSunday = p.getBoolean("red_sunday", true)
@@ -200,17 +211,47 @@ object LeavePrefs {
         edit { putString("years_$type", next.entries.sortedBy { it.key }.joinToString(",") { "${it.key}:${it.value}" }) }
     }
 
-    /** Allowance that applies on [day]: that year's own number, else the default. */
+    fun updateWorkStartDate(day: LocalDate) {
+        workStartDate = day
+        edit { putString("work_start_date", day.toString()) }
+        recount(lastTasks)
+    }
+
+    fun serviceYear(day: LocalDate = LocalDate.now()): Int = workStartDate?.let { serviceYearOn(it, day) } ?: 0
+
+    fun serviceQuota(type: String, year: Int): Int? = serviceQuotas[type]?.get(year)
+
+    fun updateServiceQuota(type: String, year: Int, days: Int?) {
+        require(year >= 1)
+        val current = serviceQuotas[type].orEmpty()
+        val next = if (days == null) current - year else current + (year to days.coerceAtLeast(0))
+        serviceQuotas = serviceQuotas + (type to next)
+        edit { putString("service_years_$type", next.entries.sortedBy { it.key }.joinToString(",") { "${it.key}:${it.value}" }) }
+    }
+
+    fun serviceRangeLabel(year: Int): String? = workStartDate?.let {
+        val range = serviceYearRange(it, year)
+        "${range.start} ~ ${range.endInclusive}"
+    }
+
+    /** Allowance that applies on [day], using the selected reset boundary. */
     fun quota(type: String, day: LocalDate = LocalDate.now()): Int {
-        val own = if (periodOf(type) == LeavePeriod.NONE) baseQuota(type)
-        else yearQuota(type, day.year) ?: baseQuota(type)
-        // Auto 지휴: what red-day work earned, plus the user's own days on top.
+        val own = when (periodOf(type)) {
+            LeavePeriod.NONE -> baseQuota(type)
+            LeavePeriod.SERVICE_YEAR -> {
+                val year = serviceYear(day)
+                if (year == 0) return 0
+                serviceQuota(type, year) ?: baseQuota(type)
+            }
+            else -> yearQuota(type, day.year) ?: baseQuota(type)
+        }
         return if (isAuto(type)) earnedIn(day) + own else own
     }
 
     private fun periodKey(type: String, day: LocalDate): String = when (periodOf(type)) {
         LeavePeriod.MONTH -> "%04d-%02d".format(day.year, day.monthValue)
         LeavePeriod.YEAR -> day.year.toString()
+        LeavePeriod.SERVICE_YEAR -> "service:${workStartDate}:${serviceYear(day)}"
         LeavePeriod.NONE -> "all"
     }
 
@@ -233,7 +274,10 @@ object LeavePrefs {
         // 리셋 없음 only counts what has been worked; a monthly/yearly period also
         // counts the shifts already scheduled in it.
         val to = if (periodOf(AUTO_TYPE) == LeavePeriod.NONE) today else LocalDate.of(today.year + 1, 12, 31)
-        val from = maxOf(first, today.minusYears(3).withDayOfYear(1))
+        val from = if (periodOf(AUTO_TYPE) == LeavePeriod.SERVICE_YEAR) {
+            val start = workStartDate ?: run { earnedDays = emptyList(); earned = emptyMap(); return }
+            maxOf(first, start)
+        } else maxOf(first, today.minusYears(3).withDayOfYear(1))
         val days = redDaysWorked(tasks, from, to, ::isRedDay)
         earnedDays = days
         earned = days.groupBy { periodKey(AUTO_TYPE, it.first) }
@@ -242,6 +286,7 @@ object LeavePrefs {
 
     fun countUsage(tasks: List<Task>): Map<String, Int> =
         tasks.flatMap { it.leaveEntries() }
+            .filter { (day, type) -> periodOf(type) != LeavePeriod.SERVICE_YEAR || serviceYear(day) > 0 }
             .distinct()
             .groupingBy { (day, type) -> "$type|${periodKey(type, day)}" }
             .eachCount()
@@ -251,7 +296,9 @@ object LeavePrefs {
     /** Days left in the period containing [day]; null when no allowance is set. */
     fun remaining(type: String, day: LocalDate, extraUsed: Int = 0): Int? {
         val q = quota(type, day)
-        if (q <= 0 && !isAuto(type)) return null
+        if (periodOf(type) == LeavePeriod.SERVICE_YEAR && serviceYear(day) == 0) return null
+        if (q <= 0 && !isAuto(type) &&
+            !(periodOf(type) == LeavePeriod.SERVICE_YEAR && serviceQuota(type, serviceYear(day)) != null)) return null
         return q - used(type, day) - extraUsed
     }
 
@@ -262,9 +309,14 @@ object LeavePrefs {
     }
 
     /** "이번 달" / "올해" / "전체" — the period [day] falls in, for labels. */
-    fun periodName(type: String): String = when (periodOf(type)) {
+    fun periodName(type: String, day: LocalDate = LocalDate.now()): String = when (periodOf(type)) {
         LeavePeriod.MONTH -> "이번 달"
         LeavePeriod.YEAR -> "올해"
+        LeavePeriod.SERVICE_YEAR -> when {
+            workStartDate == null -> "근무 시작일 미설정"
+            serviceYear(day) == 0 -> "근무 시작 전"
+            else -> "${serviceYear(day)}년차"
+        }
         LeavePeriod.NONE -> "전체"
     }
 }

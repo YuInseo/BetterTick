@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -51,26 +53,28 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
             expanded = true
         },
         modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(28.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shadowElevation = 6.dp
     ) {
-        Row(Modifier.widthIn(max = 260.dp).fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            types.forEachIndexed { index, type ->
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(label(type), color = colors[index], fontSize = 11.sp)
-                    Text(balance(type, today), fontSize = 12.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                }
-            }
+        Row(
+            Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.size(20.dp))
+            Text("스케줄 보기", style = MaterialTheme.typography.labelLarge, maxLines = 1)
         }
     }
 
     if (expanded) {
         val month = YearMonth.parse(monthKey)
-        val day = month.atDay(1)
-        ModalBottomSheet(onDismissRequest = { expanded = false }) {
+        val day = month.atDay(today.dayOfMonth.coerceAtMost(month.lengthOfMonth()))
+        ModalBottomSheet(
+            onDismissRequest = { expanded = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
                 Text("남은 휴가", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
@@ -82,6 +86,7 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
                     val period = when (LeavePrefs.periodOf(type)) {
                         LeavePeriod.MONTH -> "${month.monthValue}월"
                         LeavePeriod.YEAR -> "${month.year}년"
+                        LeavePeriod.SERVICE_YEAR -> LeavePrefs.periodName(type, day)
                         LeavePeriod.NONE -> "전체 기간"
                     }
                     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant,
@@ -92,7 +97,8 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(label(type), color = colors[index], fontWeight = FontWeight.Bold)
-                                Text(if (LeavePrefs.remaining(type, day) == null) "지급 일수 미설정 · 눌러서 설정"
+                                Text(if (LeavePrefs.periodOf(type) == LeavePeriod.SERVICE_YEAR && LeavePrefs.workStartDate == null) "근무 시작일 미설정 · 눌러서 설정"
+                                    else if (LeavePrefs.remaining(type, day) == null) "지급 일수 미설정 · 눌러서 설정"
                                     else "$period · 총 ${LeavePrefs.quota(type, day)}일 · 사용 ${LeavePrefs.used(type, day)}일", fontSize = 12.sp)
                             }
                             Text(balance(type, day), fontWeight = FontWeight.Bold)
