@@ -186,7 +186,9 @@ fun WeekRow(
     selectedDate: LocalDate?,
     lookup: TaskDateLookup,
     onDateSelected: (LocalDate) -> Unit,
-    showMonthChips: Boolean = false
+    showMonthChips: Boolean = false,
+    /** Fixed row height; null fits the row to its busiest day (1–3 chips). */
+    height: androidx.compose.ui.unit.Dp? = null
 ) {
     // Precompute the 7 edge-states once per week so DayCell stays skippable.
     // Without this, computeBorderEdges fired on every recomposition for every
@@ -194,10 +196,17 @@ fun WeekRow(
     val edges = remember(weekIdx, allWeeks) {
         Array(7) { dayIdx -> computeBorderEdges(weekIdx, dayIdx, allWeeks) }
     }
+    // Rows only as tall as their chips need, so a week of one-chip days
+    // doesn't leave a blank band above the next week's dates.
+    val rowHeight = height ?: run {
+        val chips = week.maxOf { lookup.tasksOn(it).size }.coerceIn(1, MAX_CHIPS_PER_DAY)
+        val chipHeight = (11f * androidx.compose.ui.platform.LocalDensity.current.fontScale + 3f).dp
+        36.dp + chipHeight * chips
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(84.dp)
+            .height(rowHeight)
     ) {
         week.forEachIndexed { dayIdx, date ->
             DayCell(
@@ -215,6 +224,8 @@ fun WeekRow(
         }
     }
 }
+
+private const val MAX_CHIPS_PER_DAY = 3
 
 private data class BorderEdges(
     val top: Boolean,
@@ -257,7 +268,7 @@ private fun DayCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val maxVisibleTasks = 3
+    val maxVisibleTasks = MAX_CHIPS_PER_DAY
 
     Column(
         modifier = modifier
@@ -274,12 +285,12 @@ private fun DayCell(
             .padding(1.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(4.dp))
-        // Keep the same 32.dp circular box in both states so the day cell
+        Spacer(modifier = Modifier.height(2.dp))
+        // Keep the same 28.dp circular box in both states so the day cell
         // never shifts when the "4월" chip appears — only the text swaps.
         Box(
             modifier = Modifier
-                .size(32.dp)
+                .size(28.dp)
                 .then(
                     when {
                         isSelected -> Modifier

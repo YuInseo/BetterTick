@@ -877,7 +877,8 @@ private fun DragAwareWeekStrip(
                     today = today,
                     selectedDate = selectedDate,
                     lookup = lookup,
-                    onDateSelected = onDateSelected
+                    onDateSelected = onDateSelected,
+                    height = 84.dp
                 )
             }
             Row(modifier = Modifier.fillMaxWidth()) {
