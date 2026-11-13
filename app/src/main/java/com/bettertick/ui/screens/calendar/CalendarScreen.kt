@@ -316,7 +316,7 @@ fun CalendarScreen(
                     if (selectedDate != today) viewModel.selectDate(today)
                 }) {
                     Icon(
-                        Icons.Outlined.Today,
+                        androidx.compose.ui.res.painterResource(com.bettertick.R.drawable.ic_cal_today),
                         contentDescription = "오늘로 이동",
                         tint = MaterialTheme.colorScheme.onBackground
                     )
@@ -325,8 +325,8 @@ fun CalendarScreen(
                 Box {
                     IconButton(onClick = { showViewModeMenu = true }) {
                         Icon(
-                            Icons.Outlined.CalendarViewMonth,
-                            contentDescription = "View mode",
+                            androidx.compose.ui.res.painterResource(com.bettertick.R.drawable.ic_cal_grid),
+                            contentDescription = "보기 방식",
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -366,8 +366,8 @@ fun CalendarScreen(
                 Box {
                     IconButton(onClick = { showMoreMenu = true }) {
                         Icon(
-                            Icons.Outlined.MoreVert,
-                            contentDescription = "More",
+                            androidx.compose.ui.res.painterResource(com.bettertick.R.drawable.ic_widget_more),
+                            contentDescription = "더보기",
                             tint = MaterialTheme.colorScheme.onBackground
                         )
                     }
