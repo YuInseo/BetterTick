@@ -49,7 +49,7 @@ import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material3.DropdownMenu
+import com.bettertick.ui.components.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -871,7 +871,7 @@ private fun BottomToolbar(
                     tint = TextSecondary
                 )
             }
-            androidx.compose.material3.DropdownMenu(
+            com.bettertick.ui.components.DropdownMenu(
                 expanded = attachMenuOpen,
                 onDismissRequest = { attachMenuOpen = false },
                 modifier = Modifier.background(DarkSurfaceVariant)

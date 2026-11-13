@@ -612,7 +612,9 @@ class ReminderWidget : GlanceAppWidget() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isShift) {
-                val tint = leave?.let { widgetLeaveColor(it) } ?: WidgetColorValues.accent
+                val tint = leave?.let { widgetLeaveColor(it) }
+                    ?: com.bettertick.ui.screens.tasks.components.shiftColor(task.shiftKindOn(today))
+                    ?: WidgetColorValues.accent
                 Box(
                     modifier = GlanceModifier
                         .size(24.dp)
