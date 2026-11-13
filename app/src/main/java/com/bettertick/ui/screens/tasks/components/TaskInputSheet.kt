@@ -92,6 +92,9 @@ fun TaskInputSheet(
     onAddTask: (QuickAddDraft) -> Unit,
     onDismiss: () -> Unit,
     initialDate: LocalDate? = LocalDate.now(),
+    /** Start time / length preset, e.g. a block dragged out on the calendar timeline. */
+    initialTime: LocalTime? = null,
+    initialDuration: Int = 60,
     lists: List<TaskList> = emptyList(),
     tags: List<Tag> = emptyList(),
     contextListId: String = "",
@@ -108,8 +111,8 @@ fun TaskInputSheet(
     // Manual picks; a manual pick always wins over smart recognition.
     var dateTouched by remember { mutableStateOf(false) }
     var manualDate by remember { mutableStateOf(initialDate) }
-    var manualTime by remember { mutableStateOf<LocalTime?>(null) }
-    var duration by remember { mutableStateOf(60) }
+    var manualTime by remember { mutableStateOf(initialTime) }
+    var duration by remember { mutableStateOf(initialDuration) }
     var manualRepeat by remember { mutableStateOf<String?>(null) }
     var repeatEnd by remember { mutableStateOf<String?>(null) }
     var reminders by remember { mutableStateOf<List<Int>?>(null) }

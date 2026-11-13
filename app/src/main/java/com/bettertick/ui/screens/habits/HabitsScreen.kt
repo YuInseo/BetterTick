@@ -158,9 +158,6 @@ fun HabitsScreen(
                     )
                 },
                 actions = {
-                    IconButton(onClick = {}) {
-                        Icon(Icons.Outlined.AccessTime, contentDescription = null, tint = TextSecondary)
-                    }
                     IconButton(onClick = { showList = true }) {
                         Icon(Icons.Outlined.List, contentDescription = null, tint = TextSecondary)
                     }
