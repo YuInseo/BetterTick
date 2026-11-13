@@ -594,6 +594,22 @@ fun CalendarScreen(
                                 onCreateTag = { viewModel.createTag(it) },
                                 onDragTaskUpdate = { drag -> activeDrag = drag },
                                 onReorder = { ids -> CalendarPrefs.updateDayOrder(currentDate, ids) },
+                                onNest = { child, parent ->
+                                    viewModel.nestTask(child, parent)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "'${child.title}'을(를) '${parent.title}'의 하위 할일로 넣었습니다",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                },
+                                onUnnest = { child, day ->
+                                    viewModel.unnestTask(child, day)
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        "'${child.title}'을(를) 하위 할일에서 분리했습니다",
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
+                                },
                                 onStatusAction = { task, action -> viewModel.applyStatus(task, action, currentDate) },
                                 onDragTaskRelease = { task ->
                                     val drop = activeDrag?.currentOffset
@@ -601,7 +617,11 @@ fun CalendarScreen(
                                         val targetDate = dateBounds.entries
                                             .firstOrNull { (_, r) -> r.contains(drop) }?.key
                                         if (targetDate != null) {
-                                            if (task.repeatRule.isNullOrBlank()) {
+                                            if (task.parentId.isNotBlank()) {
+                                                // A subtask dropped on another day leaves its
+                                                // parent and stays on that day by itself.
+                                                if (targetDate != currentDate) viewModel.unnestTask(task, targetDate)
+                                            } else if (task.repeatRule.isNullOrBlank()) {
                                                 viewModel.moveTaskToDate(task.id, targetDate)
                                             } else {
                                                 pendingRecurringMove = Triple(task, currentDate, targetDate)

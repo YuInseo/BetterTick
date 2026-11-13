@@ -4,6 +4,11 @@ import android.content.Context
 import androidx.glance.appwidget.updateAll
 import com.bettertick.data.firebase.FirestoreProvider
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.followingSchedule
+import com.bettertick.data.model.followsSchedule
+import com.bettertick.data.model.isSubtask
+import com.bettertick.data.model.occursOn
+import com.bettertick.data.model.unlinkedOn
 import com.bettertick.widget.calendar.ReminderWidget
 import com.google.firebase.Timestamp
 import com.google.firebase.firestore.ListenSource
@@ -185,8 +190,56 @@ class TaskRepository @Inject constructor(
     }
 
     suspend fun updateTask(task: Task) {
+        // A subtask's day / repeat always come from its parent; an edit to
+        // it keeps only its own time and length.
+        val toWrite = if (task.isSubtask) {
+            cachedTask(task.parentId)?.let { task.followingSchedule(it) } ?: task
+        } else task
         firestoreProvider.tasksCollection().document(task.id)
-            .set(task.copy(updatedAt = Timestamp.now()))
+            .set(toWrite.copy(updatedAt = Timestamp.now()))
+        if (!task.isSubtask) syncSubtasks(toWrite)
+        refreshWidget()
+    }
+
+    // --- 하위 할일 ---
+
+    private suspend fun cachedTask(id: String): Task? = runCatching {
+        firestoreProvider.tasksCollection().document(id).get(Source.CACHE).await().toTask()
+    }.getOrNull()
+
+    private suspend fun cachedSubtasks(parentId: String): List<Task> = runCatching {
+        firestoreProvider.tasksCollection().whereEqualTo("parentId", parentId)
+            .get(Source.CACHE).await().documents.mapNotNull { it.toTask() }
+    }.getOrDefault(emptyList())
+
+    /** Re-copies [parent]'s schedule onto each of its subtasks that drifted. */
+    private suspend fun syncSubtasks(parent: Task) {
+        if (parent.id.isBlank()) return
+        cachedSubtasks(parent.id).forEach { child ->
+            if (!child.followsSchedule(parent)) {
+                firestoreProvider.tasksCollection().document(child.id)
+                    .set(child.followingSchedule(parent).copy(updatedAt = Timestamp.now()))
+            }
+        }
+    }
+
+    private suspend fun syncSubtasks(parentId: String) {
+        cachedTask(parentId)?.takeIf { !it.isSubtask }?.let { syncSubtasks(it) }
+    }
+
+    /** Nests [child] under [parent]: it now repeats with the parent, at its own time. */
+    suspend fun nestTask(child: Task, parent: Task) {
+        if (child.id.isBlank() || parent.id.isBlank() || child.id == parent.id) return
+        firestoreProvider.tasksCollection().document(child.id)
+            .set(child.followingSchedule(parent, fresh = true).copy(updatedAt = Timestamp.now()))
+        refreshWidget()
+    }
+
+    /** Takes [child] out of its parent; it stays on [day] as a one-off task. */
+    suspend fun unnestTask(child: Task, day: LocalDate) {
+        if (child.id.isBlank()) return
+        firestoreProvider.tasksCollection().document(child.id)
+            .set(child.unlinkedOn(day).copy(updatedAt = Timestamp.now()))
         refreshWidget()
     }
 
@@ -280,18 +333,30 @@ class TaskRepository @Inject constructor(
                 "updatedAt" to Timestamp.now()
             )
         )
+        syncSubtasks(taskId)
         refreshWidget()
     }
 
     /** The task deleted last and when (epoch ms) — lets the UI offer 실행 취소. */
     private val _recentlyDeleted = kotlinx.coroutines.flow.MutableStateFlow<Pair<Task, Long>?>(null)
     val recentlyDeleted: kotlinx.coroutines.flow.StateFlow<Pair<Task, Long>?> = _recentlyDeleted
+    /** Subtasks freed by the last delete, so 실행 취소 can nest them again. */
+    private var freedSubtaskIds: List<String> = emptyList()
 
     suspend fun deleteTask(taskId: String) {
         val doc = firestoreProvider.tasksCollection().document(taskId)
         val existing = runCatching { doc.get(Source.CACHE).await().toTask() }.getOrNull()
+        // Its subtasks become standalone and keep the schedule they had.
+        val freed = cachedSubtasks(taskId)
+        freed.forEach { child ->
+            firestoreProvider.tasksCollection().document(child.id)
+                .update(mapOf("parentId" to "", "updatedAt" to Timestamp.now()))
+        }
         doc.delete()
-        if (existing != null) _recentlyDeleted.value = existing to System.currentTimeMillis()
+        if (existing != null) {
+            freedSubtaskIds = freed.map { it.id }
+            _recentlyDeleted.value = existing to System.currentTimeMillis()
+        }
         refreshWidget()
     }
 
@@ -301,6 +366,11 @@ class TaskRepository @Inject constructor(
         _recentlyDeleted.value = null
         if (task.id.isBlank()) return
         firestoreProvider.tasksCollection().document(task.id).set(task)
+        freedSubtaskIds.forEach { id ->
+            firestoreProvider.tasksCollection().document(id)
+                .update(mapOf("parentId" to task.id, "updatedAt" to Timestamp.now()))
+        }
+        freedSubtaskIds = emptyList()
         refreshWidget()
     }
 
@@ -325,6 +395,8 @@ class TaskRepository @Inject constructor(
                 "updatedAt" to Timestamp.now()
             )
         )
+        // Skipping a parent's day skips its subtasks that day too.
+        syncSubtasks(existing.copy(exceptions = existing.exceptions + iso))
         refreshWidget()
     }
 
@@ -367,10 +439,17 @@ class TaskRepository @Inject constructor(
             repeatRule = null,
             repeatEnd = null,
             exceptions = emptyList(),
+            parentId = "",
             createdAt = Timestamp.now(),
             updatedAt = Timestamp.now()
         )
         newDoc.set(detached)
+        // Moving a parent's day moves that day of each subtask along with it.
+        if (!original.isSubtask) {
+            cachedSubtasks(taskId).filter { it.occursOn(sourceDate) }.forEach { child ->
+                moveOccurrence(child.id, sourceDate, newDate)
+            }
+        }
         refreshWidget()
     }
 }
