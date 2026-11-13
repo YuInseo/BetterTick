@@ -132,7 +132,7 @@ private fun BottomNavTab(
             modifier = Modifier.size(26.dp)
         )
         Text(
-            text = label,
+            text = if (label == "아이젠하워 매트릭스") "매트릭스" else label,
             color = tint,
             fontSize = 10.sp,
             maxLines = 1,
