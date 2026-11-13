@@ -309,9 +309,15 @@ fun GeneralSettingsScreen(
         android.widget.Toast.makeText(importContext, message, android.widget.Toast.LENGTH_LONG).show()
     }
     var leaveType by remember { mutableStateOf<String?>(null) }
+    var showWorkplaces by remember { mutableStateOf(false) }
     leaveType?.let { type ->
         androidx.activity.compose.BackHandler { leaveType = null }
         LeaveTypeSettingsScreen(type = type, onBack = { leaveType = null })
+        return
+    }
+    if (showWorkplaces) {
+        androidx.activity.compose.BackHandler { showWorkplaces = false }
+        WorkplacesScreen(onBack = { showWorkplaces = false })
         return
     }
     val tabs = listOf(
@@ -345,14 +351,23 @@ fun GeneralSettingsScreen(
             )
         }
         Text(
-            "휴가 일수",
+            "휴가 일수 · ${LeavePrefs.currentWorkplace.name}",
             fontSize = 13.sp, color = TextSecondary,
             modifier = Modifier.padding(start = 20.dp)
         )
         OptionCard {
+            OptionNavRow(
+                "근무지 · 휴가 기록",
+                value = LeavePrefs.currentWorkplace.name,
+                subtitle = "회사마다 휴가 규칙을 따로 정하고, 회사별로 쓴 휴가를 봅니다."
+            ) { showWorkplaces = true }
             val today = java.time.LocalDate.now()
             listOf("지휴", "연차", "병가").forEach { type ->
-                LeaveSummaryRow(type = type, today = today, onClick = { leaveType = type })
+                LeaveSummaryRow(type = type, today = today, onClick = {
+                    // The rows here are the current workplace's rules.
+                    LeavePrefs.selectEditing(LeavePrefs.currentWorkplace.id)
+                    leaveType = type
+                })
             }
         }
         Text(
@@ -550,7 +565,8 @@ private fun LeaveSummaryRow(type: String, today: java.time.LocalDate, onClick: (
 /** One leave kind: 주기, 기본 일수 and optional 연도별 일수. */
 @Composable
 fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
-    val today = remember { java.time.LocalDate.now() }
+    // A day inside the workplace being edited (today for the current one).
+    val today = remember(LeavePrefs.editingId) { LeavePrefs.referenceDay() }
     var editBase by remember { mutableStateOf(false) }
     var editYear by remember { mutableStateOf<Int?>(null) }
     var editServiceYear by remember { mutableStateOf<Int?>(null) }
@@ -568,7 +584,7 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
         else -> "기본 일수"
     }
 
-    OptionPage(title = type, onBack = onBack) {
+    OptionPage(title = "$type · ${LeavePrefs.editing.name}", onBack = onBack) {
         if (type == "지휴") {
             OptionCard {
                 OptionSwitchRow(
@@ -679,7 +695,7 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
             )
             OptionNavRow(
                 "근무 시작일",
-                subtitle = "모든 휴가에 공통으로 쓰이며, 시작일 기준 주기를 선택한 항목에 적용됩니다.",
+                subtitle = "'${LeavePrefs.editing.name}'의 근무 시작일 · 이 회사의 모든 휴가에 쓰이며, 시작일 기준 주기를 고른 항목에 적용됩니다.",
                 value = LeavePrefs.workStartDate?.toString() ?: "설정 안 함"
             ) { pickWorkStart = true }
             if (period == LeavePeriod.SERVICE_YEAR && LeavePrefs.serviceYear(today) > 0) {
@@ -809,10 +825,14 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun WorkStartPickerDialog(
+internal fun WorkStartPickerDialog(
     initial: java.time.LocalDate?,
     onDismiss: () -> Unit,
-    onPick: (java.time.LocalDate) -> Unit
+    onPick: (java.time.LocalDate) -> Unit,
+    title: String = "근무 시작일",
+    /** Optional third button, e.g. "재직 중" to clear a 퇴사일. */
+    clearLabel: String? = null,
+    onClear: (() -> Unit)? = null
 ) {
     val state = androidx.compose.material3.rememberDatePickerState(
         initialSelectedDateMillis = initial?.atStartOfDay(java.time.ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
@@ -827,11 +847,18 @@ private fun WorkStartPickerDialog(
                 Text("설정")
             }
         },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("취소") } }
+        dismissButton = {
+            Row {
+                if (clearLabel != null && onClear != null) {
+                    androidx.compose.material3.TextButton(onClick = onClear) { Text(clearLabel) }
+                }
+                androidx.compose.material3.TextButton(onClick = onDismiss) { Text("취소") }
+            }
+        }
     ) {
         androidx.compose.material3.DatePicker(
             state = state,
-            title = { Text("근무 시작일", modifier = Modifier.padding(start = 24.dp, top = 16.dp)) }
+            title = { Text(title, modifier = Modifier.padding(start = 24.dp, top = 16.dp)) }
         )
     }
 }

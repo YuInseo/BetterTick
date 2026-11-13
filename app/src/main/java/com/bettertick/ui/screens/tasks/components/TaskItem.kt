@@ -1,6 +1,7 @@
 package com.bettertick.ui.screens.tasks.components
 
 import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -472,61 +473,105 @@ fun LeaveChipRow(
 }
 
 /**
- * Detail-sheet version: 지휴 · 병가 · 연차 as three equal-width buttons in
- * one row, each with the days left underneath.
+ * Detail sheet: two buttons side by side — 근무 (주 / 야 / 비 / 휴 / 일근 for
+ * that day) and 휴가 (지휴 / 병가 / 연차 with days left) — each opening a
+ * dropdown. Picking the title's own shift goes back to the rotation.
  */
 @Composable
-fun LeaveButtonsRow(
+fun ShiftDayPickers(
     day: LocalDate?,
+    kind: String,
+    onPickKind: ((String) -> Unit)?,
     used: String?,
+    /** The leave the saved task has on [day] (the sheet edits a draft). */
     savedUsed: String?,
-    onToggle: ((String) -> Unit)?
+    /** Toggles [type] on [day]: picking the used one again clears it. */
+    onToggleLeave: ((String) -> Unit)?
 ) {
+    var kindMenu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var leaveMenu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    fun leftFor(type: String): Int? = day?.let {
+        val extra = (if (used == type) 1 else 0) - (if (savedUsed == type) 1 else 0)
+        com.bettertick.ui.screens.tasks.LeavePrefs.remaining(type, it, extra)
+    }
+    fun leftLabel(left: Int?): String? = when {
+        left == null -> null
+        left >= 0 -> "${left}일 남음"
+        else -> "${-left}일 초과"
+    }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        LEAVE_TYPES.forEach { type ->
-            val selected = used == type
-            val c = leaveColor(type)
-            val left = day?.let {
-                val extra = (if (selected) 1 else 0) - (if (savedUsed == type) 1 else 0)
-                com.bettertick.ui.screens.tasks.LeavePrefs.remaining(type, it, extra)
-            }
-            val shape = RoundedCornerShape(10.dp)
-            // Compact one-line button: "지휴 1일 초과" / "병가 29일".
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(shape)
-                    .then(if (selected) Modifier.background(c) else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.5f), shape))
-                    .then(if (onToggle != null) Modifier.clickable { onToggle(type) } else Modifier)
-                    .padding(vertical = 7.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    if (selected) "$type ✓" else type,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (selected) Color.White else c,
-                    maxLines = 1
-                )
-                val sub = when {
-                    left == null -> null
-                    left >= 0 -> "${left}일"
-                    else -> "${-left}일 초과"
+        // ── 근무 ──
+        Box(Modifier.weight(1f)) {
+            val c = shiftColor(kind) ?: ThemeState.accentColor
+            PickerButton(
+                caption = "근무",
+                value = com.bettertick.data.model.shiftKindName(kind),
+                dot = c,
+                valueColor = TextPrimary,
+                enabled = onPickKind != null,
+                onClick = { kindMenu = true }
+            )
+            com.bettertick.ui.components.DropdownMenu(expanded = kindMenu, onDismissRequest = { kindMenu = false }) {
+                com.bettertick.data.model.SHIFT_KINDS.forEach { k ->
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(com.bettertick.data.model.shiftKindName(k)) },
+                        leadingIcon = { Dot(shiftColor(k) ?: ThemeState.accentColor) },
+                        trailingIcon = {
+                            if (k == kind) Icon(Icons.Default.Check, contentDescription = "선택됨", tint = ThemeState.accentColor, modifier = Modifier.size(18.dp))
+                        },
+                        onClick = {
+                            kindMenu = false
+                            if (k != kind) onPickKind?.invoke(k)
+                        }
+                    )
                 }
-                if (sub != null) {
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        sub,
-                        fontSize = 12.sp,
-                        maxLines = 1,
-                        color = when {
-                            selected -> Color.White.copy(alpha = 0.9f)
-                            left != null && left < 0 -> OverdueRed
-                            else -> TextSecondary
+            }
+        }
+        // ── 휴가 ──
+        Box(Modifier.weight(1f)) {
+            val left = used?.let { leftFor(it) }
+            PickerButton(
+                caption = "휴가" + (leftLabel(left)?.let { " · $it" } ?: ""),
+                value = used ?: "사용 안 함",
+                dot = used?.let { leaveColor(it) },
+                valueColor = if (used != null) leaveColor(used) else TextSecondary,
+                enabled = onToggleLeave != null,
+                onClick = { leaveMenu = true }
+            )
+            com.bettertick.ui.components.DropdownMenu(expanded = leaveMenu, onDismissRequest = { leaveMenu = false }) {
+                androidx.compose.material3.DropdownMenuItem(
+                    text = { Text("사용 안 함", color = TextSecondary) },
+                    trailingIcon = {
+                        if (used == null) Icon(Icons.Default.Check, contentDescription = "선택됨", tint = ThemeState.accentColor, modifier = Modifier.size(18.dp))
+                    },
+                    onClick = {
+                        leaveMenu = false
+                        if (used != null) onToggleLeave?.invoke(used)
+                    }
+                )
+                LEAVE_TYPES.forEach { type ->
+                    val l = leftFor(type)
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(type, color = leaveColor(type), fontWeight = FontWeight.SemiBold)
+                                leftLabel(l)?.let {
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(it, fontSize = 13.sp, color = if (l != null && l < 0) OverdueRed else TextSecondary)
+                                }
+                            }
+                        },
+                        leadingIcon = { Dot(leaveColor(type)) },
+                        trailingIcon = {
+                            if (used == type) Icon(Icons.Default.Check, contentDescription = "선택됨", tint = ThemeState.accentColor, modifier = Modifier.size(18.dp))
+                        },
+                        onClick = {
+                            leaveMenu = false
+                            if (used != type) onToggleLeave?.invoke(type)
                         }
                     )
                 }
@@ -535,37 +580,53 @@ fun LeaveButtonsRow(
     }
 }
 
-/**
- * 주 · 야 · 비 · 휴 — what the day counts as. Picking the shift in the title
- * goes back to the rotation; any other switches just that day.
- */
 @Composable
-fun ShiftKindButtonsRow(selected: String, onPick: ((String) -> Unit)?) {
-    val accent = ThemeState.accentColor
+private fun Dot(color: Color) {
+    Box(
+        Modifier
+            .size(10.dp)
+            .clip(androidx.compose.foundation.shape.CircleShape)
+            .background(color)
+    )
+}
+
+/** Outlined two-line button: small caption over the value, with a ▾. */
+@Composable
+private fun PickerButton(
+    caption: String,
+    value: String,
+    dot: Color?,
+    valueColor: Color,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(12.dp)
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .border(1.dp, TextTertiary.copy(alpha = 0.45f), shape)
+            .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        com.bettertick.data.model.SHIFT_KINDS.forEach { kind ->
-            val on = selected == kind
-            val shape = RoundedCornerShape(10.dp)
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clip(shape)
-                    .then(if (on) Modifier.background(shiftColor(kind) ?: accent) else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.5f), shape))
-                    .then(if (onPick != null) Modifier.clickable { onPick(kind) } else Modifier)
-                    .padding(vertical = 7.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    kind,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (on) Color.White else TextSecondary,
-                    maxLines = 1
-                )
+        Column(Modifier.weight(1f)) {
+            Text(caption, fontSize = 11.sp, color = TextTertiary, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (dot != null) {
+                    Dot(dot)
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(value, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = valueColor, maxLines = 1)
             }
+        }
+        if (enabled) {
+            Icon(
+                androidx.compose.material.icons.Icons.Default.KeyboardArrowDown,
+                contentDescription = null,
+                tint = TextTertiary,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
