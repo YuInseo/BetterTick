@@ -473,9 +473,9 @@ fun LeaveChipRow(
 }
 
 /**
- * Detail sheet: two buttons side by side — 근무 (주 / 야 / 비 / 휴 / 일근 for
- * that day) and 휴가 (지휴 / 병가 / 연차 with days left) — each opening a
- * dropdown. Picking the title's own shift goes back to the rotation.
+ * Detail sheet header (top right): two small chips — 근무 (주 / 야 / 비 / 휴 /
+ * 일근 for that day) and 휴가 (지휴 / 병가 / 연차 with days left) — each opening
+ * a dropdown. Picking the title's own shift goes back to the rotation.
  */
 @Composable
 fun ShiftDayPickers(
@@ -501,17 +501,16 @@ fun ShiftDayPickers(
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         // ── 근무 ──
-        Box(Modifier.weight(1f)) {
+        Box {
             val c = shiftColor(kind) ?: ThemeState.accentColor
-            PickerButton(
-                caption = "근무",
-                value = com.bettertick.data.model.shiftKindName(kind),
-                dot = c,
-                valueColor = TextPrimary,
+            HeaderChip(
+                text = com.bettertick.data.model.shiftKindName(kind),
+                color = c,
+                filled = true,
                 enabled = onPickKind != null,
                 onClick = { kindMenu = true }
             )
@@ -532,13 +531,12 @@ fun ShiftDayPickers(
             }
         }
         // ── 휴가 ──
-        Box(Modifier.weight(1f)) {
+        Box {
             val left = used?.let { leftFor(it) }
-            PickerButton(
-                caption = "휴가" + (leftLabel(left)?.let { " · $it" } ?: ""),
-                value = used ?: "사용 안 함",
-                dot = used?.let { leaveColor(it) },
-                valueColor = if (used != null) leaveColor(used) else TextSecondary,
+            HeaderChip(
+                text = if (used == null) "휴가" else used + (left?.let { if (it >= 0) " ${it}일" else " ${-it}일 초과" } ?: ""),
+                color = if (used != null) leaveColor(used) else TextSecondary,
+                filled = used != null,
                 enabled = onToggleLeave != null,
                 onClick = { leaveMenu = true }
             )
@@ -590,42 +588,44 @@ private fun Dot(color: Color) {
     )
 }
 
-/** Outlined two-line button: small caption over the value, with a ▾. */
+/** Small pill with a ▾ for the sheet header; tinted when [filled]. */
 @Composable
-private fun PickerButton(
-    caption: String,
-    value: String,
-    dot: Color?,
-    valueColor: Color,
+private fun HeaderChip(
+    text: String,
+    color: Color,
+    filled: Boolean,
     enabled: Boolean,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(50)
     Row(
         modifier = Modifier
-            .fillMaxWidth()
             .clip(shape)
-            .border(1.dp, TextTertiary.copy(alpha = 0.45f), shape)
+            .then(
+                if (filled) Modifier.background(color.copy(alpha = 0.16f))
+                else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.5f), shape)
+            )
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(start = 10.dp, end = if (enabled) 4.dp else 10.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(caption, fontSize = 11.sp, color = TextTertiary, maxLines = 1)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (dot != null) {
-                    Dot(dot)
-                    Spacer(Modifier.width(6.dp))
-                }
-                Text(value, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = valueColor, maxLines = 1)
-            }
+        if (filled) {
+            Dot(color)
+            Spacer(Modifier.width(5.dp))
         }
+        Text(
+            text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (filled) color else TextSecondary,
+            maxLines = 1
+        )
         if (enabled) {
             Icon(
                 androidx.compose.material.icons.Icons.Default.KeyboardArrowDown,
                 contentDescription = null,
-                tint = TextTertiary,
-                modifier = Modifier.size(20.dp)
+                tint = if (filled) color else TextTertiary,
+                modifier = Modifier.size(16.dp)
             )
         }
     }

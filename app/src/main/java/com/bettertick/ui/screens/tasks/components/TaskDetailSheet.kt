@@ -279,6 +279,28 @@ fun TaskDetailSheet(
 
                 Spacer(Modifier.weight(1f))
 
+                // 근무 일정: 근무 · 휴가 dropdown chips, top right.
+                val asShift = task.copy(title = title, leaves = leaves, dayShifts = dayShifts)
+                if (asShift.isShiftTask()) {
+                    val day = asShift.shiftDay(occurrenceDate)
+                    ShiftDayPickers(
+                        day = day,
+                        kind = asShift.shiftKindOn(day),
+                        onPickKind = if (day != null) {
+                            { kind -> dayShifts = asShift.withDayShift(day, kind).dayShifts }
+                        } else null,
+                        used = asShift.leaveOn(day),
+                        savedUsed = task.leaveOn(day),
+                        onToggleLeave = if (day != null) {
+                            { type ->
+                                val t = asShift.withLeaveToggled(day, type)
+                                title = t.title
+                                leaves = t.leaves
+                            }
+                        } else null
+                    )
+                }
+
                 Box {
                     val flagTint = priorityColor(priority)
                     IconButton(onClick = { priorityMenuOpen = true }) {
@@ -481,29 +503,6 @@ fun TaskDetailSheet(
             Spacer(Modifier.height(16.dp))
 
             // ── 근무 일정: 지휴 · 병가 · 연차 (one straight row) ────────────
-            val asShift = task.copy(title = title, leaves = leaves, dayShifts = dayShifts)
-            if (asShift.isShiftTask()) {
-                val day = asShift.shiftDay(occurrenceDate)
-                // 근무 (what this day counts as) · 휴가 (leave used) — two dropdowns.
-                ShiftDayPickers(
-                    day = day,
-                    kind = asShift.shiftKindOn(day),
-                    onPickKind = if (day != null) {
-                        { kind -> dayShifts = asShift.withDayShift(day, kind).dayShifts }
-                    } else null,
-                    used = asShift.leaveOn(day),
-                    savedUsed = task.leaveOn(day),
-                    onToggleLeave = if (day != null) {
-                        { type ->
-                            val t = asShift.withLeaveToggled(day, type)
-                            title = t.title
-                            leaves = t.leaves
-                        }
-                    } else null
-                )
-                Spacer(Modifier.height(16.dp))
-            }
-
             // ── Selected-tag chips ───────────────────────────────────────
             val selectedTags = remember(tagIds, tags) {
                 // Preserve the stored order so the chip row is stable even

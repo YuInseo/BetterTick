@@ -109,6 +109,15 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
                     Text("지휴 자동 계산 · ${LeavePrefs.periodOf("지휴").label}", modifier = Modifier.padding(top = 16.dp), fontWeight = FontWeight.Bold)
                     Text("공휴일${if (LeavePrefs.includeSaturday) "·토요일" else ""}${if (LeavePrefs.includeSunday) "·일요일" else ""} 근무 기준 · 예정 근무 포함 · 휴가 사용일 제외", fontSize = 12.sp)
                     Text("자동 ${LeavePrefs.earnedIn(day)}일 + 추가 ${LeavePrefs.quota("지휴", day) - LeavePrefs.earnedIn(day)}일", fontSize = 12.sp)
+                    // Which red days made up the 자동 days, so the number can be checked.
+                    LeavePrefs.earnedDaysIn(day).forEach { (d, kind) ->
+                        Text(
+                            "· ${d.monthValue}월 ${d.dayOfMonth}일 (${"월화수목금토일"[d.dayOfWeek.value - 1]}) " +
+                                "${LeavePrefs.redDayName(d) ?: "빨간날"} ${com.bettertick.data.model.shiftKindName(kind)} 근무 +${LeavePrefs.weightOf(kind)}일" +
+                                if (d.isAfter(java.time.LocalDate.now())) " (예정)" else "",
+                            fontSize = 12.sp
+                        )
+                    }
                 }
                 Text("항목을 누르면 지급 일수와 계산 기준을 설정할 수 있어요.", modifier = Modifier.padding(top = 12.dp), fontSize = 12.sp)
             }
