@@ -74,6 +74,26 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Only 64-bit ARM — every current phone. Drops the 32-bit copy of
+            // the Kakao map engine (~15 MB) from the auto-update APK.
+            ndk { abiFilters += "arm64-v8a" }
+        }
+        // 테스트용 작은 APK (BetterTick-small.apk): debug와 같은 서명·패키지라
+        // 그 위에 바로 설치된다. R8로 쓰지 않는 코드·리소스를 빼서 크기를 줄인다.
+        // 기기에서 이상 없음이 확인되기 전까지는 자동 업데이트에 쓰지 않는다.
+        create("small") {
+            initWith(getByName("debug"))
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += listOf("debug")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+                "proguard-small.pro"
+            )
+        }
         release {
             isMinifyEnabled = true
             signingConfig = signingConfigs.getByName("release")
