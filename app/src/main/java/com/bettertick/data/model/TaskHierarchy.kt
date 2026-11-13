@@ -13,20 +13,27 @@ import java.util.Date
 // with the subtask's own time-of-day and length. Keeping the copy on the
 // subtask itself means the calendar, timetable, widget and reminders all work
 // unchanged (they only call [occursOn]); TaskRepository re-copies whenever the
-// parent's schedule changes. Nesting is one level deep.
+// parent's schedule changes, down every level. Subtasks can have subtasks.
 
 /** Nested under another task. */
 val Task.isSubtask: Boolean get() = parentId.isNotBlank()
 
 /**
- * Can this task be dropped under [parent]? Not onto itself, not under a
- * subtask (one level only), not when it already has subtasks of its own,
- * and not under the parent it already has.
+ * Can this task be dropped under [parent]? Any depth is fine, but not onto
+ * itself, not under one of its own subtasks (that would make a loop — checked
+ * through [all]), and not under the parent it already has.
  */
-fun Task.canNestUnder(parent: Task, all: List<Task>): Boolean =
-    id.isNotBlank() && parent.id.isNotBlank() && parent.id != id &&
-        !parent.isSubtask && parentId != parent.id &&
-        all.none { it.parentId == id }
+fun Task.canNestUnder(parent: Task, all: List<Task>): Boolean {
+    if (id.isBlank() || parent.id.isBlank() || parent.id == id || parentId == parent.id) return false
+    val byId = all.associateBy { it.id }
+    var cur: Task? = parent
+    var steps = 0
+    while (cur != null && cur.parentId.isNotBlank() && steps++ < 64) {
+        if (cur.parentId == id) return false
+        cur = byId[cur.parentId]
+    }
+    return true
+}
 
 private fun Task.localTimeOrMidnight(zone: ZoneId): LocalTime =
     dueDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalTime() ?: LocalTime.MIDNIGHT
@@ -73,18 +80,37 @@ fun Task.unlinkedOn(day: LocalDate): Task {
 }
 
 /**
- * Day list with every subtask moved right after its parent (in their
- * existing order). Subtasks whose parent isn't in the list stay where they are.
+ * Day list as a tree: every subtask right after its parent (then its own
+ * subtasks, and so on), keeping the existing order among siblings. Subtasks
+ * whose parent isn't in the list stay where they are, as roots.
  */
 fun List<Task>.groupedUnderParents(): List<Task> {
     val ids = mapTo(HashSet()) { it.id }
     val children = filter { it.parentId.isNotBlank() && it.parentId in ids }.groupBy { it.parentId }
     if (children.isEmpty()) return this
     val out = ArrayList<Task>(size)
-    for (t in this) {
-        if (t.parentId.isNotBlank() && t.parentId in ids) continue
+    val seen = HashSet<String>()
+    fun add(t: Task) {
+        if (!seen.add(t.id)) return
         out += t
-        children[t.id]?.let { out += it }
+        children[t.id]?.forEach { add(it) }
     }
+    for (t in this) if (t.parentId.isBlank() || t.parentId !in ids) add(t)
+    // A loop in bad data would leave tasks unvisited — keep them anyway.
+    for (t in this) if (t.id !in seen) { seen += t.id; out += t }
     return out
+}
+
+/** How deep each task sits under parents that are also in this list (0 = top). */
+fun List<Task>.subtaskDepths(): Map<String, Int> {
+    val byId = associateBy { it.id }
+    return associate { t ->
+        var depth = 0
+        var cur = t
+        while (cur.parentId.isNotBlank() && depth < 16) {
+            cur = byId[cur.parentId] ?: break
+            depth++
+        }
+        t.id to depth
+    }
 }

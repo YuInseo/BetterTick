@@ -197,7 +197,7 @@ class TaskRepository @Inject constructor(
         } else task
         firestoreProvider.tasksCollection().document(task.id)
             .set(toWrite.copy(updatedAt = Timestamp.now()))
-        if (!task.isSubtask) syncSubtasks(toWrite)
+        syncSubtasks(toWrite)
         refreshWidget()
     }
 
@@ -212,26 +212,33 @@ class TaskRepository @Inject constructor(
             .get(Source.CACHE).await().documents.mapNotNull { it.toTask() }
     }.getOrDefault(emptyList())
 
-    /** Re-copies [parent]'s schedule onto each of its subtasks that drifted. */
-    private suspend fun syncSubtasks(parent: Task) {
-        if (parent.id.isBlank()) return
+    /** Re-copies [parent]'s schedule onto its subtasks that drifted, then theirs, all the way down. */
+    private suspend fun syncSubtasks(parent: Task, depth: Int = 0) {
+        if (parent.id.isBlank() || depth > 16) return
         cachedSubtasks(parent.id).forEach { child ->
+            val synced = child.followingSchedule(parent)
             if (!child.followsSchedule(parent)) {
                 firestoreProvider.tasksCollection().document(child.id)
-                    .set(child.followingSchedule(parent).copy(updatedAt = Timestamp.now()))
+                    .set(synced.copy(updatedAt = Timestamp.now()))
             }
+            syncSubtasks(synced, depth + 1)
         }
     }
 
     private suspend fun syncSubtasks(parentId: String) {
-        cachedTask(parentId)?.takeIf { !it.isSubtask }?.let { syncSubtasks(it) }
+        cachedTask(parentId)?.let { syncSubtasks(it) }
     }
 
-    /** Nests [child] under [parent]: it now repeats with the parent, at its own time. */
+    /**
+     * Nests [child] under [parent]: it now repeats with the parent, at its own
+     * time. [child]'s own subtasks stay under it and follow its new schedule.
+     */
     suspend fun nestTask(child: Task, parent: Task) {
         if (child.id.isBlank() || parent.id.isBlank() || child.id == parent.id) return
+        val nested = child.followingSchedule(parent, fresh = true)
         firestoreProvider.tasksCollection().document(child.id)
-            .set(child.followingSchedule(parent, fresh = true).copy(updatedAt = Timestamp.now()))
+            .set(nested.copy(updatedAt = Timestamp.now()))
+        syncSubtasks(nested)
         refreshWidget()
     }
 
@@ -444,11 +451,9 @@ class TaskRepository @Inject constructor(
             updatedAt = Timestamp.now()
         )
         newDoc.set(detached)
-        // Moving a parent's day moves that day of each subtask along with it.
-        if (!original.isSubtask) {
-            cachedSubtasks(taskId).filter { it.occursOn(sourceDate) }.forEach { child ->
-                moveOccurrence(child.id, sourceDate, newDate)
-            }
+        // Moving a parent's day moves that day of each subtask (and theirs) along with it.
+        cachedSubtasks(taskId).filter { it.occursOn(sourceDate) }.forEach { child ->
+            moveOccurrence(child.id, sourceDate, newDate)
         }
         refreshWidget()
     }

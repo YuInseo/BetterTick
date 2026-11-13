@@ -80,15 +80,43 @@ class TaskHierarchyTest {
         assertFalse(free.occursOn(LocalDate.parse("2026-11-22")))
     }
 
-    @Test fun nestingIsOneLevelDeep() {
+    @Test fun nestingAllowsAnyDepthButNoLoops() {
         val gym = Task(id = "gym", title = "헬스")
         val child = sleep.followingSchedule(shift, fresh = true)
         val all = listOf(shift, child, gym)
         assertTrue(gym.canNestUnder(shift, all))
+        assertTrue(gym.canNestUnder(child, all))         // under a subtask: a 2nd level
+        assertTrue(shift.canNestUnder(gym, all))         // a parent can be nested too
         assertFalse(gym.canNestUnder(gym, all))          // itself
-        assertFalse(gym.canNestUnder(child, all))        // under a subtask
-        assertFalse(shift.canNestUnder(gym, all))        // a parent can't become a child
+        assertFalse(shift.canNestUnder(child, all))      // under its own subtask (a loop)
         assertFalse(child.canNestUnder(shift, all))      // already there
+        // Deeper loop: shift > sleep > gym, then shift under gym.
+        val gymUnderSleep = gym.followingSchedule(child, fresh = true)
+        assertFalse(shift.canNestUnder(gymUnderSleep, listOf(shift, child, gymUnderSleep)))
+    }
+
+    @Test fun grandchildFollowsTheChainAtItsOwnTime() {
+        val child = sleep.followingSchedule(shift, fresh = true)
+        val nap = Task(id = "nap", title = "낮잠", dueDate = at("2026-11-20T14:00"))
+            .followingSchedule(child, fresh = true)
+        assertEquals("sleep", nap.parentId)
+        assertEquals(shift.repeatRule, nap.repeatRule)
+        assertEquals(LocalTime.of(14, 0), nap.time())
+        assertTrue(nap.occursOn(LocalDate.parse("2026-11-14")))
+        assertFalse(nap.occursOn(LocalDate.parse("2026-11-10")))
+    }
+
+    @Test fun multiLevelListIsATreeWithDepths() {
+        val child = sleep.followingSchedule(shift, fresh = true)
+        val nap = Task(id = "nap", title = "낮잠", parentId = "sleep")
+        val gym = Task(id = "gym", title = "헬스")
+        val grouped = listOf(nap, gym, child, shift).groupedUnderParents()
+        assertEquals(listOf("gym", "shift", "sleep", "nap"), grouped.map { it.id })
+        val depths = grouped.subtaskDepths()
+        assertEquals(0, depths["shift"])
+        assertEquals(1, depths["sleep"])
+        assertEquals(2, depths["nap"])
+        assertEquals(0, depths["gym"])
     }
 
     @Test fun dayListPutsSubtasksUnderTheirParent() {
