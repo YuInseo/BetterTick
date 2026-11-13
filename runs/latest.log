@@ -33,7 +33,6 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:mergeDebugAssets UP-TO-DATE
 > Task :app:compressDebugAssets UP-TO-DATE
 > Task :app:desugarDebugFileDependencies UP-TO-DATE
-> Task :app:processDebugManifestForPackage
 > Task :app:checkDebugDuplicateClasses UP-TO-DATE
 > Task :app:mergeDebugStartupProfile UP-TO-DATE
 > Task :app:mergeExtDexDebug UP-TO-DATE
@@ -44,19 +43,16 @@ Starting a Gradle Daemon (subsequent builds will be faster)
 > Task :app:validateSigningDebug UP-TO-DATE
 > Task :app:writeDebugAppMetadata UP-TO-DATE
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
+> Task :app:processDebugManifestForPackage
 > Task :app:processDebugResources
 > Task :app:kspDebugKotlin
 
 > Task :app:compileDebugKotlin
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/calendar/CalendarOptionScreens.kt:434:49 '@property:Deprecated(...) val Icons.Outlined.LabelOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.LabelOff.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/calendar/components/SelectedDatePanel.kt:280:62 Condition is always 'true'.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/habits/HabitColorPickerScreen.kt:99:37 '@property:Deprecated(...) val Icons.Outlined.ArrowBack: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.ArrowBack.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/lists/AddListScreen.kt:124:39 Condition is always 'true'.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tags/AddTagScreen.kt:171:49 '@property:Deprecated(...) val Icons.Filled.Label: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.Label.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/calendar/components/SelectedDatePanel.kt:282:62 Condition is always 'true'.
 
 > Task :app:compileDebugJavaWithJavac
 > Task :app:hiltAggregateDepsDebug UP-TO-DATE
-> Task :app:hiltJavaCompileDebug
+> Task :app:hiltJavaCompileDebug UP-TO-DATE
 > Task :app:processDebugJavaRes UP-TO-DATE
 > Task :app:mergeDebugJavaResource UP-TO-DATE
 > Task :app:transformDebugClassesWithAsm
@@ -67,5 +63,5 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 1m 26s
-43 actionable tasks: 15 executed, 28 up-to-date
+BUILD SUCCESSFUL in 50s
+43 actionable tasks: 14 executed, 29 up-to-date
