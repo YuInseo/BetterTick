@@ -135,7 +135,10 @@ fun TaskDetailSheet(
     /** ⋯ > 삭제. */
     onDelete: ((Task) -> Unit)? = null,
     /** Day this sheet was opened for (calendar) — 근무 휴가 기록의 기준일. */
-    occurrenceDate: java.time.LocalDate? = null
+    occurrenceDate: java.time.LocalDate? = null,
+    /** 하위 할일: the parent's title, shown with a 분리 button. */
+    parentTitle: String? = null,
+    onUnnest: (() -> Unit)? = null
 ) {
     // Local edit state — keyed by task.id so re-opening a different task
     // pulls in fresh values instead of leaking from the previous one.
@@ -430,6 +433,32 @@ fun TaskDetailSheet(
                         tint = DetailAccent,
                         modifier = Modifier.size(18.dp)
                     )
+                }
+            }
+
+            if (parentTitle != null) {
+                // A subtask's day and repeat come from its parent; only its
+                // time and length are its own.
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(DetailAccent.copy(alpha = 0.10f))
+                        .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)
+                ) {
+                    Text(
+                        text = "'$parentTitle'의 하위 할일 · 날짜와 반복은 상위를 따릅니다",
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (onUnnest != null) {
+                        androidx.compose.material3.TextButton(onClick = onUnnest) {
+                            Text("분리", fontSize = 13.sp, color = DetailAccent, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
 

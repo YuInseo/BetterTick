@@ -2,7 +2,9 @@ package com.bettertick.ui.screens.calendar.components
 
 import com.bettertick.ui.theme.TextPrimary
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,6 +56,9 @@ import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
 import com.bettertick.data.model.withLeaveToggled
+import com.bettertick.data.model.canNestUnder
+import com.bettertick.data.model.groupedUnderParents
+import com.bettertick.data.model.isSubtask
 import com.bettertick.ui.screens.tasks.components.QuickDateSettingsDialog
 import com.bettertick.ui.screens.tasks.components.RecurringScope
 import com.bettertick.ui.screens.tasks.components.RecurringScopeDialog
@@ -107,13 +113,18 @@ fun SelectedDatePanel(
     onReorder: (List<String>) -> Unit = {},
     /** Checkbox long-press: 완료 / 취소됨 / 내일로 미루기 (task, action). */
     onStatusAction: (Task, com.bettertick.data.model.TaskStatusAction) -> Unit = { _, _ -> },
+    /** Dropped onto the middle of another row: nest (child, parent). */
+    onNest: (Task, Task) -> Unit = { _, _ -> },
+    /** Subtask dragged out of its parent's group (or 분리): (child, day). */
+    onUnnest: (Task, LocalDate) -> Unit = { _, _ -> },
     tags: List<Tag> = emptyList(),
     onCreateTag: suspend (String) -> String = { "" }
 ) {
     val listPadding = remember { PaddingValues(vertical = 10.dp) }
     val shape = remember { RoundedCornerShape(18.dp) }
 
-    val active = tasks.filterNot { it.isCompleted || it.isAbandoned }
+    // Subtasks sit right under their parent.
+    val active = tasks.filterNot { it.isCompleted || it.isAbandoned }.groupedUnderParents()
     val done = tasks.filter { it.isCompleted || it.isAbandoned }
 
     var rescheduleFor by remember { mutableStateOf<Task?>(null) }
@@ -132,8 +143,17 @@ fun SelectedDatePanel(
     var localDrag by remember { mutableStateOf<ActiveDrag?>(null) }
     val dragged = localDrag?.task?.takeIf { d -> active.any { it.id == d.id } }
     val others = if (dragged == null) active else active.filterNot { it.id == dragged.id }
-    val insertAt: Int? = localDrag?.currentOffset?.let { p ->
+    // Over the middle of a row = nest under it; near a row's edge = reorder.
+    val nestTarget: Task? = localDrag?.currentOffset?.let { p ->
         if (dragged == null || listBounds?.contains(p) != true) null
+        else others.firstOrNull { t ->
+            val r = rowBounds[t.id] ?: return@firstOrNull false
+            val band = r.height * 0.28f
+            p.y > r.top + band && p.y < r.bottom - band && dragged.canNestUnder(t, tasks)
+        }
+    }
+    val insertAt: Int? = localDrag?.currentOffset?.let { p ->
+        if (dragged == null || nestTarget != null || listBounds?.contains(p) != true) null
         else others.count { t -> rowBounds[t.id]?.let { it.center.y < p.y } == true }
     }
 
@@ -171,6 +191,9 @@ fun SelectedDatePanel(
                         val lineAbove = insertAt != null && othersIdx >= 0 && othersIdx == insertAt
                         val lineBelow = insertAt != null && othersIdx >= 0 &&
                             othersIdx == others.lastIndex && insertAt == others.size
+                        val nestedRow = task.isSubtask && active.any { it.id == task.parentId }
+                        val isNestTarget = nestTarget?.id == task.id
+                        val accent = MaterialTheme.colorScheme.primary
                         Column(
                             modifier = Modifier
                                 .onGloballyPositioned { c ->
@@ -178,6 +201,27 @@ fun SelectedDatePanel(
                                     rowBounds[task.id] = Rect(pos.x, pos.y, pos.x + c.size.width, pos.y + c.size.height)
                                 }
                                 .alpha(if (dragged?.id == task.id) 0.35f else 1f)
+                                .then(
+                                    if (nestedRow) Modifier
+                                        .drawBehind {
+                                            val x = 14.dp.toPx()
+                                            drawLine(
+                                                SubtaskGuide,
+                                                Offset(x, 0f),
+                                                Offset(x, size.height),
+                                                strokeWidth = 1.5.dp.toPx()
+                                            )
+                                        }
+                                        .padding(start = 22.dp)
+                                    else Modifier
+                                )
+                                .then(
+                                    if (isNestTarget) Modifier
+                                        .padding(horizontal = 6.dp)
+                                        .border(2.dp, accent, RoundedCornerShape(12.dp))
+                                        .clip(RoundedCornerShape(12.dp))
+                                    else Modifier
+                                )
                         ) {
                         if (lineAbove) ReorderLine()
                         DraggableTaskRow(
@@ -204,10 +248,22 @@ fun SelectedDatePanel(
                             },
                             onDragRelease = { t ->
                                 val idx = insertAt
-                                if (idx != null && dragged != null) {
+                                val target = nestTarget
+                                if (target != null && dragged != null) {
+                                    onNest(dragged, target)
+                                } else if (idx != null && dragged != null) {
                                     val newOrder = others.toMutableList().apply { add(idx.coerceIn(0, size), dragged) }
                                     val ids = newOrder.map { it.id }
                                     if (ids != active.map { it.id }) onReorder(ids)
+                                    // A subtask dropped outside its parent's group is let go.
+                                    if (dragged.isSubtask) {
+                                        val parentIdx = others.indexOfFirst { it.id == dragged.parentId }
+                                        if (parentIdx >= 0) {
+                                            var groupEnd = parentIdx + 1
+                                            while (groupEnd < others.size && others[groupEnd].parentId == dragged.parentId) groupEnd++
+                                            if (idx !in (parentIdx + 1)..groupEnd) onUnnest(dragged, selectedDate)
+                                        }
+                                    }
                                 }
                                 localDrag = null
                                 onDragTaskRelease(t)
@@ -216,6 +272,15 @@ fun SelectedDatePanel(
                             onToggleLeave = { day, type -> onUpdateTask(task.withLeaveToggled(day, type)) },
                             onStatusAction = { action -> onStatusAction(task, action) }
                         )
+                        if (isNestTarget) {
+                            Text(
+                                text = "'${task.title}'의 하위 할일로 넣기",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = accent,
+                                modifier = Modifier.padding(start = 16.dp, bottom = 6.dp)
+                            )
+                        }
                         if (lineBelow) ReorderLine()
                         }
                     }
@@ -316,7 +381,16 @@ fun SelectedDatePanel(
             onToggleComplete = { onToggleComplete(task) },
             tags = tags,
             onCreateTag = onCreateTag,
-            occurrenceDate = selectedDate
+            occurrenceDate = selectedDate,
+            parentTitle = if (task.isSubtask) {
+                tasks.firstOrNull { it.id == task.parentId }?.title ?: "상위 할일"
+            } else null,
+            onUnnest = if (task.isSubtask) {
+                {
+                    onUnnest(task, selectedDate)
+                    detailFor = null
+                }
+            } else null
         )
     }
 
@@ -324,6 +398,12 @@ fun SelectedDatePanel(
         TaskActionSheet(
             task = task,
             onDismiss = { actionsFor = null },
+            onUnnest = if (task.isSubtask) {
+                {
+                    onUnnest(task, selectedDate)
+                    actionsFor = null
+                }
+            } else null,
             onAbandon = {
                 onAbandon(task)
                 actionsFor = null
@@ -437,7 +517,9 @@ private fun TaskActionSheet(
     task: Task,
     onDismiss: () -> Unit,
     onAbandon: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    /** Subtasks only: 상위 할일에서 분리. */
+    onUnnest: (() -> Unit)? = null
 ) {
     val sheetState = rememberModalBottomSheetState()
     ModalBottomSheet(
@@ -453,6 +535,9 @@ private fun TaskActionSheet(
         ) {
             ActionTile(Icons.Outlined.PushPin, "상단 고정", MaterialTheme.colorScheme.primary) { onDismiss() }
             ActionTile(Icons.Outlined.Share, "공유", Color(0xFF22C9A0)) { onDismiss() }
+            if (onUnnest != null) {
+                ActionTile(Icons.Outlined.LinkOff, "분리", Color(0xFFF2994A)) { onUnnest() }
+            }
             ActionTile(Icons.Outlined.Close, "계획 취소", AbandonedBlue) { onAbandon() }
             ActionTile(Icons.Outlined.Delete, "삭제", OverdueRed) { onDelete() }
         }
@@ -551,6 +636,9 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** Thin line down the left of a parent's subtask rows. */
+private val SubtaskGuide = Color(0x667F7F7F)
 
 /** Insertion marker shown between rows while dragging to reorder. */
 @Composable
