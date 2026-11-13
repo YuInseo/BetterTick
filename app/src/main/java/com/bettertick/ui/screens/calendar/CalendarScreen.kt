@@ -90,6 +90,7 @@ import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.isShiftTask
 import com.bettertick.ui.screens.tasks.components.TaskDetailSheet
 import com.bettertick.ui.screens.calendar.components.ActiveDrag
 import com.bettertick.ui.screens.calendar.components.ListCalendarView
@@ -199,6 +200,8 @@ fun CalendarScreen(
     val filteredByDate = remember(tasksByDate, filterKey, occurrenceFilter, dayOrders) {
         tasksByDate.mapValues { (d, l) ->
             CalendarPrefs.applyDayOrder(d, l.filter { CalendarPrefs.passesFilter(it) && occurrenceFilter(it, d) })
+                // 근무(주/야/비/휴) blocks always on top; order kept within each group.
+                .sortedBy { if (it.isShiftTask()) 0 else 1 }
         }
     }
     // Panel lists keep real tasks only; grid chips may add check items.

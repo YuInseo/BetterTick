@@ -186,7 +186,12 @@ class ReminderWidget : GlanceAppWidget() {
             val dayTasks = (overdue + visible.filter { it.occursOn(selectedDate) })
                 .distinctBy { it.id }
                 // Finished tasks sink to the bottom.
-                .sortedWith(compareBy<Task> { it.isCompleted || it.isAbandoned }.then(comparator))
+                .sortedWith(
+                    compareBy<Task> { it.isCompleted || it.isAbandoned }
+                        // 근무(주/야/비/휴) first, like the calendar.
+                        .thenBy { if (it.isShiftTask()) 0 else 1 }
+                        .then(comparator)
+                )
                 // 하위 할일 sit right under their parent, like the calendar.
                 .groupedUnderParents()
 
