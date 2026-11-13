@@ -249,15 +249,6 @@ fun MoreScreen(
                 )
             }
 
-            // Integration
-            SettingsCard {
-                SettingsItem(
-                    icon = Icons.Outlined.IosShare,
-                    title = "통합 및 가져오기",
-                    onClick = {}
-                )
-            }
-
             // Lock screen quick bar
             SettingsCard {
                 Row(

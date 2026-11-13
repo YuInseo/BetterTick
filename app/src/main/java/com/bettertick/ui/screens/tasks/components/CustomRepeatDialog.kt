@@ -487,7 +487,7 @@ private fun SpecificDatesSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${visibleMonth.monthValue}월",
+                text = "${visibleMonth.year}년 ${visibleMonth.monthValue}월",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary,

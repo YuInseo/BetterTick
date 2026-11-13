@@ -55,7 +55,7 @@ sealed interface RepeatEnd {
 /** Label for the 반복 종료 row. */
 fun RepeatEnd.displayLabel(): String = when (this) {
     RepeatEnd.Never -> "없음"
-    is RepeatEnd.ByDate -> "${date.monthValue}월 ${date.dayOfMonth}일"
+    is RepeatEnd.ByDate -> "${date.year}년 ${date.monthValue}월 ${date.dayOfMonth}일"
     is RepeatEnd.ByCount -> "${count}회"
 }
 
@@ -227,7 +227,7 @@ private fun DatePane(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${month.monthValue}월",
+                text = "${month.year}년 ${month.monthValue}월",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextPrimary,

@@ -29,7 +29,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import android.widget.Toast
+import androidx.activity.compose.BackHandler
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,8 +63,86 @@ fun AccountScreen(
     photoUrl: String?,
     isGoogleUser: Boolean,
     onBack: () -> Unit,
-    onDeleteAccount: () -> Unit
+    /** Saves a new nickname; true when it worked. */
+    onRename: suspend (String) -> Boolean,
+    onSignOutAll: suspend () -> Unit,
+    /** Deletes the account; null on success, else the reason it failed. */
+    onDeleteAccount: suspend () -> String?
 ) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var name by remember { mutableStateOf(displayName) }
+    var editName by remember { mutableStateOf(false) }
+    var confirmDelete by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf(false) }
+    var showDevices by remember { mutableStateOf(false) }
+
+    if (showDevices) {
+        BackHandler { showDevices = false }
+        DeviceManagementScreen(onBack = { showDevices = false }, onSignOutAll = onSignOutAll)
+        return
+    }
+
+    if (editName) {
+        var draft by remember { mutableStateOf(name) }
+        AlertDialog(
+            onDismissRequest = { editName = false },
+            title = { Text("닉네임") },
+            text = {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it.take(30) },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = draft.isNotBlank(),
+                    onClick = {
+                        val next = draft.trim()
+                        editName = false
+                        scope.launch {
+                            if (onRename(next)) name = next
+                            else Toast.makeText(context, "닉네임을 바꾸지 못했습니다", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) { Text("저장") }
+            },
+            dismissButton = { TextButton(onClick = { editName = false }) { Text("취소") } }
+        )
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { if (!deleting) confirmDelete = false },
+            title = { Text("계정을 삭제할까요?") },
+            text = { Text("로그인 계정이 삭제되어 다시 로그인할 수 없습니다. 되돌릴 수 없습니다.") },
+            confirmButton = {
+                TextButton(
+                    enabled = !deleting,
+                    onClick = {
+                        deleting = true
+                        scope.launch {
+                            val error = onDeleteAccount()
+                            deleting = false
+                            confirmDelete = false
+                            if (error != null) {
+                                Toast.makeText(
+                                    context,
+                                    "삭제하지 못했습니다. 로그아웃 후 다시 로그인해서 시도해 주세요.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    }
+                ) { Text("삭제", color = OverdueRed) }
+            },
+            dismissButton = {
+                TextButton(enabled = !deleting, onClick = { confirmDelete = false }) { Text("취소") }
+            }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -98,7 +188,6 @@ fun AccountScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { }
                         .padding(horizontal = 16.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -130,30 +219,23 @@ fun AccountScreen(
 
                 AccountRow(
                     title = "닉네임",
-                    value = displayName,
+                    value = name,
                     showChevron = true,
-                    onClick = { }
+                    onClick = { editName = true }
                 )
 
                 AccountRow(
                     title = "이메일",
                     value = email,
-                    showChevron = true,
-                    onClick = { }
-                )
-
-                AccountRow(
-                    title = "2단계 인증",
-                    value = null,
-                    showChevron = true,
-                    onClick = { }
+                    showChevron = false,
+                    onClick = null
                 )
 
                 AccountRow(
                     title = "장치 관리",
                     value = null,
                     showChevron = true,
-                    onClick = { }
+                    onClick = { showDevices = true }
                 )
             }
 
@@ -167,9 +249,9 @@ fun AccountScreen(
                 ) {
                     AccountRow(
                         title = "Google",
-                        value = null,
-                        showChevron = true,
-                        onClick = { }
+                        value = "연결됨",
+                        showChevron = false,
+                        onClick = null
                     )
                 }
             }
@@ -191,7 +273,7 @@ fun AccountScreen(
                         BorderStroke(1.dp, OverdueRed),
                         shape = RoundedCornerShape(12.dp)
                     )
-                    .clickable { onDeleteAccount() }
+                    .clickable { confirmDelete = true }
                     .padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -211,12 +293,12 @@ private fun AccountRow(
     title: String,
     value: String?,
     showChevron: Boolean,
-    onClick: () -> Unit
+    onClick: (() -> Unit)?
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier)
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

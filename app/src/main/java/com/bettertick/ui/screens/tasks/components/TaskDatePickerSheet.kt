@@ -515,7 +515,7 @@ private fun MonthNav(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "${month.monthValue}월",
+            text = "${month.year}년 ${month.monthValue}월",
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
             color = TextPrimary,
