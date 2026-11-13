@@ -1,6 +1,13 @@
 package com.bettertick.widget.theme
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
+import androidx.glance.ColorFilter
+import androidx.glance.GlanceModifier
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.layout.size
 import androidx.glance.unit.ColorProvider
 
 // Glance widget color providers (dark theme only)
@@ -38,4 +45,15 @@ object WidgetColorValues {
     val blue = Color(0xFF42A5F5)
     val purple = Color(0xFFAB47BC)
     val pink = Color(0xFFEC407A)
+}
+
+/** Line icon (res/drawable/ic_widget_*) tinted with [tint]. */
+@Composable
+fun WidgetIcon(resId: Int, tint: Color, size: Dp) {
+    Image(
+        provider = ImageProvider(resId),
+        contentDescription = null,
+        modifier = GlanceModifier.size(size),
+        colorFilter = ColorFilter.tint(ColorProvider(tint))
+    )
 }

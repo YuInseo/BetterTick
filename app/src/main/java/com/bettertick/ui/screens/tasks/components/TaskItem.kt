@@ -417,8 +417,12 @@ fun leaveColor(type: String): Color = when (type) {
     else -> Color(0xFF8E6CEF)
 }
 
-/** Own color per shift kind: 주 orange · 야 indigo · 비 teal · 휴 slate · 당직 pink. */
-fun shiftColor(kind: String): Color? = when (kind) {
+/** Block color of a shift kind: the user's pick (설정 > 일반 > 근무 블록 색상), else the default. */
+fun shiftColor(kind: String): Color? =
+    com.bettertick.ui.screens.tasks.LeavePrefs.shiftColors[kind]?.let { Color(it) } ?: defaultShiftColor(kind)
+
+/** Default per shift kind: 주 orange · 야 indigo · 비 teal · 휴 slate · 당직 pink. */
+fun defaultShiftColor(kind: String): Color? = when (kind) {
     "주" -> Color(0xFFF2994A)
     "야" -> Color(0xFF5C6BC0)
     "비" -> Color(0xFF26A69A)

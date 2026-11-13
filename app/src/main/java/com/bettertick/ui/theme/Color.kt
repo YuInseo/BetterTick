@@ -20,8 +20,8 @@ import androidx.compose.ui.graphics.Color
 val TickBlue = Color(0xFF4772FA)
 
 // Priority colors (TickTick list view: checkbox border + flag tint).
-val PriorityHigh = Color(0xFFD52B24)
-val PriorityMedium = Color(0xFFFAA80C)
+val PriorityHigh = Color(0xFFE5483F)
+val PriorityMedium = Color(0xFFF5A623)
 val PriorityLow = Color(0xFF4772FA)
 
 /** Checkbox / flag color for a task priority (0 none, 1 low, 2 medium, 3 high). */
@@ -49,24 +49,24 @@ val TickLightPalette = TickPalette(
     isDark = false,
     background = Color(0xFFFFFFFF),
     surface = Color(0xFFFFFFFF),
-    surfaceVariant = Color(0xFFF2F3F5),
+    surfaceVariant = Color(0xFFF1F2F5),
     card = Color(0xFFF5F6F8),
-    textPrimary = Color(0xFF191919),
-    textSecondary = Color(0xFF7F7F7F),
-    textTertiary = Color(0xFFBFBFBF),
-    divider = Color(0xFFEDEDED),
+    textPrimary = Color(0xFF16171A),
+    textSecondary = Color(0xFF74767D),
+    textTertiary = Color(0xFFB8BAC1),
+    divider = Color(0xFFECEDF0),
 )
 
 val TickDarkPalette = TickPalette(
     isDark = true,
-    background = Color(0xFF121212),
-    surface = Color(0xFF1C1C1E),
-    surfaceVariant = Color(0xFF2C2C2E),
-    card = Color(0xFF1C1C1E),
-    textPrimary = Color(0xFFE6E6E6),
-    textSecondary = Color(0xFF8E8E93),
-    textTertiary = Color(0xFF5C5C60),
-    divider = Color(0xFF2A2A2C),
+    background = Color(0xFF0F1012),
+    surface = Color(0xFF191A1D),
+    surfaceVariant = Color(0xFF27282C),
+    card = Color(0xFF191A1D),
+    textPrimary = Color(0xFFEDEDEF),
+    textSecondary = Color(0xFF9A9BA2),
+    textTertiary = Color(0xFF5E5F66),
+    divider = Color(0xFF26272B),
 )
 
 // Legacy accent names (still referenced by the theme picker).

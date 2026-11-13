@@ -41,7 +41,7 @@ class DiaryWidget : GlanceAppWidget() {
             Column(
                 modifier = GlanceModifier
                     .fillMaxSize()
-                    .background(Color(0xFF1C1C1E))
+                    .background(Color(0xFF191A1D))
                     .padding(16.dp)
             ) {
                 Text(

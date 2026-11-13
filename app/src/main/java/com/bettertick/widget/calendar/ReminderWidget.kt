@@ -82,8 +82,8 @@ private data class WidgetPalette(
     companion object {
         fun of(theme: String): WidgetPalette = when (theme) {
             "white" -> WidgetPalette(Color.White, Color(0xFF191919), Color(0xFF7F7F7F), Color(0xFFADADAD), Color(0xFFF2F3F5))
-            "gray" -> WidgetPalette(Color(0xFF2C2C2E), Color.White, Color(0xFFB0B0B0), Color(0xFF8E8E93), Color(0xFF3A3A3C))
-            else -> WidgetPalette(Color(0xFF1C1C1E), Color.White, Color(0xFFB0B0B0), Color(0xFF707070), Color(0xFF2C2C2E))
+            "gray" -> WidgetPalette(Color(0xFF27282C), Color.White, Color(0xFFB0B0B0), Color(0xFF8E8E93), Color(0xFF3A3A3C))
+            else -> WidgetPalette(Color(0xFF191A1D), Color.White, Color(0xFFB0B0B0), Color(0xFF707070), Color(0xFF27282C))
         }
     }
 }
@@ -385,14 +385,7 @@ class ReminderWidget : GlanceAppWidget() {
                     .clickable(actionStartActivityWithIntent(selectDateIntent(context, prevWeek, LocalWidgetId.current))),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "‹",
-                    style = TextStyle(
-                        color = ColorProvider(pal.text),
-                        fontSize = (20 * fs).sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
+                com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_left, pal.text, (18 * fs).dp)
             }
             Text(
                 text = "${selectedDate.monthValue}월",
@@ -408,14 +401,7 @@ class ReminderWidget : GlanceAppWidget() {
                     .clickable(actionStartActivityWithIntent(selectDateIntent(context, nextWeek, LocalWidgetId.current))),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "›",
-                    style = TextStyle(
-                        color = ColorProvider(pal.text),
-                        fontSize = (20 * fs).sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                )
+                com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_right, pal.text, (18 * fs).dp)
             }
 
             // Right flex region — + and ⋮ right-aligned.
@@ -430,14 +416,7 @@ class ReminderWidget : GlanceAppWidget() {
                             .clickable(actionSendBroadcast(addIntent)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "+",
-                            style = TextStyle(
-                                color = ColorProvider(pal.text),
-                                fontSize = (22 * fs).sp,
-                                fontWeight = FontWeight.Normal
-                            )
-                        )
+                        com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_add, pal.text, (20 * fs).dp)
                     }
                     Box(
                         modifier = GlanceModifier
@@ -445,14 +424,7 @@ class ReminderWidget : GlanceAppWidget() {
                             .clickable(actionStartActivityWithIntent(menuToggleIntent)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "⋮",
-                            style = TextStyle(
-                                color = ColorProvider(pal.text),
-                                fontSize = (18 * fs).sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        )
+                        com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_more, pal.text, (18 * fs).dp)
                     }
                 }
             }
@@ -602,8 +574,8 @@ class ReminderWidget : GlanceAppWidget() {
         val leave = if (isShift) task.leaveOn(today) else null
         val ring = when {
             done -> pal.text3
-            task.priority == 3 -> Color(0xFFD52B24)
-            task.priority == 2 -> Color(0xFFFAA80C)
+            task.priority == 3 -> Color(0xFFE5483F)
+            task.priority == 2 -> Color(0xFFF5A623)
             task.priority == 1 -> Color(0xFF4772FA)
             else -> pal.text3
         }
@@ -657,9 +629,10 @@ class ReminderWidget : GlanceAppWidget() {
                         contentAlignment = Alignment.Center
                     ) {
                         if (done) {
-                            Text(
-                                text = if (task.isAbandoned) "✕" else "✓",
-                                style = TextStyle(color = ColorProvider(pal.background), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            com.bettertick.widget.theme.WidgetIcon(
+                                if (task.isAbandoned) com.bettertick.R.drawable.ic_widget_close else com.bettertick.R.drawable.ic_widget_check,
+                                pal.background,
+                                13.dp
                             )
                         } else {
                             Box(
