@@ -417,6 +417,20 @@ fun leaveColor(type: String): Color = when (type) {
     else -> Color(0xFF8E6CEF)
 }
 
+/** Own color per shift kind: 주 orange · 야 indigo · 비 teal · 휴 slate · 당직 pink. */
+fun shiftColor(kind: String): Color? = when (kind) {
+    "주" -> Color(0xFFF2994A)
+    "야" -> Color(0xFF5C6BC0)
+    "비" -> Color(0xFF26A69A)
+    "휴" -> Color(0xFF8A94A6)
+    "당직" -> Color(0xFFE0567A)
+    else -> null
+}
+
+/** [base] unless [task] is a shift — then the color of what [day] counts as. */
+fun shiftAwareColor(task: Task, day: LocalDate?, base: Color): Color =
+    if (task.isShiftTask()) shiftColor(task.shiftKindOn(day)) ?: base else base
+
 /**
  * 병가 / 지휴 / 연차 chips for a shift on [day], each with the days left in
  * its allowance (설정 > 일반 > 휴가 일수). Read-only ([onToggle] null) shows
@@ -534,7 +548,7 @@ fun ShiftKindButtonsRow(selected: String, onPick: ((String) -> Unit)?) {
                 modifier = Modifier
                     .weight(1f)
                     .clip(shape)
-                    .then(if (on) Modifier.background(accent) else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.5f), shape))
+                    .then(if (on) Modifier.background(shiftColor(kind) ?: accent) else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.5f), shape))
                     .then(if (onPick != null) Modifier.clickable { onPick(kind) } else Modifier)
                     .padding(vertical = 7.dp),
                 contentAlignment = Alignment.Center
@@ -554,7 +568,7 @@ fun ShiftKindButtonsRow(selected: String, onPick: ((String) -> Unit)?) {
 /** Round badge with the shift label (주 / 야 / 비 / 휴); tinted by the leave used. */
 @Composable
 fun ShiftBadge(label: String, leave: String?) {
-    val tint = leave?.let { leaveColor(it) } ?: ThemeState.accentColor
+    val tint = leave?.let { leaveColor(it) } ?: shiftColor(label) ?: ThemeState.accentColor
     Box(
         modifier = Modifier
             .size(26.dp)

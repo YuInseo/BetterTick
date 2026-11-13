@@ -285,7 +285,10 @@ private fun AllDayStrip(
                 verticalArrangement = Arrangement.Top
             ) {
                 tasks.take(rows).forEach { task ->
-                    val colors = chipColors(LocalTaskColor.current(task), task.isCompleted)
+                    val colors = chipColors(
+                        com.bettertick.ui.screens.tasks.components.shiftAwareColor(task, d, LocalTaskColor.current(task)),
+                        task.isCompleted
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -568,7 +571,10 @@ private fun TimedBlock(task: Task, date: LocalDate, onTaskClick: (Task) -> Unit 
     val startLabel = lt?.let { formatShortTime(it.toLocalTime()) } ?: ""
     val endLabel = lt?.plusMinutes(task.durationMinutes.toLong())
         ?.let { formatShortTime(it.toLocalTime()) } ?: ""
-    val colors = chipColors(LocalTaskColor.current(task), task.isCompleted)
+    val colors = chipColors(
+        com.bettertick.ui.screens.tasks.components.shiftAwareColor(task, date, LocalTaskColor.current(task)),
+        task.isCompleted
+    )
     Row(
         modifier = Modifier
             .fillMaxSize()
