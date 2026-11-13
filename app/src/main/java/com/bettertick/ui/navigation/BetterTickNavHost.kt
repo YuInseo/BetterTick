@@ -25,6 +25,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.MoreHoriz
@@ -115,21 +117,27 @@ private fun BottomNavTab(
     Column(
         modifier = modifier
             .fillMaxHeight()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
+            .selectable(
+                selected = selected,
+                role = Role.Tab,
                 onClick = onClick
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // TickTick's tab bar is icon-only: accent when selected, gray
-        // otherwise. The label stays as the accessibility description.
         Icon(
             imageVector = icon,
-            contentDescription = label,
+            contentDescription = null,
             tint = tint,
             modifier = Modifier.size(26.dp)
+        )
+        Text(
+            text = label,
+            color = tint,
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp, start = 2.dp, end = 2.dp)
         )
     }
 }
@@ -394,7 +402,7 @@ private fun MainContent(
                                 .fillMaxWidth()
                                 .windowInsetsPadding(WindowInsets.navigationBars)
                                 .padding(top = 0.5.dp)
-                                .height(54.dp),
+                                .height(64.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             allNavItems.forEach { (id, tab, route) ->
@@ -494,6 +502,13 @@ private fun MainContent(
                             quickAddViewModel.importTasks(imported)
                             imported.size
                         }
+                    )
+                }
+                composable("leave_settings/{type}") { entry ->
+                    val type = entry.arguments?.getString("type") ?: "지휴"
+                    com.bettertick.ui.screens.more.LeaveTypeSettingsScreen(
+                        type = type,
+                        onBack = { navController.popBackStack() }
                     )
                 }
                 composable("smartlists") {
@@ -668,6 +683,22 @@ private fun MainContent(
                     contentAlignment = Alignment.BottomEnd
                 ) {
                     TickFab(onClick = { showTaskInput = true })
+                }
+            }
+
+            // Keep balances beside the add button, above the bottom navigation.
+            if (currentRoute == BottomNavItem.Calendar.route &&
+                !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen
+            ) {
+                Box(
+                    Modifier.fillMaxSize().padding(paddingValues)
+                        .padding(start = 12.dp, end = 88.dp, bottom = 16.dp),
+                    contentAlignment = Alignment.BottomStart
+                ) {
+                    com.bettertick.ui.screens.calendar.components.LeaveBalanceMenu(
+                        tasks = allTasks,
+                        onSettings = { type -> navController.navigate("leave_settings/$type") }
+                    )
                 }
             }
 
