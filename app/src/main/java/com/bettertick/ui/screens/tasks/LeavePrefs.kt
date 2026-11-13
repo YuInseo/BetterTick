@@ -336,7 +336,7 @@ object LeavePrefs {
 
     // ── 근무지 관리 ───────────────────────────────────────────────────────────
 
-    private fun setWorkplaces(list: List<Workplace>) {
+    private fun storeWorkplaces(list: List<Workplace>) {
         workplaces = list.sortedBy { it.start ?: LocalDate.MIN }
         saveWorkplaces(workplaces)
         recount(lastTasks)
@@ -344,7 +344,7 @@ object LeavePrefs {
 
     private fun updateEditing(transform: (Workplace) -> Workplace) {
         val id = editing.id
-        setWorkplaces(workplaces.map { if (it.id == id) transform(it) else it })
+        storeWorkplaces(workplaces.map { if (it.id == id) transform(it) else it })
     }
 
     /** Which workplace the 휴가 규칙 screens edit. */
@@ -361,24 +361,24 @@ object LeavePrefs {
             end = end,
             periods = LEAVE_TYPES.associateWith { defaultPeriod(it) }
         )
-        setWorkplaces(workplaces + wp)
+        storeWorkplaces(workplaces + wp)
         return wp
     }
 
     fun renameWorkplace(id: String, name: String) {
         if (name.isBlank()) return
-        setWorkplaces(workplaces.map { if (it.id == id) it.copy(name = name.trim()) else it })
+        storeWorkplaces(workplaces.map { if (it.id == id) it.copy(name = name.trim()) else it })
     }
 
     /** Sets a workplace's 근무 시작일 / 퇴사일 (null end = 재직 중). */
     fun updateWorkplaceDates(id: String, start: LocalDate?, end: LocalDate?) {
-        setWorkplaces(workplaces.map { if (it.id == id) it.copy(start = start, end = end) else it })
+        storeWorkplaces(workplaces.map { if (it.id == id) it.copy(start = start, end = end) else it })
     }
 
     /** Removes a workplace; the last one can't go. Its days move to whichever workplace covers them. */
     fun deleteWorkplace(id: String) {
         if (workplaces.size <= 1) return
-        setWorkplaces(workplaces.filterNot { it.id == id })
+        storeWorkplaces(workplaces.filterNot { it.id == id })
         if (editingId == id) editingId = currentWorkplace.id
     }
 
