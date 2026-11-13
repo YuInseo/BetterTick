@@ -286,7 +286,28 @@ private fun ringtoneTitle(context: android.content.Context, uri: String?): Strin
 // ── 설정 > 일반 ──────────────────────────────────────────────────────────
 
 @Composable
-fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = null) {
+fun GeneralSettingsScreen(
+    onBack: () -> Unit,
+    onExportTasks: (() -> Unit)? = null,
+    /** Gets the picked CSV's text; returns how many tasks were added. */
+    onImportTasks: ((String) -> Int)? = null
+) {
+    val importContext = LocalContext.current
+    val importPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null || onImportTasks == null) return@rememberLauncherForActivityResult
+        val text = runCatching {
+            importContext.contentResolver.openInputStream(uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+        }.getOrNull()
+        val message = when {
+            text == null -> "파일을 읽지 못했습니다"
+            else -> onImportTasks(text).let { n ->
+                if (n > 0) "할일 ${n}개를 가져왔습니다" else "가져올 새 할일이 없습니다"
+            }
+        }
+        android.widget.Toast.makeText(importContext, message, android.widget.Toast.LENGTH_LONG).show()
+    }
     var leaveType by remember { mutableStateOf<String?>(null) }
     leaveType?.let { type ->
         androidx.activity.compose.BackHandler { leaveType = null }
@@ -389,6 +410,11 @@ fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = nul
         if (onExportTasks != null) {
             OptionCard {
                 OptionNavRow("할일 내보내기 (CSV)", value = "공유", onClick = onExportTasks)
+                if (onImportTasks != null) {
+                    OptionNavRow("할일 가져오기 (CSV)", value = "파일 선택") {
+                        importPicker.launch(arrayOf("text/*", "application/csv", "application/vnd.ms-excel"))
+                    }
+                }
             }
         }
         OptionCard {

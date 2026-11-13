@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.launch
 import com.bettertick.ui.theme.DarkBackground
 import com.bettertick.ui.theme.DarkSurfaceVariant
 import com.bettertick.ui.theme.OverdueRed
@@ -56,6 +57,8 @@ fun LoginScreen(
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val toastContext = LocalContext.current
 
     val textFieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = MaterialTheme.colorScheme.primary,
@@ -121,6 +124,32 @@ fun LoginScreen(
                 shape = RoundedCornerShape(12.dp)
             )
             Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "비밀번호를 잊으셨나요?",
+                color = TextSecondary,
+                style = MaterialTheme.typography.bodySmall,
+                textAlign = TextAlign.End,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        val target = email.trim()
+                        if (target.isBlank()) {
+                            android.widget.Toast.makeText(
+                                toastContext, "위에 이메일을 먼저 입력해 주세요", android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        } else scope.launch {
+                            val error = viewModel.sendPasswordReset(target)
+                            android.widget.Toast.makeText(
+                                toastContext,
+                                error ?: "비밀번호 재설정 메일을 보냈습니다",
+                                android.widget.Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    }
+                    .padding(vertical = 4.dp)
+            )
+            Spacer(modifier = Modifier.height(4.dp))
 
             if (authError != null) {
                 Text(

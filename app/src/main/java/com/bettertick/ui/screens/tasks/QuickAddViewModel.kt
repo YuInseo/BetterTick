@@ -65,6 +65,23 @@ class QuickAddViewModel @Inject constructor(
         return tagRepository.addTag(Tag(name = trimmed))
     }
 
+    /** Last deleted task (with its delete time) for the 실행 취소 bar. */
+    val recentlyDeleted = taskRepository.recentlyDeleted
+
+    fun undoDelete() {
+        viewModelScope.launch { taskRepository.undoDelete() }
+    }
+
+    fun dismissDeleted() = taskRepository.clearRecentlyDeleted()
+
+    /** CSV 가져오기: adds every task as new. */
+    fun importTasks(tasks: List<Task>) {
+        viewModelScope.launch {
+            tasks.forEach { taskRepository.addTask(it) }
+            runCatching { ReminderWidget().updateAll(context) }
+        }
+    }
+
     fun addTask(
         title: String,
         date: LocalDate? = LocalDate.now(),
