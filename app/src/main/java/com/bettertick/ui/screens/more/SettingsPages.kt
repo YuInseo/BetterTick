@@ -537,12 +537,12 @@ private fun LeaveSummaryRow(type: String, today: java.time.LocalDate, onClick: (
             Text(
                 (if (LeavePrefs.isAuto(type)) "빨간날 근무 자동 · " else "") +
                     "${LeavePrefs.periodOf(type).label} · ${LeavePrefs.periodName(type)} ${used}일 사용" +
-                    (if (q > 0 || LeavePrefs.isAuto(type)) " · ${q - used}일 남음" else "") +
+                    (if (LeavePrefs.remaining(type, today) != null) " · ${LeavePrefs.remainingLabel(type, today)}" else "") +
                     (if (custom) " · 기간별 별도 설정" else ""),
                 fontSize = 12.sp, color = TextTertiary
             )
         }
-        Text(daysLabel(type, q), fontSize = 14.sp, color = TextSecondary)
+        Text(if (LeavePrefs.remaining(type, today) != null && q == 0) "0일" else daysLabel(type, q), fontSize = 14.sp, color = TextSecondary)
         Icon(Icons.Default.KeyboardArrowDown, null, tint = TextTertiary, modifier = Modifier.size(20.dp))
     }
 }
@@ -692,7 +692,12 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
             (if (auto) "빨간날 근무 ${LeavePrefs.earnedIn(today)}일" +
                 (if (q - LeavePrefs.earnedIn(today) > 0) " + 추가 ${q - LeavePrefs.earnedIn(today)}일" else "") + " · " else "") +
                 "${LeavePrefs.periodName(type)} ${used}일 사용" +
-                (if (q > 0 || auto) " · ${q}일 중 ${q - used}일 남음" else " · 일수를 정하면 남은 일수가 표시됩니다."),
+                (when {
+                    period == LeavePeriod.SERVICE_YEAR && LeavePrefs.workStartDate == null -> " · 근무 시작일을 설정하세요."
+                    period == LeavePeriod.SERVICE_YEAR && LeavePrefs.serviceYear(today) == 0 -> " · 시작일 이후부터 계산됩니다."
+                    LeavePrefs.remaining(type, today) != null -> " · ${q}일 중 ${LeavePrefs.remainingLabel(type, today)}"
+                    else -> " · 일수를 정하면 남은 일수가 표시됩니다."
+                }),
             fontSize = 13.sp, color = TextSecondary,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
