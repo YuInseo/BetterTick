@@ -14,6 +14,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
 import com.bettertick.ui.theme.DarkSurface
 
 /**
@@ -29,14 +30,14 @@ fun AppActionButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    size: Dp = 44.dp
+    size: Dp = 48.dp
 ) {
     Box(
         modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(12.dp))
             .background(DarkSurface.copy(alpha = 0.9f))
-            .clickable(enabled = enabled) { onClick() },
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = contentDescription) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Icon(
