@@ -97,35 +97,32 @@ jobs:
           SHORT=$(git rev-parse --short HEAD)
           STATUS="${{ steps.build.outcome }}"
 
-          mkdir -p /tmp/log-stash
-          cp build.log /tmp/log-stash/build.log 2>/dev/null || echo "no build.log" > /tmp/log-stash/build.log
-          cp build.exit /tmp/log-stash/build.exit 2>/dev/null || echo "exit=?" > /tmp/log-stash/build.exit
-
-          git stash -u 2>/dev/null || true
-
+          # Do not switch the application checkout: local composite actions
+          # must still exist when their cache post-steps run after publishing.
+          LOG_WORKTREE=$(mktemp -d "$RUNNER_TEMP/bettertick-logs.XXXXXX")
+          trap 'git worktree remove --force "$LOG_WORKTREE"' EXIT
           if git ls-remote --exit-code --heads origin build-logs >/dev/null 2>&1; then
-            git fetch origin build-logs:build-logs
-            git checkout build-logs
+            git fetch origin build-logs
+            git worktree add --detach "$LOG_WORKTREE" FETCH_HEAD
           else
-            git checkout --orphan build-logs
-            git rm -rf . 2>/dev/null || true
-            echo "# Build logs branch" > README.md
-            git add README.md
-            git commit -m "Init build-logs branch [skip ci]" || true
+            git worktree add --detach "$LOG_WORKTREE" "$SHA"
+            git -C "$LOG_WORKTREE" checkout --orphan build-logs
+            git -C "$LOG_WORKTREE" rm -rf .
+            echo "# Build logs branch" > "$LOG_WORKTREE/README.md"
           fi
 
-          mkdir -p runs
-          cp /tmp/log-stash/build.log "runs/${SHORT}.log"
-          cp /tmp/log-stash/build.exit "runs/${SHORT}.exit"
-          echo "${STATUS}" > "runs/${SHORT}.status"
-          cp /tmp/log-stash/build.log runs/latest.log
-          cp /tmp/log-stash/build.exit runs/latest.exit
-          echo "${STATUS}" > runs/latest.status
-          echo "${SHA}" > runs/latest.sha
+          mkdir -p "$LOG_WORKTREE/runs"
+          cp build.log "$LOG_WORKTREE/runs/${SHORT}.log" 2>/dev/null || echo "no build.log" > "$LOG_WORKTREE/runs/${SHORT}.log"
+          cp build.exit "$LOG_WORKTREE/runs/${SHORT}.exit" 2>/dev/null || echo "exit=?" > "$LOG_WORKTREE/runs/${SHORT}.exit"
+          echo "$STATUS" > "$LOG_WORKTREE/runs/${SHORT}.status"
+          cp "$LOG_WORKTREE/runs/${SHORT}.log" "$LOG_WORKTREE/runs/latest.log"
+          cp "$LOG_WORKTREE/runs/${SHORT}.exit" "$LOG_WORKTREE/runs/latest.exit"
+          echo "$STATUS" > "$LOG_WORKTREE/runs/latest.status"
+          echo "$SHA" > "$LOG_WORKTREE/runs/latest.sha"
 
-          git add runs/
-          git commit -m "Build log ${SHORT} (${STATUS}) [skip ci]" || echo "nothing to commit"
-          git push origin build-logs
+          git -C "$LOG_WORKTREE" add README.md runs/
+          git -C "$LOG_WORKTREE" commit -m "Build log ${SHORT} (${STATUS}) [skip ci]" || echo "nothing to commit"
+          git -C "$LOG_WORKTREE" push origin HEAD:refs/heads/build-logs
 
       - name: Open issue with build log on failure
         if: steps.build.outcome == 'failure'
