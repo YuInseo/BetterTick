@@ -510,6 +510,7 @@ private fun daysLabel(type: String, days: Int): String {
     return when (LeavePrefs.periodOf(type)) {
         LeavePeriod.MONTH -> "월 ${days}일"
         LeavePeriod.YEAR -> "연 ${days}일"
+        LeavePeriod.SERVICE_YEAR -> "근속 연차당 ${days}일"
         LeavePeriod.NONE -> "총 ${days}일"
     }
 }
@@ -518,7 +519,11 @@ private fun daysLabel(type: String, days: Int): String {
 private fun LeaveSummaryRow(type: String, today: java.time.LocalDate, onClick: () -> Unit) {
     val q = LeavePrefs.quota(type, today)
     val used = LeavePrefs.used(type, today)
-    val custom = LeavePrefs.periodOf(type) != LeavePeriod.NONE && LeavePrefs.yearQuota(type, today.year) != null
+    val custom = when (LeavePrefs.periodOf(type)) {
+        LeavePeriod.NONE -> false
+        LeavePeriod.SERVICE_YEAR -> LeavePrefs.serviceQuota(type, LeavePrefs.serviceYear(today)) != null
+        else -> LeavePrefs.yearQuota(type, today.year) != null
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -532,12 +537,12 @@ private fun LeaveSummaryRow(type: String, today: java.time.LocalDate, onClick: (
             Text(
                 (if (LeavePrefs.isAuto(type)) "빨간날 근무 자동 · " else "") +
                     "${LeavePrefs.periodOf(type).label} · ${LeavePrefs.periodName(type)} ${used}일 사용" +
-                    (if (q > 0 || LeavePrefs.isAuto(type)) " · ${q - used}일 남음" else "") +
-                    (if (custom) " · ${today.year}년 별도 설정" else ""),
+                    (if (LeavePrefs.remaining(type, today) != null) " · ${LeavePrefs.remainingLabel(type, today)}" else "") +
+                    (if (custom) " · 기간별 별도 설정" else ""),
                 fontSize = 12.sp, color = TextTertiary
             )
         }
-        Text(daysLabel(type, q), fontSize = 14.sp, color = TextSecondary)
+        Text(if (LeavePrefs.remaining(type, today) != null && q == 0) "0일" else daysLabel(type, q), fontSize = 14.sp, color = TextSecondary)
         Icon(Icons.Default.KeyboardArrowDown, null, tint = TextTertiary, modifier = Modifier.size(20.dp))
     }
 }
@@ -548,6 +553,8 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
     val today = remember { java.time.LocalDate.now() }
     var editBase by remember { mutableStateOf(false) }
     var editYear by remember { mutableStateOf<Int?>(null) }
+    var editServiceYear by remember { mutableStateOf<Int?>(null) }
+    var pickWorkStart by remember { mutableStateOf(false) }
     var pickRedDay by remember { mutableStateOf(false) }
     var showEarned by remember { mutableStateOf(false) }
     var editWeight by remember { mutableStateOf<String?>(null) }
@@ -566,7 +573,7 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
             OptionCard {
                 OptionSwitchRow(
                     title = "빨간날 근무로 자동 계산",
-                    subtitle = "한국 달력의 공휴일·대체공휴일에 주간/야간/당직 근무를 하면 그날마다 지휴가 생깁니다 (근무별 일수는 아래에서). 그날 휴가를 쓰면 세지 않습니다.",
+                    subtitle = "한국 달력의 공휴일·대체공휴일에 주간/야간/당직/일근 근무를 하면 그날마다 지휴가 생깁니다 (근무별 일수는 아래에서). 그날 휴가를 쓰면 세지 않습니다.",
                     checked = LeavePrefs.autoJihyu,
                     onCheckedChange = { LeavePrefs.updateAutoJihyu(it) }
                 )
@@ -656,6 +663,7 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
                 subtitle = when (period) {
                     LeavePeriod.MONTH -> "매달 1일에 다시 채워집니다."
                     LeavePeriod.YEAR -> "매년 1월 1일에 다시 채워집니다."
+                    LeavePeriod.SERVICE_YEAR -> "근무 시작일부터 1년씩 계산하고, 매년 시작일에 다시 채워집니다."
                     LeavePeriod.NONE -> "다시 채워지지 않고 전체 사용 일수로 셉니다."
                 },
                 value = period,
@@ -663,6 +671,18 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
                 label = { it.label },
                 onPick = { LeavePrefs.updatePeriod(type, it) }
             )
+            OptionNavRow(
+                "근무 시작일",
+                subtitle = "모든 휴가에 공통으로 쓰이며, 시작일 기준 주기를 선택한 항목에 적용됩니다.",
+                value = LeavePrefs.workStartDate?.toString() ?: "설정 안 함"
+            ) { pickWorkStart = true }
+            if (period == LeavePeriod.SERVICE_YEAR && LeavePrefs.serviceYear(today) > 0) {
+                Text(
+                    "${LeavePrefs.periodName(type)} · ${LeavePrefs.serviceRangeLabel(LeavePrefs.serviceYear(today))}",
+                    fontSize = 12.sp, color = TextSecondary,
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                )
+            }
             OptionNavRow(ownLabel, value = daysLabel(type, base)) { editBase = true }
         }
 
@@ -672,12 +692,35 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
             (if (auto) "빨간날 근무 ${LeavePrefs.earnedIn(today)}일" +
                 (if (q - LeavePrefs.earnedIn(today) > 0) " + 추가 ${q - LeavePrefs.earnedIn(today)}일" else "") + " · " else "") +
                 "${LeavePrefs.periodName(type)} ${used}일 사용" +
-                (if (q > 0 || auto) " · ${q}일 중 ${q - used}일 남음" else " · 일수를 정하면 남은 일수가 표시됩니다."),
+                (when {
+                    period == LeavePeriod.SERVICE_YEAR && LeavePrefs.workStartDate == null -> " · 근무 시작일을 설정하세요."
+                    period == LeavePeriod.SERVICE_YEAR && LeavePrefs.serviceYear(today) == 0 -> " · 시작일 이후부터 계산됩니다."
+                    LeavePrefs.remaining(type, today) != null -> " · ${q}일 중 ${LeavePrefs.remainingLabel(type, today)}"
+                    else -> " · 일수를 정하면 남은 일수가 표시됩니다."
+                }),
             fontSize = 13.sp, color = TextSecondary,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
 
-        if (period != LeavePeriod.NONE) {
+        if (period == LeavePeriod.SERVICE_YEAR) {
+            Text("근속 연차별 일수", fontSize = 13.sp, color = TextSecondary,
+                modifier = Modifier.padding(start = 20.dp, top = 6.dp))
+            OptionCard {
+                val currentYear = LeavePrefs.serviceYear(today)
+                val years = (1..maxOf(5, currentYear + 3)).toSet() + LeavePrefs.serviceQuotas[type].orEmpty().keys
+                years.sorted().forEach { year ->
+                    val value = LeavePrefs.serviceQuota(type, year)
+                    OptionNavRow(
+                        "${year}년차" + if (year == currentYear) " (현재)" else "",
+                        subtitle = LeavePrefs.serviceRangeLabel(year) ?: "근무 시작일을 설정하면 기간이 표시됩니다.",
+                        value = value?.let { "${it}일" } ?: if (base > 0) "기본값 · ${base}일" else "미설정"
+                    ) { editServiceYear = year }
+                }
+            }
+            Text("1년차·2년차 지급 일수를 따로 정할 수 있어요. 비워 두면 기본 일수를 사용합니다. 0일도 설정할 수 있어요.",
+                fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp,
+                modifier = Modifier.padding(horizontal = 20.dp))
+        } else if (period != LeavePeriod.NONE) {
             Text(
                 "연도별 일수",
                 fontSize = 13.sp, color = TextSecondary,
@@ -703,6 +746,23 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
         }
     }
 
+    if (pickWorkStart) {
+        WorkStartPickerDialog(
+            initial = LeavePrefs.workStartDate,
+            onDismiss = { pickWorkStart = false },
+            onPick = { LeavePrefs.updateWorkStartDate(it); pickWorkStart = false }
+        )
+    }
+    editServiceYear?.let { year ->
+        LeaveDaysDialog(
+            title = "${year}년차 $type 일수",
+            initial = LeavePrefs.serviceQuota(type, year),
+            zeroIsAllowance = true,
+            clearLabel = "기본값 사용",
+            onDismiss = { editServiceYear = null },
+            onConfirm = { LeavePrefs.updateServiceQuota(type, year, it); editServiceYear = null }
+        )
+    }
     if (editBase) {
         LeaveDaysDialog(
             title = "$type $ownLabel",
@@ -737,6 +797,35 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
             clearLabel = "기본값 사용",
             onDismiss = { editYear = null },
             onConfirm = { LeavePrefs.updateYearQuota(type, y, it); editYear = null }
+        )
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun WorkStartPickerDialog(
+    initial: java.time.LocalDate?,
+    onDismiss: () -> Unit,
+    onPick: (java.time.LocalDate) -> Unit
+) {
+    val state = androidx.compose.material3.rememberDatePickerState(
+        initialSelectedDateMillis = initial?.atStartOfDay(java.time.ZoneOffset.UTC)?.toInstant()?.toEpochMilli()
+    )
+    val picked = state.selectedDateMillis?.let {
+        java.time.Instant.ofEpochMilli(it).atZone(java.time.ZoneOffset.UTC).toLocalDate()
+    }
+    androidx.compose.material3.DatePickerDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            androidx.compose.material3.TextButton(enabled = picked != null, onClick = { picked?.let(onPick) }) {
+                Text("설정")
+            }
+        },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = onDismiss) { Text("취소") } }
+    ) {
+        androidx.compose.material3.DatePicker(
+            state = state,
+            title = { Text("근무 시작일", modifier = Modifier.padding(start = 24.dp, top = 16.dp)) }
         )
     }
 }
@@ -792,10 +881,11 @@ private fun LeaveDaysDialog(
     title: String,
     initial: Int?,
     clearLabel: String?,
+    zeroIsAllowance: Boolean = false,
     onDismiss: () -> Unit,
     onConfirm: (Int?) -> Unit
 ) {
-    var text by remember { mutableStateOf(initial?.takeIf { it > 0 }?.toString() ?: "") }
+    var text by remember { mutableStateOf(initial?.takeIf { zeroIsAllowance || it > 0 }?.toString() ?: "") }
     val value = text.toIntOrNull()
     val valid = text.isEmpty() || (value != null && value in 0..365)
     androidx.compose.material3.AlertDialog(
@@ -808,7 +898,7 @@ private fun LeaveDaysDialog(
                     onValueChange = { v -> text = v.filter { it.isDigit() }.take(3) },
                     singleLine = true,
                     suffix = { Text("일") },
-                    placeholder = { Text("0 = 설정 안 함") },
+                    placeholder = { Text(if (zeroIsAllowance) "지급 일수 (0일 가능)" else "0 = 설정 안 함") },
                     isError = !valid,
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Number

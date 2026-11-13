@@ -22,6 +22,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
+import com.bettertick.ui.components.DropdownMenu
+import com.bettertick.data.model.SHIFT_KINDS
+import com.bettertick.data.model.shiftKindName
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -247,6 +253,7 @@ private fun SlotRow(
     onValueChange: (String) -> Unit,
     onRemove: () -> Unit
 ) {
+    var showKinds by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -278,6 +285,26 @@ private fun SlotRow(
             )
             if (value.isEmpty()) {
                 Text("(일정 없음)", fontSize = 15.sp, color = TextTertiary)
+            }
+        }
+        Box {
+            IconButton(onClick = { showKinds = true }) {
+                Icon(Icons.Default.ArrowDropDown, contentDescription = "근무 타입 선택", tint = TextSecondary)
+            }
+            DropdownMenu(expanded = showKinds, onDismissRequest = { showKinds = false }) {
+                SHIFT_KINDS.forEach { kind ->
+                    DropdownMenuItem(
+                        text = { Text(shiftKindName(kind)) },
+                        onClick = {
+                            onValueChange(shiftKindName(kind))
+                            showKinds = false
+                        }
+                    )
+                }
+                DropdownMenuItem(
+                    text = { Text("일정 없음") },
+                    onClick = { onValueChange(""); showKinds = false }
+                )
             }
         }
         Box(
