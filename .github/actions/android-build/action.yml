@@ -1,0 +1,43 @@
+name: Android build environment
+description: Shared JDK and non-overlapping, refreshed Gradle and incremental build caches
+runs:
+  using: composite
+  steps:
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+
+    # One owner for Gradle User Home. A new key per commit keeps build-cache
+    # outputs fresh instead of restoring the same immutable dependency snapshot.
+    - name: Cache Gradle state
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.gradle/caches
+          ~/.gradle/wrapper
+          !~/.gradle/caches/**/*.lock
+          !~/.gradle/caches/**/gc.properties
+        key: gradle-v2-${{ runner.os }}-jdk17-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}-${{ github.sha }}
+        restore-keys: |
+          gradle-v2-${{ runner.os }}-jdk17-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}-
+
+    # Kotlin/KSP need task history AND their previous outputs for incremental
+    # compilation. APKs and reports are delivered separately, not cached twice.
+    - name: Cache Android incremental state
+      uses: actions/cache@v4
+      with:
+        path: |
+          .gradle
+          app/build
+          !.gradle/configuration-cache
+          !app/build/outputs
+          !app/build/reports
+        key: android-v2-${{ runner.os }}-jdk17-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}-${{ github.sha }}
+        restore-keys: |
+          android-v2-${{ runner.os }}-jdk17-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml', 'gradle.properties', 'gradle/wrapper/gradle-wrapper.properties') }}-
+
+    - name: Make Gradle wrapper executable
+      shell: bash
+      run: chmod +x ./gradlew
