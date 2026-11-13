@@ -176,7 +176,7 @@ fun Task.isShiftRotationOf(labels: Set<String>): Boolean {
 // ── 근무 할일: 체크박스 대신 병가 / 지휴 사용 표시 ──────────────────────────
 
 /** Shift labels that turn a task into a 근무 일정 (no completion checkbox). */
-val SHIFT_LABELS: Set<String> = setOf("주", "주간", "야", "야간", "비", "비번", "휴", "휴무", "당직")
+val SHIFT_LABELS: Set<String> = setOf("주", "주간", "야", "야간", "비", "비번", "휴", "휴무", "당직", "일근")
 
 /** Leave kinds a shift can be marked with. */
 val LEAVE_TYPES: List<String> = listOf("지휴", "병가", "연차")
@@ -242,7 +242,7 @@ fun Task.leaveEntries(): List<Pair<LocalDate, String>> {
 }
 
 /** The day-to-day shift kinds a shift row can be switched to. */
-val SHIFT_KINDS: List<String> = listOf("주", "야", "비", "휴")
+val SHIFT_KINDS: List<String> = listOf("주", "야", "비", "휴", "일근")
 
 /** "주간" → "주", "야간" → "야", "비번" → "비", "휴무" → "휴"; 당직 stays. */
 fun shiftKind(label: String): String = when (normalizeShiftLabel(label)) {
@@ -280,7 +280,7 @@ fun Task.withDayShift(date: LocalDate, kind: String): Task {
 }
 
 /** Shift kinds that are actual work (비 / 휴 are not). */
-val WORK_SHIFT_KINDS: Set<String> = setOf("주", "야", "당직")
+val WORK_SHIFT_KINDS: Set<String> = setOf("주", "야", "당직", "일근")
 
 /** Was [date] a work day for this shift row? */
 fun Task.isWorkOn(date: LocalDate): Boolean = isShiftTask() && shiftKindOn(date) in WORK_SHIFT_KINDS
@@ -312,7 +312,8 @@ fun redDaysWorked(
                 kinds.isEmpty() -> null
                 "야" in kinds -> "야"
                 "당직" in kinds -> "당직"
-                else -> "주"
+                "주" in kinds -> "주"
+                else -> "일근"
             }
             if (kind != null) out += d to kind
         }

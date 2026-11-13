@@ -682,23 +682,18 @@ private fun MainContent(
                         .padding(end = 16.dp, bottom = 16.dp),
                     contentAlignment = Alignment.BottomEnd
                 ) {
-                    TickFab(onClick = { showTaskInput = true })
-                }
-            }
-
-            // Keep balances beside the add button, above the bottom navigation.
-            if (currentRoute == BottomNavItem.Calendar.route &&
-                !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen
-            ) {
-                Box(
-                    Modifier.fillMaxSize().padding(paddingValues)
-                        .padding(start = 12.dp, end = 88.dp, bottom = 16.dp),
-                    contentAlignment = Alignment.BottomStart
-                ) {
-                    com.bettertick.ui.screens.calendar.components.LeaveBalanceMenu(
-                        tasks = allTasks,
-                        onSettings = { type -> navController.navigate("leave_settings/$type") }
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (currentRoute == BottomNavItem.Calendar.route) {
+                            com.bettertick.ui.screens.calendar.components.LeaveBalanceMenu(
+                                tasks = allTasks,
+                                onSettings = { type -> navController.navigate("leave_settings/$type") }
+                            )
+                        }
+                        TickFab(onClick = { showTaskInput = true })
+                    }
                 }
             }
 

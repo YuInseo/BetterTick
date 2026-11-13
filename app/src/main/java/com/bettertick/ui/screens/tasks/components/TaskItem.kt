@@ -428,6 +428,7 @@ fun defaultShiftColor(kind: String): Color? = when (kind) {
     "비" -> Color(0xFF26A69A)
     "휴" -> Color(0xFF8A94A6)
     "당직" -> Color(0xFFE0567A)
+    "일근" -> Color(0xFF26A69A)
     else -> null
 }
 

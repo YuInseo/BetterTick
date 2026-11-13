@@ -150,7 +150,7 @@ fun OptionCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-fun OptionNavRow(title: String, value: String? = null, onClick: () -> Unit) {
+fun OptionNavRow(title: String, value: String? = null, subtitle: String? = null, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -158,7 +158,12 @@ fun OptionNavRow(title: String, value: String? = null, onClick: () -> Unit) {
             .padding(horizontal = 20.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, fontSize = 16.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+        Column(Modifier.weight(1f).padding(end = 8.dp)) {
+            Text(title, fontSize = 16.sp, color = TextPrimary)
+            if (subtitle != null) {
+                Text(subtitle, fontSize = 12.sp, color = TextTertiary)
+            }
+        }
         if (value != null) {
             Text(value, fontSize = 14.sp, color = TextSecondary)
             Spacer(Modifier.width(4.dp))
