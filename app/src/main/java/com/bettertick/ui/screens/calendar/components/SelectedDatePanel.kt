@@ -545,7 +545,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "편하게 해요",
+            text = "오른쪽 아래 + 버튼으로 일정을 추가하세요",
             style = MaterialTheme.typography.bodyMedium,
             color = TextTertiary
         )

@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
 
 /**
  * TickTick floating add button — a solid accent-colored circle with a white
@@ -43,7 +44,7 @@ fun TickFab(
             )
             .clip(CircleShape)
             .background(accent)
-            .clickable { onClick() },
+            .clickable(role = Role.Button, onClickLabel = contentDescription) { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Icon(
