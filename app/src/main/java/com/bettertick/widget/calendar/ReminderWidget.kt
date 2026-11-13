@@ -56,6 +56,8 @@ import com.bettertick.widget.theme.WidgetColors
 import com.bettertick.widget.theme.WidgetColorValues
 import com.bettertick.data.model.occursOn
 import com.bettertick.data.model.isShiftTask
+import com.bettertick.data.model.groupedUnderParents
+import com.bettertick.data.model.subtaskDepths
 import com.bettertick.data.model.leaveOn
 import com.bettertick.data.model.shiftKindOn
 import com.bettertick.data.model.shiftTitleOn
@@ -185,6 +187,8 @@ class ReminderWidget : GlanceAppWidget() {
                 .distinctBy { it.id }
                 // Finished tasks sink to the bottom.
                 .sortedWith(compareBy<Task> { it.isCompleted || it.isAbandoned }.then(comparator))
+                // 하위 할일 sit right under their parent, like the calendar.
+                .groupedUnderParents()
 
             androidx.compose.runtime.CompositionLocalProvider(LocalWidgetId provides widgetId) {
                 ReminderContent(today, selectedDate, weekDates, datesWithEvents, dayTasks, listById, settings, menuOpen)
@@ -270,11 +274,14 @@ class ReminderWidget : GlanceAppWidget() {
                         )
                     }
                 } else {
+                    val depths = tasks.subtaskDepths()
                     LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                         items(tasks, itemId = { it.id.hashCode().toLong() }) { task ->
+                            val depth = depths[task.id] ?: 0
+                            val nested = depth > 0
                             Column(
                                 modifier = GlanceModifier
-                                    .padding(horizontal = 12.dp)
+                                    .padding(start = (12 + 16 * depth).dp, end = 12.dp)
                                     .clickable(
                                         // 근무 opens the app; other rows open 완료/취소됨/미루기.
                                         if (task.isShiftTask()) actionStartActivity<MainActivity>()
@@ -283,7 +290,22 @@ class ReminderWidget : GlanceAppWidget() {
                                         )
                                     )
                             ) {
-                                TaskRow(task, listById, settings.showDetail, pal, fs, selectedDate, settings.isMemo)
+                                if (nested) {
+                                    // Subtask: thin guide line on the left, then the row.
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            modifier = GlanceModifier
+                                                .width(2.dp)
+                                                .height(34.dp)
+                                                .background(ColorProvider(pal.text3.copy(alpha = 0.5f)))
+                                                .cornerRadius(1.dp)
+                                        ) {}
+                                        Spacer(GlanceModifier.width(10.dp))
+                                        TaskRow(task, listById, settings.showDetail, pal, fs, selectedDate, settings.isMemo)
+                                    }
+                                } else {
+                                    TaskRow(task, listById, settings.showDetail, pal, fs, selectedDate, settings.isMemo)
+                                }
                                 Spacer(GlanceModifier.height(10.dp))
                             }
                         }
@@ -685,7 +707,7 @@ class ReminderWidget : GlanceAppWidget() {
                     )
                 }
                 if (showDetail) {
-                    val subtitle = buildTaskSubtitle(task)
+                    val subtitle = buildTaskSubtitle(task, today)
                     if (subtitle != null) {
                         Spacer(GlanceModifier.height(2.dp))
                         val isOverdue = task.isOverdueNow()
@@ -802,11 +824,13 @@ class ReminderWidget : GlanceAppWidget() {
      * "4월 20일, 오후 4:00 - 오후 5:00". Emoji suffixes dropped — the
      * alarm/repeat icons are rendered separately by TaskRow.
      */
-    private fun buildTaskSubtitle(task: Task): String? {
+    private fun buildTaskSubtitle(task: Task, shownDay: LocalDate): String? {
         val dueDate = task.dueDate ?: return null
         val startDate = dueDate.toDate()
         val startDt = startDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
-        val dateLabel = "${startDt.monthValue}월 ${startDt.dayOfMonth}일"
+        // A repeating task shows the day being viewed, not its series start.
+        val day = if (task.repeatRule.isNullOrBlank()) startDt.toLocalDate() else shownDay
+        val dateLabel = "${day.monthValue}월 ${day.dayOfMonth}일"
         if (startDt.hour == 0 && startDt.minute == 0) return dateLabel
 
         val timeFormatter = SimpleDateFormat("a h:mm", Locale.KOREAN)
