@@ -171,7 +171,7 @@ fun TaskItem(
                     isAbandoned = task.isAbandoned
                 )
                 if (onStatusAction != null) {
-                    androidx.compose.material3.DropdownMenu(
+                    com.bettertick.ui.components.DropdownMenu(
                         expanded = statusMenu,
                         onDismissRequest = { statusMenu = false }
                     ) {
