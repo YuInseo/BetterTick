@@ -90,7 +90,8 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
         // Same look as the settings pages: page-colored sheet, rounded cards.
         ModalBottomSheet(
             onDismissRequest = { expanded = false },
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            // Opens over half the screen; scroll (or drag up) for the rest.
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
             containerColor = GroupedBackground,
             dragHandle = { BottomSheetDefaults.DragHandle(color = TextTertiary.copy(alpha = 0.5f)) }
         ) {
