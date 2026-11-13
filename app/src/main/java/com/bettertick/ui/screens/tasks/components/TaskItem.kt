@@ -415,6 +415,7 @@ private fun formatClock(time: LocalTime): String {
 fun leaveColor(type: String): Color = when (type) {
     "병가" -> Color(0xFFE5483F)
     "연차" -> Color(0xFF35B36A)
+    "특휴" -> Color(0xFFE59A1A)
     else -> Color(0xFF8E6CEF)
 }
 

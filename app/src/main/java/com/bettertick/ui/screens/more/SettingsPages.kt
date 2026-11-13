@@ -362,7 +362,7 @@ fun GeneralSettingsScreen(
                 subtitle = "회사마다 휴가 규칙을 따로 정하고, 회사별로 쓴 휴가를 봅니다."
             ) { showWorkplaces = true }
             val today = java.time.LocalDate.now()
-            listOf("지휴", "연차", "병가").forEach { type ->
+            listOf("지휴", "특휴", "연차", "병가").forEach { type ->
                 LeaveSummaryRow(type = type, today = today, onClick = {
                     // The rows here are the current workplace's rules.
                     LeavePrefs.selectEditing(LeavePrefs.currentWorkplace.id)

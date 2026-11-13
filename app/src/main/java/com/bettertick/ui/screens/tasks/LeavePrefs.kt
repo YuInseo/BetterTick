@@ -94,7 +94,9 @@ object LeavePrefs {
     val COLOR_KINDS = listOf("주", "야", "비", "휴", "당직", "일근")
     private val DEFAULT_WEIGHTS = mapOf("주" to 1, "야" to 2, "당직" to 1, "일근" to 1)
 
-    private fun defaultPeriod(type: String) = if (type == "지휴") LeavePeriod.MONTH else LeavePeriod.YEAR
+    // 지휴·특휴 are given month by month; 연차·병가 by the year.
+    private fun defaultPeriod(type: String) =
+        if (type == "지휴" || type == "특휴") LeavePeriod.MONTH else LeavePeriod.YEAR
 
     private const val DEFAULT_WORKPLACE_ID = "default"
 

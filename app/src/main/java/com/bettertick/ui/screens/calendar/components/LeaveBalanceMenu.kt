@@ -39,8 +39,8 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
         }
     }
     LaunchedEffect(tasks, today) { LeavePrefs.recount(tasks) }
-    val types = listOf("병가", "연차", "지휴")
-    val colors = listOf(Color(0xFFE57373), Color(0xFF66BB6A), Color(0xFFB388FF))
+    val types = listOf("병가", "연차", "지휴", "특휴")
+    val colors = listOf(Color(0xFFE57373), Color(0xFF66BB6A), Color(0xFFB388FF), Color(0xFFFFB74D))
     fun label(type: String) = if (type == "연차") "연가" else type
     fun balance(type: String, day: LocalDate): String {
         val left = LeavePrefs.remaining(type, day) ?: return "설정"
