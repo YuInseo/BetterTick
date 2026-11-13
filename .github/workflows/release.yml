@@ -18,24 +18,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: gradle
-
-      - name: Grant gradlew permission
-        run: chmod +x gradlew
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
-          restore-keys: gradle-
+      - name: Prepare Android build
+        uses: ./.github/actions/android-build
 
       # GitHub Secret에서 키스토어 복원
       - name: Decode Keystore
@@ -49,7 +33,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           # Kakao 길찾기 REST API 키 → BuildConfig. 없으면 빈 값(빌드 정상, 직선 폴백).
           KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleRelease --build-cache --parallel --console=plain
 
       # 태그명에서 버전 추출 (v1.0.0 → 1.0.0)
       - name: Get version

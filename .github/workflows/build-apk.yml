@@ -28,6 +28,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -35,54 +36,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Cache Gradle wrapper distribution
-        uses: actions/cache@v4
-        with:
-          path: ~/.gradle/wrapper/dists
-          key: gradle-wrapper-${{ runner.os }}-${{ hashFiles('**/gradle-wrapper.properties') }}
-          restore-keys: gradle-wrapper-${{ runner.os }}-
-
-      - name: Set up Gradle (deps cache)
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          cache-read-only: false
-          # gradle-home-cache-cleanup 비활성: post-action에서 Gradle 9.5.0
-          # dummy cleanup build를 돌리는데, 해당 버전에서 cache 설정 API가
-          # write-only로 바뀌어 실패함. 산출물엔 영향 없지만 빨간 X 노이즈.
-          gradle-home-cache-includes: |
-            caches
-            notifications
-            wrapper
-
-      - name: Cache Android SDK + AGP build cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.android/build-cache
-            ~/.android/cache
-            ~/.gradle/caches/transforms-4
-            app/build/intermediates/incremental
-          key: android-build-cache-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
-          restore-keys: |
-            android-build-cache-${{ runner.os }}-
-
-      - name: Cache project build outputs
-        uses: actions/cache@v4
-        with:
-          path: |
-            app/build/intermediates
-            app/build/generated/ksp
-            app/build/tmp/kotlin-classes
-          key: project-build-${{ runner.os }}-${{ github.ref_name }}-${{ github.sha }}
-          restore-keys: |
-            project-build-${{ runner.os }}-${{ github.ref_name }}-
-            project-build-${{ runner.os }}-
+      - name: Prepare Android build
+        uses: ./.github/actions/android-build
 
       - name: Compute version metadata
         id: meta
@@ -110,7 +65,7 @@ jobs:
           set -o pipefail
           chmod +x ./gradlew
           ./gradlew assembleDebug -x lint -x test \
-            --build-cache --parallel --daemon 2>&1 | tee build.log
+            --build-cache --parallel --console=plain 2>&1 | tee build.log
           echo "exit=$?" > build.exit
 
       - name: Show build log inline
