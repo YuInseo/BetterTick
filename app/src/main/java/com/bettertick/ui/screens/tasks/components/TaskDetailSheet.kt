@@ -484,19 +484,16 @@ fun TaskDetailSheet(
             val asShift = task.copy(title = title, leaves = leaves, dayShifts = dayShifts)
             if (asShift.isShiftTask()) {
                 val day = asShift.shiftDay(occurrenceDate)
-                // What this day counts as — 주 / 야 / 비 / 휴.
-                ShiftKindButtonsRow(
-                    selected = asShift.shiftKindOn(day),
-                    onPick = if (day != null) {
-                        { kind -> dayShifts = asShift.withDayShift(day, kind).dayShifts }
-                    } else null
-                )
-                Spacer(Modifier.height(8.dp))
-                LeaveButtonsRow(
+                // 근무 (what this day counts as) · 휴가 (leave used) — two dropdowns.
+                ShiftDayPickers(
                     day = day,
+                    kind = asShift.shiftKindOn(day),
+                    onPickKind = if (day != null) {
+                        { kind -> dayShifts = asShift.withDayShift(day, kind).dayShifts }
+                    } else null,
                     used = asShift.leaveOn(day),
                     savedUsed = task.leaveOn(day),
-                    onToggle = if (day != null) {
+                    onToggleLeave = if (day != null) {
                         { type ->
                             val t = asShift.withLeaveToggled(day, type)
                             title = t.title

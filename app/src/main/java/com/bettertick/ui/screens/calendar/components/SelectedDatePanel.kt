@@ -152,6 +152,13 @@ fun SelectedDatePanel(
             p.y > r.top + band && p.y < r.bottom - band && dragged.canNestUnder(t, tasks)
         }
     }
+    // Dragging a subtask shows a 분리 zone under the list; dropping there or
+    // anywhere below the list lets it go.
+    val draggingSubtask = dragged?.isSubtask == true
+    var unnestZone by remember { mutableStateOf<Rect?>(null) }
+    val overUnnestZone = draggingSubtask && localDrag?.currentOffset?.let { p ->
+        unnestZone?.contains(p) == true || listBounds?.let { p.y > it.bottom } == true
+    } == true
     val insertAt: Int? = localDrag?.currentOffset?.let { p ->
         if (dragged == null || nestTarget != null || listBounds?.contains(p) != true) null
         else others.count { t -> rowBounds[t.id]?.let { it.center.y < p.y } == true }
@@ -251,6 +258,8 @@ fun SelectedDatePanel(
                                 val target = nestTarget
                                 if (target != null && dragged != null) {
                                     onNest(dragged, target)
+                                } else if (overUnnestZone && dragged != null) {
+                                    onUnnest(dragged, selectedDate)
                                 } else if (idx != null && dragged != null) {
                                     val newOrder = others.toMutableList().apply { add(idx.coerceIn(0, size), dragged) }
                                     val ids = newOrder.map { it.id }
@@ -284,6 +293,46 @@ fun SelectedDatePanel(
                         if (lineBelow) ReorderLine()
                         }
                     }
+                }
+            }
+        }
+
+        if (draggingSubtask) {
+            val accent = MaterialTheme.colorScheme.primary
+            val parentTitle = tasks.firstOrNull { it.id == dragged?.parentId }?.title ?: "상위 할일"
+            Spacer(Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 8.dp)
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .onGloballyPositioned { c ->
+                        val pos = c.positionInRoot()
+                        unnestZone = Rect(pos.x, pos.y, pos.x + c.size.width, pos.y + c.size.height)
+                    }
+                    .clip(shape)
+                    .background(if (overUnnestZone) accent.copy(alpha = 0.16f) else DarkCard)
+                    .border(
+                        if (overUnnestZone) 2.dp else 1.dp,
+                        if (overUnnestZone) accent else TextTertiary.copy(alpha = 0.5f),
+                        shape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.LinkOff,
+                        contentDescription = null,
+                        tint = if (overUnnestZone) accent else TextSecondary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.size(8.dp))
+                    Text(
+                        "여기에 놓으면 '$parentTitle'에서 분리",
+                        fontSize = 14.sp,
+                        fontWeight = if (overUnnestZone) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (overUnnestZone) accent else TextSecondary
+                    )
                 }
             }
         }
