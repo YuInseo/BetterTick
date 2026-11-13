@@ -141,7 +141,9 @@ fun SelectedDatePanel(
     val rowBounds = remember { mutableStateMapOf<String, Rect>() }
     var listBounds by remember { mutableStateOf<Rect?>(null) }
     var localDrag by remember { mutableStateOf<ActiveDrag?>(null) }
-    val dragged = localDrag?.task?.takeIf { d -> active.any { it.id == d.id } }
+    // Always the task as it is now (the drag payload can be an older copy,
+    // e.g. still nested right after it was unlinked).
+    val dragged = localDrag?.task?.let { d -> active.firstOrNull { it.id == d.id } }
     val others = if (dragged == null) active else active.filterNot { it.id == dragged.id }
     // Over the middle of a row = nest under it; near a row's edge = reorder.
     val nestTarget: Task? = localDrag?.currentOffset?.let { p ->
@@ -524,6 +526,9 @@ private fun DraggableTaskRow(
     var dragRootPointer by remember { mutableStateOf<Offset?>(null) }
     val latestDragUpdate by androidx.compose.runtime.rememberUpdatedState(onDragUpdate)
     val latestDragRelease by androidx.compose.runtime.rememberUpdatedState(onDragRelease)
+    // The gesture below restarts only when the id changes, so read the task
+    // through this to get its current fields (parent, repeat) on every drag.
+    val latestTask by androidx.compose.runtime.rememberUpdatedState(task)
 
     Box(
         modifier = Modifier
@@ -540,11 +545,11 @@ private fun DraggableTaskRow(
                         if (ignored) return@detectDragGesturesAfterLongPress
                         val rootOffset = rootPos + localOffset
                         dragRootPointer = rootOffset
-                        latestDragUpdate(ActiveDrag(task, rootOffset, rootOffset))
+                        latestDragUpdate(ActiveDrag(latestTask, rootOffset, rootOffset))
                     },
                     onDragEnd = {
                         if (ignored) return@detectDragGesturesAfterLongPress
-                        latestDragRelease(task)
+                        latestDragRelease(latestTask)
                         dragRootPointer = null
                     },
                     onDragCancel = {
@@ -557,7 +562,7 @@ private fun DraggableTaskRow(
                         change.consume()
                         val next = (dragRootPointer ?: rootPos) + amount
                         dragRootPointer = next
-                        latestDragUpdate(ActiveDrag(task, rootPos, next))
+                        latestDragUpdate(ActiveDrag(latestTask, rootPos, next))
                     }
                 )
             }
