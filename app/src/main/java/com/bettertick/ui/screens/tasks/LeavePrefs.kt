@@ -36,6 +36,8 @@ object LeavePrefs {
     private const val AUTO_TYPE = "지휴"
     /** Shift kinds that earn 지휴 on a red day, in display order. */
     val WEIGHT_KINDS = listOf("주", "야", "당직")
+    /** Shift kinds with their own block color, in display order. */
+    val COLOR_KINDS = listOf("주", "야", "비", "휴", "당직")
     private val DEFAULT_WEIGHTS = mapOf("주" to 1, "야" to 2, "당직" to 1)
 
     private fun defaultPeriod(type: String) = if (type == "지휴") LeavePeriod.MONTH else LeavePeriod.YEAR
@@ -65,6 +67,9 @@ object LeavePrefs {
     /** 지휴 days one red-day shift earns, by kind: 주 1 · 야 2 · 당직 1 by default. */
     var shiftWeights by mutableStateOf(DEFAULT_WEIGHTS)
         private set
+    /** 근무 블록 색상: shift kind → ARGB the user picked (absent = default). */
+    var shiftColors by mutableStateOf<Map<String, Int>>(emptyMap())
+        private set
     /** Red days worked with the shift kind worked, oldest first. */
     var earnedDays by mutableStateOf<List<Pair<LocalDate, String>>>(emptyList())
         private set
@@ -85,6 +90,8 @@ object LeavePrefs {
         autoJihyu = p.getBoolean("auto_jihyu", true)
         shiftWeights = WEIGHT_KINDS.associateWith { p.getInt("weight_$it", DEFAULT_WEIGHTS[it] ?: 1) }
         includeSunday = p.getBoolean("red_sunday", true)
+        shiftColors = COLOR_KINDS.filter { p.contains("shift_color_$it") }
+            .associateWith { p.getInt("shift_color_$it", 0) }
         redOverrides = p.getString("red_overrides", null).orEmpty().split(',').mapNotNull { e ->
             val (d, v) = e.split(':').takeIf { it.size == 2 } ?: return@mapNotNull null
             val day = runCatching { LocalDate.parse(d.trim()) }.getOrNull() ?: return@mapNotNull null
@@ -105,6 +112,12 @@ object LeavePrefs {
         includeSunday = on
         edit { putBoolean("red_sunday", on) }
         recount(lastTasks)
+    }
+
+    /** Paint [kind] blocks with [argb]; null goes back to the default color. */
+    fun updateShiftColor(kind: String, argb: Int?) {
+        shiftColors = if (argb == null) shiftColors - kind else shiftColors + (kind to argb)
+        edit { if (argb == null) remove("shift_color_$kind") else putInt("shift_color_$kind", argb) }
     }
 
     /** 지휴 days a red-day [kind] shift earns. */

@@ -340,6 +340,26 @@ fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = nul
             modifier = Modifier.padding(horizontal = 20.dp)
         )
         Text(
+            "근무 블록 색상",
+            fontSize = 13.sp, color = TextSecondary,
+            modifier = Modifier.padding(start = 20.dp)
+        )
+        OptionCard {
+            var open by remember { mutableStateOf<String?>(null) }
+            LeavePrefs.COLOR_KINDS.forEach { kind ->
+                ShiftColorRow(
+                    kind = kind,
+                    expanded = open == kind,
+                    onToggle = { open = if (open == kind) null else kind }
+                )
+            }
+        }
+        Text(
+            "달력·위젯·목록에서 근무 종류마다 쓰는 색입니다. 항목을 눌러 색을 고르세요.",
+            fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+        Text(
             "스와이프 동작",
             fontSize = 13.sp, color = TextSecondary,
             modifier = Modifier.padding(start = 20.dp)
@@ -385,6 +405,77 @@ fun GeneralSettingsScreen(onBack: () -> Unit, onExportTasks: (() -> Unit)? = nul
     }
 }
 
+
+// ── 설정 > 일반 > 근무 블록 색상 ───────────────────────────────────────────
+
+private val ShiftColorChoices: List<Long> = listOf(
+    0xFFE5483F, 0xFFF2994A, 0xFFF2C94C, 0xFF8BC34A, 0xFF35B36A, 0xFF26A69A,
+    0xFF2D9CDB, 0xFF4772FA, 0xFF5C6BC0, 0xFFAB6CEF, 0xFFE0567A, 0xFF8A94A6
+)
+
+/** One shift kind: its name and current color; tapping opens the swatches. */
+@Composable
+private fun ShiftColorRow(kind: String, expanded: Boolean, onToggle: () -> Unit) {
+    val circle = androidx.compose.foundation.shape.CircleShape
+    val current = com.bettertick.ui.screens.tasks.components.shiftColor(kind) ?: ThemeState.accentColor
+    val custom = LeavePrefs.shiftColors.containsKey(kind)
+    Column {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = 20.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                com.bettertick.data.model.shiftKindName(kind),
+                fontSize = 16.sp, color = TextPrimary, modifier = Modifier.weight(1f)
+            )
+            if (custom) {
+                Text("직접 선택", fontSize = 13.sp, color = TextSecondary)
+                Spacer(Modifier.width(10.dp))
+            }
+            Box(Modifier.size(22.dp).background(current, circle))
+        }
+        if (expanded) {
+            ShiftColorChoices.chunked(6).forEach { line ->
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp),
+                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween
+                ) {
+                    line.forEach { argb ->
+                        val c = androidx.compose.ui.graphics.Color(argb)
+                        Box(
+                            Modifier
+                                .size(34.dp)
+                                .background(c, circle)
+                                .clickable { LeavePrefs.updateShiftColor(kind, argb.toInt()) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (c == current) {
+                                Icon(
+                                    Icons.Default.Check, contentDescription = "선택됨",
+                                    tint = androidx.compose.ui.graphics.Color.White,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Text(
+                "기본 색으로",
+                fontSize = 14.sp,
+                color = if (custom) ThemeState.accentColor else TextTertiary,
+                modifier = Modifier
+                    .clickable(enabled = custom) { LeavePrefs.updateShiftColor(kind, null) }
+                    .padding(horizontal = 20.dp, vertical = 10.dp)
+            )
+        }
+    }
+}
 
 // ── 설정 > 일반 > 휴가 일수 ────────────────────────────────────────────────
 
