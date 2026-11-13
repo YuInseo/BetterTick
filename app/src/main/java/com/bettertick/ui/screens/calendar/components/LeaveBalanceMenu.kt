@@ -56,11 +56,12 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         shadowElevation = 6.dp
     ) {
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Row(Modifier.widthIn(max = 260.dp).fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             types.forEachIndexed { index, type ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(label(type), color = colors[index], fontSize = 11.sp)
-                    Text(balance(type, today), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(balance(type, today), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
         }
@@ -91,7 +92,8 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(label(type), color = colors[index], fontWeight = FontWeight.Bold)
-                                Text("$period · 총 ${LeavePrefs.quota(type, day)}일 · 사용 ${LeavePrefs.used(type, day)}일", fontSize = 12.sp)
+                                Text(if (LeavePrefs.remaining(type, day) == null) "지급 일수 미설정 · 눌러서 설정"
+                                    else "$period · 총 ${LeavePrefs.quota(type, day)}일 · 사용 ${LeavePrefs.used(type, day)}일", fontSize = 12.sp)
                             }
                             Text(balance(type, day), fontWeight = FontWeight.Bold)
                         }

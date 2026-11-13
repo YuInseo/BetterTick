@@ -84,12 +84,12 @@ data class TabItem(
  *  in the picker but simply skipped when rendering the bottom bar, so adding
  *  a placeholder tab here doesn't require a route change. */
 fun tabCatalog(): List<TabItem> = listOf(
-    TabItem("tasks", "과제", "리스트와 필터로 작업을 관리하세요.", Icons.Outlined.CheckBox),
-    TabItem("calendar", "달력", "5가지 캘린더 뷰로 작업을 관리하세요.", Icons.Outlined.CalendarMonth),
+    TabItem("tasks", "할 일", "목록과 필터로 할 일을 관리하세요.", Icons.Outlined.CheckBox),
+    TabItem("calendar", "달력", "월·주·일 등 원하는 보기로 일정을 확인하세요.", Icons.Outlined.CalendarMonth),
     TabItem("eisenhower", "아이젠하워 매트릭스", "중요하고 긴급한 일에 집중하세요.", Icons.Outlined.GridView),
     TabItem("pomodoro", "포모도로", "포모 타이머나 스톱워치를 사용하여 집중력을 유지하세요.", Icons.Outlined.RadioButtonUnchecked),
     TabItem("more", "설정", "현재 설정을 변경하고 확인하세요.", Icons.Outlined.MoreHoriz),
-    TabItem("habits", "습관", "습관을 기르고 그것을 추적하십시오.", Icons.Outlined.Schedule),
+    TabItem("habits", "습관", "매일 기록하며 꾸준히 이어가세요.", Icons.Outlined.Schedule),
     TabItem("diary", "일기", "매일의 생각과 감정을 기록하세요.", Icons.Outlined.Book),
     TabItem("dday", "디데이", "특별한 날을 기억하세요.", Icons.Outlined.Star),
     TabItem("search", "검색", "빠르게 작업을 검색하세요.", Icons.Outlined.Search),
