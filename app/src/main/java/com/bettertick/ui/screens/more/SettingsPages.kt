@@ -7,6 +7,7 @@ import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -396,6 +397,17 @@ fun GeneralSettingsScreen(
             modifier = Modifier.padding(horizontal = 20.dp)
         )
         Text(
+            "색상 관리 · 내 색상",
+            fontSize = 13.sp, color = TextSecondary,
+            modifier = Modifier.padding(start = 20.dp)
+        )
+        OptionCard { UserColorsManager() }
+        Text(
+            "컬러 피커로 추가한 색은 목록·태그·습관·캘린더·근무 블록·테마 색 고르기에 모두 함께 나옵니다. 색을 누르면 삭제할 수 있어요.",
+            fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp,
+            modifier = Modifier.padding(horizontal = 20.dp)
+        )
+        Text(
             "스와이프 동작",
             fontSize = 13.sp, color = TextSecondary,
             modifier = Modifier.padding(start = 20.dp)
@@ -447,6 +459,63 @@ fun GeneralSettingsScreen(
 }
 
 
+// ── 설정 > 일반 > 색상 관리 ────────────────────────────────────────────────
+
+/** 내 색상: add with the color picker, tap one to delete it. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun UserColorsManager() {
+    var adding by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf<Int?>(null) }
+    val circle = androidx.compose.foundation.shape.CircleShape
+    androidx.compose.foundation.layout.FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)
+    ) {
+        Box(
+            Modifier
+                .size(36.dp)
+                .background(TextTertiary.copy(alpha = 0.18f), circle)
+                .clickable { adding = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(androidx.compose.material.icons.Icons.Default.Add, contentDescription = "색 추가", tint = ThemeState.accentColor)
+        }
+        com.bettertick.ui.theme.UserColors.colors.forEach { argb ->
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .background(androidx.compose.ui.graphics.Color(argb), circle)
+                    .clickable { removing = argb }
+            )
+        }
+    }
+    if (adding) {
+        com.bettertick.ui.screens.calendar.CustomColorDialog(
+            initial = ThemeState.accentColor,
+            onDismiss = { adding = false },
+            onConfirm = { com.bettertick.ui.theme.UserColors.add(it); adding = false }
+        )
+    }
+    removing?.let { argb ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { removing = null },
+            icon = { Box(Modifier.size(28.dp).background(androidx.compose.ui.graphics.Color(argb), circle)) },
+            title = { Text("이 색을 내 색상에서 뺄까요?") },
+            text = { Text("${com.bettertick.ui.theme.UserColors.hex(argb)} · 이미 이 색을 쓰는 목록·태그 등은 그대로입니다.") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    com.bettertick.ui.theme.UserColors.remove(argb); removing = null
+                }) { Text("삭제") }
+            },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { removing = null }) { Text("취소") } }
+        )
+    }
+}
+
 // ── 설정 > 일반 > 근무 블록 색상 ───────────────────────────────────────────
 
 private val ShiftColorChoices: List<Long> = listOf(
@@ -479,7 +548,9 @@ private fun ShiftColorRow(kind: String, expanded: Boolean, onToggle: () -> Unit)
             Box(Modifier.size(22.dp).background(current, circle))
         }
         if (expanded) {
-            ShiftColorChoices.chunked(6).forEach { line ->
+            val choices = ShiftColorChoices +
+                com.bettertick.ui.theme.UserColors.colors.map { it.toLong() and 0xFFFFFFFFL }.filterNot { it in ShiftColorChoices }
+            choices.chunked(6).forEach { line ->
                 Row(
                     Modifier
                         .fillMaxWidth()

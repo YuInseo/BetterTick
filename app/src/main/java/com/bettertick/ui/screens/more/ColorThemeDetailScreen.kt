@@ -220,7 +220,9 @@ private fun CustomAccentPalette(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        CustomAccentSwatches.forEach { color ->
+        // Presets, then 내 색상 (설정 > 일반 > 색상 관리).
+        (CustomAccentSwatches + com.bettertick.ui.theme.UserColors.colors.map { Color(it) }
+            .filterNot { it in CustomAccentSwatches }).forEach { color ->
             val isPicked = color == selected
             Box(
                 modifier = Modifier

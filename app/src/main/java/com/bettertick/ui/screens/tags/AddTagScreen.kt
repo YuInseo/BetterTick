@@ -44,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -298,16 +299,34 @@ private val Palette = listOf(
     "#9C51E0"            // stand-in for the reference's rainbow slot
 )
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 private fun ColorRow(
     selected: String?,
     onSelect: (String?) -> Unit
 ) {
-    Row(
+    // Presets, then 내 색상 (설정 > 일반 > 색상 관리), then + to add one.
+    val userHex = com.bettertick.ui.theme.UserColors.colors.map { com.bettertick.ui.theme.UserColors.hex(it) }
+    val all = Palette + userHex.filterNot { h -> Palette.any { it.equals(h, ignoreCase = true) } }
+    var adding by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (adding) {
+        com.bettertick.ui.screens.calendar.CustomColorDialog(
+            initial = selected?.let { runCatching { Color(android.graphics.Color.parseColor(it)) }.getOrNull() }
+                ?: com.bettertick.ui.theme.ThemeState.accentColor,
+            onDismiss = { adding = false },
+            onConfirm = { c ->
+                com.bettertick.ui.theme.UserColors.add(c)
+                adding = false
+                onSelect(com.bettertick.ui.theme.UserColors.hex(c.copy(alpha = 1f).toArgb()))
+            }
+        )
+    }
+    androidx.compose.foundation.layout.FlowRow(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Palette.forEach { hex ->
+        all.forEach { hex ->
             val isSelected = hex == selected
             Box(
                 modifier = Modifier
@@ -338,6 +357,16 @@ private fun ColorRow(
                     )
                 }
             }
+        }
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .border(1.5.dp, TextTertiary, CircleShape)
+                .clickable { adding = true },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = "+", color = TextSecondary, fontSize = 20.sp)
         }
     }
 }
