@@ -488,6 +488,11 @@ private fun MainContent(
                                 exportContext,
                                 com.bettertick.ui.screens.more.buildTasksCsv(allTasks, lists, tags)
                             )
+                        },
+                        onImportTasks = { csv ->
+                            val imported = com.bettertick.ui.screens.more.parseTasksCsv(csv, lists, tags, allTasks)
+                            quickAddViewModel.importTasks(imported)
+                            imported.size
                         }
                     )
                 }
@@ -663,6 +668,44 @@ private fun MainContent(
                     contentAlignment = Alignment.BottomEnd
                 ) {
                     TickFab(onClick = { showTaskInput = true })
+                }
+            }
+
+            // 삭제 직후 몇 초 동안 뜨는 '실행 취소' 바.
+            val deleted by quickAddViewModel.recentlyDeleted.collectAsState()
+            deleted?.let { (task, at) ->
+                androidx.compose.runtime.LaunchedEffect(task.id, at) {
+                    val left = 6000L - (System.currentTimeMillis() - at)
+                    if (left > 0) kotlinx.coroutines.delay(left)
+                    quickAddViewModel.dismissDeleted()
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(start = 16.dp, end = 16.dp, bottom = 84.dp),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(com.bettertick.ui.theme.DarkSurfaceVariant)
+                            .padding(start = 16.dp, end = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "'${task.title.ifBlank { "할일" }}' 삭제됨",
+                            color = TextPrimary,
+                            fontSize = 14.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        androidx.compose.material3.TextButton(onClick = { quickAddViewModel.undoDelete() }) {
+                            Text("실행 취소", fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+                        }
+                    }
                 }
             }
             }
