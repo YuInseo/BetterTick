@@ -42,7 +42,7 @@ import androidx.compose.material.icons.filled.Reorder
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Divider
-import androidx.compose.material3.DropdownMenu
+import com.bettertick.ui.components.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton

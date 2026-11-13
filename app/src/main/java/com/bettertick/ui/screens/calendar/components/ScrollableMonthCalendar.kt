@@ -373,7 +373,10 @@ fun CalendarTaskChip(
     val leave = if (isShift) task.leaveOn(day) else null
     val title = if (isShift) task.shiftTitleOn(day) else task.title
     val label = if (leave != null) "${normalizeShiftLabel(title)} $leave" else title
-    val colors = chipColors(LocalTaskColor.current(task), task.isCompleted)
+    val colors = chipColors(
+        com.bettertick.ui.screens.tasks.components.shiftAwareColor(task, day, LocalTaskColor.current(task)),
+        task.isCompleted
+    )
     val time = if (showTime && CalendarPrefs.showDetails) {
         task.dueDate?.toDate()?.toInstant()?.atZone(java.time.ZoneId.systemDefault())?.toLocalTime()
             ?.takeIf { it != java.time.LocalTime.MIDNIGHT }
