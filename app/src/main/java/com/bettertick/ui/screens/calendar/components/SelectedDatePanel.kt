@@ -125,8 +125,21 @@ fun SelectedDatePanel(
     val shape = remember { RoundedCornerShape(18.dp) }
 
     // Subtasks sit right under their parent.
-    val active = tasks.filterNot { it.isCompleted || it.isAbandoned }.groupedUnderParents()
-    val done = tasks.filter { it.isCompleted || it.isAbandoned }
+    // Whole families stay together: a group (a top task and everything under
+    // it) stays in the top card while any of it is unfinished — its finished
+    // subtasks show checked in place — and moves to 완료 & 포기 only when all
+    // of it is finished, still nested.
+    val families: List<List<Task>> = remember(tasks) {
+        val tree = tasks.groupedUnderParents()
+        val depthOf = tree.subtaskDepths()
+        val out = mutableListOf<MutableList<Task>>()
+        tree.forEach { t -> if ((depthOf[t.id] ?: 0) == 0 || out.isEmpty()) out += mutableListOf(t) else out.last() += t }
+        out
+    }
+    fun finished(t: Task) = t.isCompleted || t.isAbandoned
+    val active = families.filter { f -> f.any { !finished(it) } }.flatten()
+    val done = families.filter { f -> f.all { finished(it) } }.flatten()
+    val doneDepths = remember(done) { done.subtaskDepths() }
 
     var rescheduleFor by remember { mutableStateOf<Task?>(null) }
     var datePickerFor by remember { mutableStateOf<Task?>(null) }
@@ -259,7 +272,11 @@ fun SelectedDatePanel(
                             task = task,
                             selectedDate = selectedDate,
                             listName = detailListName(task),
-                            onToggleComplete = { onToggleComplete(task) },
+                            onToggleComplete = {
+                                // A finished subtask kept in its family's group:
+                                // the checkbox restores it (취소됨 → 되살리기).
+                                if (task.isAbandoned) onUnabandon(task) else onToggleComplete(task)
+                            },
                             onClick = {
                                 onTaskClick(task)
                                 detailFor = task
@@ -383,6 +400,21 @@ fun SelectedDatePanel(
                     val taskTags = remember(task.tagIds, tags) {
                         task.tagIds.mapNotNull { id -> tags.firstOrNull { it.id == id } }
                     }
+                    val doneDepth = doneDepths[task.id] ?: 0
+                    Box(
+                        Modifier
+                            .then(
+                                if (doneDepth > 0) Modifier
+                                    .drawBehind {
+                                        for (level in 0 until doneDepth) {
+                                            val x = (14 + 22 * level).dp.toPx()
+                                            drawLine(SubtaskGuide, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5.dp.toPx())
+                                        }
+                                    }
+                                    .padding(start = (22 * doneDepth).dp)
+                                else Modifier
+                            )
+                    ) {
                     TaskItem(
                         task = task,
                         onToggleComplete = {
@@ -398,6 +430,7 @@ fun SelectedDatePanel(
                         resolvedTags = taskTags,
                         onStatusAction = { action -> onStatusAction(task, action) }
                     )
+                    }
                 }
                 Spacer(Modifier.height(6.dp))
             }
