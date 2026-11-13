@@ -227,11 +227,20 @@ class TaskRepository @Inject constructor(
         cachedTask(parentId)?.takeIf { !it.isSubtask }?.let { syncSubtasks(it) }
     }
 
-    /** Nests [child] under [parent]: it now repeats with the parent, at its own time. */
+    /**
+     * Nests [child] under [parent]: it now repeats with the parent, at its own
+     * time. Nesting stays one level deep, so [child]'s own subtasks move under
+     * [parent] too.
+     */
     suspend fun nestTask(child: Task, parent: Task) {
-        if (child.id.isBlank() || parent.id.isBlank() || child.id == parent.id) return
+        if (child.id.isBlank() || parent.id.isBlank() || child.id == parent.id || parent.isSubtask) return
+        val grandchildren = cachedSubtasks(child.id)
         firestoreProvider.tasksCollection().document(child.id)
             .set(child.followingSchedule(parent, fresh = true).copy(updatedAt = Timestamp.now()))
+        grandchildren.forEach { g ->
+            firestoreProvider.tasksCollection().document(g.id)
+                .set(g.followingSchedule(parent, fresh = true).copy(updatedAt = Timestamp.now()))
+        }
         refreshWidget()
     }
 

@@ -20,13 +20,14 @@ val Task.isSubtask: Boolean get() = parentId.isNotBlank()
 
 /**
  * Can this task be dropped under [parent]? Not onto itself, not under a
- * subtask (one level only), not when it already has subtasks of its own,
- * and not under the parent it already has.
+ * subtask (one level only — that also rules out its own subtasks), and not
+ * under the parent it already has. A task with subtasks may be nested: its
+ * subtasks move under [parent] with it (see TaskRepository.nestTask).
  */
+@Suppress("UNUSED_PARAMETER")
 fun Task.canNestUnder(parent: Task, all: List<Task>): Boolean =
     id.isNotBlank() && parent.id.isNotBlank() && parent.id != id &&
-        !parent.isSubtask && parentId != parent.id &&
-        all.none { it.parentId == id }
+        !parent.isSubtask && parentId != parent.id
 
 private fun Task.localTimeOrMidnight(zone: ZoneId): LocalTime =
     dueDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalTime() ?: LocalTime.MIDNIGHT

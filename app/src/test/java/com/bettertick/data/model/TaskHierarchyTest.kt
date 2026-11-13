@@ -87,7 +87,8 @@ class TaskHierarchyTest {
         assertTrue(gym.canNestUnder(shift, all))
         assertFalse(gym.canNestUnder(gym, all))          // itself
         assertFalse(gym.canNestUnder(child, all))        // under a subtask
-        assertFalse(shift.canNestUnder(gym, all))        // a parent can't become a child
+        assertTrue(shift.canNestUnder(gym, all))         // a parent can; its subtasks move with it
+        assertFalse(shift.canNestUnder(child, all))      // never under its own subtask
         assertFalse(child.canNestUnder(shift, all))      // already there
     }
 

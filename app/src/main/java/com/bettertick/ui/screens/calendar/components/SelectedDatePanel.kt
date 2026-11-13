@@ -165,8 +165,8 @@ fun SelectedDatePanel(
         if (dragged == null || nestTarget != null || listBounds?.contains(p) != true) null
         else others.count { t -> rowBounds[t.id]?.let { it.center.y < p.y } == true }
     }
-    // Reordering into a parent's group (above one of its subtasks) nests the
-    // dragged task there; a subtask may also stay at the end of its own group.
+    // Reordering into a parent's group (between its subtasks, or right below
+    // the last one) nests the dragged task there.
     val dropParent: Task? = insertAt?.let { idx ->
         val d = dragged ?: return@let null
         var i = 0
@@ -175,11 +175,7 @@ fun SelectedDatePanel(
             val t = others[i]
             var end = i + 1
             while (end < others.size && others[end].parentId == t.id) end++
-            if (!t.isSubtask && end > i + 1) {
-                val inside = idx in (i + 1) until end
-                val atOwnEnd = idx == end && d.parentId == t.id
-                if (inside || atOwnEnd) found = t
-            }
+            if (!t.isSubtask && end > i + 1 && idx in (i + 1)..end) found = t
             i = end
         }
         found?.takeIf { d.parentId == it.id || d.canNestUnder(it, tasks) }
