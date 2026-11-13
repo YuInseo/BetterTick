@@ -18,6 +18,10 @@ class WorkplaceLeaveTest {
     }
 
     @Test fun eachDayCountsTowardTheWorkplaceItFallsIn() {
+        // Earlier workplaces (e.g. the migrated '내 회사', still 재직 중) end
+        // before 2030 for this test, so 2030 is only A and B.
+        val before = LeavePrefs.workplaces.toList()
+        before.forEach { LeavePrefs.updateWorkplaceDates(it.id, it.start, day("2029-12-31")) }
         val a = LeavePrefs.addWorkplace("A회사", day("2030-01-01"), day("2030-06-30"))
         val b = LeavePrefs.addWorkplace("B회사", day("2030-07-01"), null)
         try {
@@ -50,6 +54,7 @@ class WorkplaceLeaveTest {
         } finally {
             LeavePrefs.deleteWorkplace(a.id)
             LeavePrefs.deleteWorkplace(b.id)
+            before.forEach { LeavePrefs.updateWorkplaceDates(it.id, it.start, it.end) }
             LeavePrefs.selectEditing(LeavePrefs.workplaces.first().id)
             LeavePrefs.recount(emptyList())
         }
