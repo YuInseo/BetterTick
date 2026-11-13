@@ -283,9 +283,29 @@ class TaskRepository @Inject constructor(
         refreshWidget()
     }
 
+    /** The task deleted last and when (epoch ms) — lets the UI offer 실행 취소. */
+    private val _recentlyDeleted = kotlinx.coroutines.flow.MutableStateFlow<Pair<Task, Long>?>(null)
+    val recentlyDeleted: kotlinx.coroutines.flow.StateFlow<Pair<Task, Long>?> = _recentlyDeleted
+
     suspend fun deleteTask(taskId: String) {
-        firestoreProvider.tasksCollection().document(taskId).delete()
+        val doc = firestoreProvider.tasksCollection().document(taskId)
+        val existing = runCatching { doc.get(Source.CACHE).await().toTask() }.getOrNull()
+        doc.delete()
+        if (existing != null) _recentlyDeleted.value = existing to System.currentTimeMillis()
         refreshWidget()
+    }
+
+    /** Puts back the task [deleteTask] removed last, under its old id. */
+    suspend fun undoDelete() {
+        val task = _recentlyDeleted.value?.first ?: return
+        _recentlyDeleted.value = null
+        if (task.id.isBlank()) return
+        firestoreProvider.tasksCollection().document(task.id).set(task)
+        refreshWidget()
+    }
+
+    fun clearRecentlyDeleted() {
+        _recentlyDeleted.value = null
     }
 
     /**

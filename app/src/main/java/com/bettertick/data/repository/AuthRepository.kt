@@ -44,6 +44,11 @@ class AuthRepository @Inject constructor(
         auth.signInWithEmailAndPassword(email, password).await()
     }
 
+    /** Mails a password-reset link to [email]. */
+    suspend fun sendPasswordReset(email: String) {
+        auth.sendPasswordResetEmail(email).await()
+    }
+
     suspend fun signUp(email: String, password: String, displayName: String) {
         val result = auth.createUserWithEmailAndPassword(email, password).await()
         val uid = result.user?.uid ?: return

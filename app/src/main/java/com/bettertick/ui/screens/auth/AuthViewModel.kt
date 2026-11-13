@@ -59,7 +59,7 @@ class AuthViewModel @Inject constructor(
             try {
                 authRepository.signIn(email, password)
             } catch (e: Exception) {
-                _authError.value = e.message ?: "Login failed"
+                _authError.value = authErrorMessage(e, "로그인하지 못했습니다.")
             } finally {
                 _isLoading.value = false
             }
@@ -73,7 +73,7 @@ class AuthViewModel @Inject constructor(
             try {
                 authRepository.signUp(email, password, displayName)
             } catch (e: Exception) {
-                _authError.value = e.message ?: "Registration failed"
+                _authError.value = authErrorMessage(e, "가입하지 못했습니다.")
             } finally {
                 _isLoading.value = false
             }
@@ -87,11 +87,30 @@ class AuthViewModel @Inject constructor(
             try {
                 authRepository.signInWithGoogle(context)
             } catch (e: Exception) {
-                _authError.value = e.message ?: "Google sign-in failed"
+                // Backing out of the account picker isn't an error worth showing.
+                _authError.value = if (e::class.java.simpleName.contains("Cancel")) null
+                else authErrorMessage(e, "Google 로그인을 하지 못했습니다.")
             } finally {
                 _isLoading.value = false
             }
         }
+    }
+
+    /** Sends a reset mail; null on success, else what went wrong. */
+    suspend fun sendPasswordReset(email: String): String? = runCatching {
+        authRepository.sendPasswordReset(email.trim())
+        null
+    }.getOrElse { authErrorMessage(it, "메일을 보내지 못했습니다.") }
+
+    /** Firebase's English errors in plain Korean. */
+    private fun authErrorMessage(e: Throwable, fallback: String): String = when (e) {
+        is com.google.firebase.auth.FirebaseAuthInvalidUserException -> "가입되지 않은 이메일입니다."
+        is com.google.firebase.auth.FirebaseAuthWeakPasswordException -> "비밀번호는 6자 이상이어야 합니다."
+        is com.google.firebase.auth.FirebaseAuthInvalidCredentialsException -> "이메일 또는 비밀번호가 올바르지 않습니다."
+        is com.google.firebase.auth.FirebaseAuthUserCollisionException -> "이미 가입된 이메일입니다."
+        is com.google.firebase.FirebaseNetworkException -> "네트워크 연결을 확인해 주세요."
+        is com.google.firebase.FirebaseTooManyRequestsException -> "시도가 너무 많습니다. 잠시 후 다시 해 주세요."
+        else -> fallback
     }
 
     fun signOut() {
