@@ -57,7 +57,7 @@ import com.bettertick.widget.theme.WidgetColorValues
 import com.bettertick.data.model.occursOn
 import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.groupedUnderParents
-import com.bettertick.data.model.isSubtask
+import com.bettertick.data.model.subtaskDepths
 import com.bettertick.data.model.leaveOn
 import com.bettertick.data.model.shiftKindOn
 import com.bettertick.data.model.shiftTitleOn
@@ -274,12 +274,14 @@ class ReminderWidget : GlanceAppWidget() {
                         )
                     }
                 } else {
+                    val depths = tasks.subtaskDepths()
                     LazyColumn(modifier = GlanceModifier.fillMaxSize()) {
                         items(tasks, itemId = { it.id.hashCode().toLong() }) { task ->
-                            val nested = task.isSubtask && tasks.any { it.id == task.parentId }
+                            val depth = depths[task.id] ?: 0
+                            val nested = depth > 0
                             Column(
                                 modifier = GlanceModifier
-                                    .padding(start = if (nested) 22.dp else 12.dp, end = 12.dp)
+                                    .padding(start = (12 + 16 * depth).dp, end = 12.dp)
                                     .clickable(
                                         // 근무 opens the app; other rows open 완료/취소됨/미루기.
                                         if (task.isShiftTask()) actionStartActivity<MainActivity>()

@@ -58,6 +58,7 @@ import com.bettertick.data.model.Task
 import com.bettertick.data.model.withLeaveToggled
 import com.bettertick.data.model.canNestUnder
 import com.bettertick.data.model.groupedUnderParents
+import com.bettertick.data.model.subtaskDepths
 import com.bettertick.data.model.isSubtask
 import com.bettertick.ui.screens.tasks.components.QuickDateSettingsDialog
 import com.bettertick.ui.screens.tasks.components.RecurringScope
@@ -167,19 +168,21 @@ fun SelectedDatePanel(
     }
     // Reordering into a parent's group (between its subtasks, or right below
     // the last one) nests the dragged task there.
+    // Decided by the row just above the drop line: right above its own first
+    // subtask → becomes its subtask; below a subtask → joins that subtask's
+    // parent (between siblings or right after the last one).
     val dropParent: Task? = insertAt?.let { idx ->
         val d = dragged ?: return@let null
-        var i = 0
-        var found: Task? = null
-        while (i < others.size && found == null) {
-            val t = others[i]
-            var end = i + 1
-            while (end < others.size && others[end].parentId == t.id) end++
-            if (!t.isSubtask && end > i + 1 && idx in (i + 1)..end) found = t
-            i = end
+        val above = others.getOrNull(idx - 1) ?: return@let null
+        val below = others.getOrNull(idx)
+        val target = when {
+            below != null && below.parentId == above.id -> above
+            above.isSubtask -> others.firstOrNull { it.id == above.parentId }
+            else -> null
         }
-        found?.takeIf { d.parentId == it.id || d.canNestUnder(it, tasks) }
+        target?.takeIf { d.parentId == it.id || d.canNestUnder(it, tasks) }
     }
+    val depths = remember(active) { active.subtaskDepths() }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Active (top) card — rounded both ends, scrollable.
@@ -215,7 +218,8 @@ fun SelectedDatePanel(
                         val lineAbove = insertAt != null && othersIdx >= 0 && othersIdx == insertAt
                         val lineBelow = insertAt != null && othersIdx >= 0 &&
                             othersIdx == others.lastIndex && insertAt == others.size
-                        val nestedRow = task.isSubtask && active.any { it.id == task.parentId }
+                        val depth = depths[task.id] ?: 0
+                        val nestedRow = depth > 0
                         val isNestTarget = nestTarget?.id == task.id
                         val accent = MaterialTheme.colorScheme.primary
                         Column(
@@ -228,15 +232,18 @@ fun SelectedDatePanel(
                                 .then(
                                     if (nestedRow) Modifier
                                         .drawBehind {
-                                            val x = 14.dp.toPx()
-                                            drawLine(
-                                                SubtaskGuide,
-                                                Offset(x, 0f),
-                                                Offset(x, size.height),
-                                                strokeWidth = 1.5.dp.toPx()
-                                            )
+                                            // One guide line per level.
+                                            for (level in 0 until depth) {
+                                                val x = (14 + 22 * level).dp.toPx()
+                                                drawLine(
+                                                    SubtaskGuide,
+                                                    Offset(x, 0f),
+                                                    Offset(x, size.height),
+                                                    strokeWidth = 1.5.dp.toPx()
+                                                )
+                                            }
                                         }
-                                        .padding(start = 22.dp)
+                                        .padding(start = (22 * depth).dp)
                                     else Modifier
                                 )
                                 .then(
