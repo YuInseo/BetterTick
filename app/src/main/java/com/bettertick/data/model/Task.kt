@@ -48,5 +48,10 @@ data class Task(
     val leaves: Map<String, String> = emptyMap(),
     // 근무 할일의 날짜별 근무 바꿈: "yyyy-MM-dd" → "주" | "야" | "비" | "휴" | "일근".
     // That day counts as this shift instead of the one in the title.
-    val dayShifts: Map<String, String> = emptyMap()
+    val dayShifts: Map<String, String> = emptyMap(),
+    // 하위 할일: id of the task this one is nested under (one level only).
+    // A subtask follows its parent's start day, repeat rule, end and skipped
+    // days (see TaskHierarchy.kt) but keeps its own time and length, so its
+    // timetable block repeats together with the parent. Empty = standalone.
+    val parentId: String = ""
 )
