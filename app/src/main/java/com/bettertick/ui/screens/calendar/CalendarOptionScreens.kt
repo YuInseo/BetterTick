@@ -559,8 +559,9 @@ fun ColorPickScreen(
     }
 }
 
+/** HSV sliders + hex input. Shared by every 내 색상 + button. */
 @Composable
-private fun CustomColorDialog(initial: Color, onDismiss: () -> Unit, onConfirm: (Color) -> Unit) {
+internal fun CustomColorDialog(initial: Color, onDismiss: () -> Unit, onConfirm: (Color) -> Unit) {
     val hsv = remember {
         FloatArray(3).also { android.graphics.Color.colorToHSV(initial.toArgbInt(), it) }
     }

@@ -44,6 +44,7 @@ class BetterTickApplication : Application() {
         // before any Compose content reads the palette.
         com.bettertick.ui.theme.ThemeState.init(this)
         com.bettertick.ui.theme.AppPrefs.init(this)
+        com.bettertick.ui.theme.UserColors.init(this)
         com.bettertick.ui.screens.calendar.CalendarPrefs.init(this)
         com.bettertick.ui.screens.tasks.TaskListPrefs.init(this)
         com.bettertick.ui.screens.tasks.SmartListPrefs.init(this)
