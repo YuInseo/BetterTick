@@ -385,7 +385,7 @@ class ReminderWidget : GlanceAppWidget() {
                     .clickable(actionStartActivityWithIntent(selectDateIntent(context, prevWeek, LocalWidgetId.current))),
                 contentAlignment = Alignment.Center
             ) {
-                com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_left, pal.text, (18 * fs).dp)
+                com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_left, pal.text, (16 * fs).dp)
             }
             Text(
                 text = "${selectedDate.monthValue}월",
@@ -401,7 +401,7 @@ class ReminderWidget : GlanceAppWidget() {
                     .clickable(actionStartActivityWithIntent(selectDateIntent(context, nextWeek, LocalWidgetId.current))),
                 contentAlignment = Alignment.Center
             ) {
-                com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_right, pal.text, (18 * fs).dp)
+                com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_right, pal.text, (16 * fs).dp)
             }
 
             // Right flex region — + and ⋮ right-aligned.
@@ -433,25 +433,27 @@ class ReminderWidget : GlanceAppWidget() {
 
     @androidx.compose.runtime.Composable
     private fun AppBadge(today: LocalDate, onTapIntent: Intent, pal: WidgetPalette) {
-        // Outlined rounded-square badge that always shows TODAY's day-of-
-        // month (unrelated to the selected date). Tapping it jumps the
-        // week strip back to today — Samsung Reminder widget parity.
+        // Calendar-outline badge that always shows TODAY's day-of-month
+        // (unrelated to the selected date). Tapping it jumps the week strip
+        // back to today — Samsung Reminder widget parity.
         Box(
             modifier = GlanceModifier
-                .size(24.dp)
-                .background(ColorProvider(pal.text.copy(alpha = 0.15f)))
-                .cornerRadius(6.dp)
+                .size(30.dp)
                 .clickable(actionStartActivityWithIntent(onTapIntent)),
             contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = today.dayOfMonth.toString(),
-                style = TextStyle(
-                    color = ColorProvider(pal.text),
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
+            com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_today, pal.text, 26.dp)
+            // The number sits in the calendar's body, below its two rings.
+            Box(modifier = GlanceModifier.padding(top = 3.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    text = today.dayOfMonth.toString(),
+                    style = TextStyle(
+                        color = ColorProvider(pal.text),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 )
-            )
+            }
         }
     }
 
