@@ -68,6 +68,9 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
         }
     }
 
+    // 월별 총 일수 직접 입력: (type, a day in that month).
+    var editMonthTotal by remember { mutableStateOf<Pair<String, LocalDate>?>(null) }
+
     if (expanded) {
         val month = YearMonth.parse(monthKey)
         val day = month.atDay(today.dayOfMonth.coerceAtMost(month.lengthOfMonth()))
@@ -104,11 +107,33 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
                             Text(balance(type, day), fontWeight = FontWeight.Bold)
                         }
                     }
+                    if (LeavePrefs.allowsMonthTotal(type, day)) {
+                        val manual = LeavePrefs.monthTotal(type, day)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                if (manual != null) "${month.monthValue}월 총 ${manual}일 직접 입력함"
+                                else "${month.monthValue}월 총 일수를 직접 정할 수 있어요",
+                                fontSize = 12.sp,
+                                modifier = Modifier.weight(1f).padding(start = 4.dp)
+                            )
+                            if (manual != null) {
+                                TextButton(onClick = { LeavePrefs.updateMonthTotal(type, day, null) }) { Text("자동으로") }
+                            }
+                            TextButton(onClick = { editMonthTotal = type to day }) {
+                                Text(if (manual != null) "수정" else "직접 입력")
+                            }
+                        }
+                    }
                 }
                 if (LeavePrefs.autoJihyu) {
                     Text("지휴 자동 계산 · ${LeavePrefs.periodOf("지휴").label}", modifier = Modifier.padding(top = 16.dp), fontWeight = FontWeight.Bold)
                     Text("공휴일${if (LeavePrefs.includeSaturday) "·토요일" else ""}${if (LeavePrefs.includeSunday) "·일요일" else ""} 근무 기준 · 예정 근무 포함 · 휴가 사용일 제외", fontSize = 12.sp)
-                    Text("자동 ${LeavePrefs.earnedIn(day)}일 + 추가 ${LeavePrefs.quota("지휴", day) - LeavePrefs.earnedIn(day)}일", fontSize = 12.sp)
+                    val manualJihyu = LeavePrefs.monthTotal("지휴", day)
+                    Text(
+                        if (manualJihyu != null) "직접 입력 ${manualJihyu}일 사용 중 · 자동 계산이면 ${LeavePrefs.earnedIn(day)}일"
+                        else "자동 ${LeavePrefs.earnedIn(day)}일 + 추가 ${LeavePrefs.quota("지휴", day) - LeavePrefs.earnedIn(day)}일",
+                        fontSize = 12.sp
+                    )
                     // Which red days made up the 자동 days, so the number can be checked.
                     LeavePrefs.earnedDaysIn(day).forEach { (d, kind) ->
                         Text(
@@ -122,5 +147,36 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
                 Text("항목을 누르면 지급 일수와 계산 기준을 설정할 수 있어요.", modifier = Modifier.padding(top = 12.dp), fontSize = 12.sp)
             }
         }
+    }
+
+    editMonthTotal?.let { (type, d) ->
+        var text by remember(type, d) { mutableStateOf(LeavePrefs.monthTotal(type, d)?.toString() ?: "") }
+        val value = text.toIntOrNull()
+        AlertDialog(
+            onDismissRequest = { editMonthTotal = null },
+            title = { Text("${d.year}년 ${d.monthValue}월 총 ${label(type)}") },
+            text = {
+                Column {
+                    Text("이 달은 자동 계산 대신 입력한 일수를 씁니다.", fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { v -> text = v.filter { it.isDigit() }.take(3) },
+                        singleLine = true,
+                        suffix = { Text("일") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = value != null, onClick = {
+                    LeavePrefs.updateMonthTotal(type, d, value)
+                    editMonthTotal = null
+                }) { Text("저장") }
+            },
+            dismissButton = { TextButton(onClick = { editMonthTotal = null }) { Text("취소") } }
+        )
     }
 }

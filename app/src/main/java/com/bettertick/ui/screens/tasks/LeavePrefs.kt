@@ -45,7 +45,12 @@ data class Workplace(
     /** 연도별 일수: type → (year → days). */
     val yearQuotas: Map<String, Map<Int, Int>> = emptyMap(),
     /** 근속연차별 일수: type → (service year → days). */
-    val serviceQuotas: Map<String, Map<Int, Int>> = emptyMap()
+    val serviceQuotas: Map<String, Map<Int, Int>> = emptyMap(),
+    /**
+     * 월별 총 일수 직접 입력: type → ("yyyy-MM" → days). For a 매달 kind it
+     * replaces everything else for that month (지휴 자동 계산 included).
+     */
+    val monthTotals: Map<String, Map<String, Int>> = emptyMap()
 ) {
     fun covers(day: LocalDate): Boolean =
         (start == null || !day.isBefore(start)) && (end == null || !day.isAfter(end))
@@ -307,6 +312,11 @@ object LeavePrefs {
                 put("quotas", org.json.JSONObject().apply { w.quotas.forEach { (t, d) -> put(t, d) } })
                 put("years", encodeYears(w.yearQuotas))
                 put("serviceYears", encodeYears(w.serviceQuotas))
+                put("monthTotals", org.json.JSONObject().apply {
+                    w.monthTotals.forEach { (type, months) ->
+                        put(type, org.json.JSONObject().apply { months.forEach { (m, d) -> put(m, d) } })
+                    }
+                })
             })
         }
     }.toString()
@@ -329,7 +339,13 @@ object LeavePrefs {
                 }?.toMap().orEmpty(),
                 quotas = quotasObj?.keys()?.asSequence()?.associateWith { quotasObj.optInt(it) }.orEmpty(),
                 yearQuotas = decodeYears(o.optJSONObject("years")),
-                serviceQuotas = decodeYears(o.optJSONObject("serviceYears"))
+                serviceQuotas = decodeYears(o.optJSONObject("serviceYears")),
+                monthTotals = o.optJSONObject("monthTotals")?.let { mt ->
+                    mt.keys().asSequence().associateWith { type ->
+                        val inner = mt.optJSONObject(type)
+                        inner?.keys()?.asSequence()?.associateWith { inner.optInt(it) }.orEmpty()
+                    }
+                }.orEmpty()
             )
         }
     }.getOrDefault(emptyList())
@@ -447,6 +463,33 @@ object LeavePrefs {
         "${range.start} ~ ${range.endInclusive}"
     }
 
+    // ── 월별 총 일수 직접 입력 ────────────────────────────────────────────────
+
+    private fun monthKey(day: LocalDate) = "%04d-%02d".format(day.year, day.monthValue)
+
+    private fun Workplace.monthTotal(type: String, day: LocalDate): Int? =
+        if (periodOf(type) == LeavePeriod.MONTH) monthTotals[type]?.get(monthKey(day)) else null
+
+    /** The total the user typed in for [day]'s month, if any (매달 kinds only). */
+    fun monthTotal(type: String, day: LocalDate): Int? = workplaceOn(day)?.monthTotal(type, day)
+
+    /** Can [type] take a typed-in total for [day]'s month (its period is 매달)? */
+    fun allowsMonthTotal(type: String, day: LocalDate): Boolean =
+        workplaceOn(day)?.periodOf(type) == LeavePeriod.MONTH
+
+    /** Set (or with null, clear back to the rule) the total for [day]'s month. */
+    fun updateMonthTotal(type: String, day: LocalDate, days: Int?) {
+        val wp = workplaceOn(day) ?: return
+        val key = monthKey(day)
+        storeWorkplaces(workplaces.map { w ->
+            if (w.id != wp.id) w else {
+                val cur = w.monthTotals[type].orEmpty()
+                val next = if (days == null) cur - key else cur + (key to days.coerceAtLeast(0))
+                w.copy(monthTotals = w.monthTotals + (type to next))
+            }
+        })
+    }
+
     // ── 날짜별 계산 (the workplace each day belongs to) ─────────────────────────
 
     private fun Workplace.ownQuota(type: String, day: LocalDate): Int? = when (periodOf(type)) {
@@ -461,6 +504,7 @@ object LeavePrefs {
     /** Allowance that applies on [day], using that day's workplace and reset boundary. */
     fun quota(type: String, day: LocalDate = LocalDate.now()): Int {
         val wp = workplaceOn(day) ?: return 0
+        wp.monthTotal(type, day)?.let { return it }
         val own = wp.ownQuota(type, day) ?: return 0
         return if (isAuto(type)) earnedIn(day) + own else own
     }
@@ -569,6 +613,8 @@ object LeavePrefs {
     fun remaining(type: String, day: LocalDate, extraUsed: Int = 0): Int? {
         val wp = workplaceOn(day) ?: return null
         val q = quota(type, day)
+        // A typed-in month total always counts as an allowance, even 0.
+        if (wp.monthTotal(type, day) != null) return q - used(type, day) - extraUsed
         val serviceBased = wp.periodOf(type) == LeavePeriod.SERVICE_YEAR
         if (serviceBased && wp.serviceYearOn(day) == 0) return null
         if (q <= 0 && !isAuto(type) &&
