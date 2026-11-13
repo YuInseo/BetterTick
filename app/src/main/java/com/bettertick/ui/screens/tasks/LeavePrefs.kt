@@ -70,6 +70,9 @@ object LeavePrefs {
     /** Count Sundays as red days too (공휴일만 세려면 끔). */
     var includeSunday by mutableStateOf(true)
         private set
+    /** Count Saturdays as red days too (off by default). */
+    var includeSaturday by mutableStateOf(false)
+        private set
     /** Days the user marked by hand: date → true (빨간날로) / false (빨간날 아님). */
     var redOverrides by mutableStateOf<Map<LocalDate, Boolean>>(emptyMap())
         private set
@@ -101,6 +104,7 @@ object LeavePrefs {
         autoJihyu = p.getBoolean("auto_jihyu", true)
         shiftWeights = WEIGHT_KINDS.associateWith { p.getInt("weight_$it", DEFAULT_WEIGHTS[it] ?: 1) }
         includeSunday = p.getBoolean("red_sunday", true)
+        includeSaturday = p.getBoolean("red_saturday", false)
         shiftColors = COLOR_KINDS.filter { p.contains("shift_color_$it") }
             .associateWith { p.getInt("shift_color_$it", 0) }
         redOverrides = p.getString("red_overrides", null).orEmpty().split(',').mapNotNull { e ->
@@ -125,6 +129,12 @@ object LeavePrefs {
         recount(lastTasks)
     }
 
+    fun updateIncludeSaturday(on: Boolean) {
+        includeSaturday = on
+        edit { putBoolean("red_saturday", on) }
+        recount(lastTasks)
+    }
+
     /** Paint [kind] blocks with [argb]; null goes back to the default color. */
     fun updateShiftColor(kind: String, argb: Int?) {
         shiftColors = if (argb == null) shiftColors - kind else shiftColors + (kind to argb)
@@ -141,11 +151,12 @@ object LeavePrefs {
     }
 
     /** Red on the Korean calendar, after the user's own corrections. */
-    fun isRedDay(day: LocalDate): Boolean = redOverrides[day] ?: KoreanHolidays.isRedDay(day, includeSunday)
+    fun isRedDay(day: LocalDate): Boolean =
+        redOverrides[day] ?: KoreanHolidays.isRedDay(day, includeSunday, includeSaturday)
 
     /** Mark [day] red / not red by hand; null goes back to the calendar. */
     fun setRedOverride(day: LocalDate, red: Boolean?) {
-        redOverrides = if (red == null || red == KoreanHolidays.isRedDay(day, includeSunday)) redOverrides - day
+        redOverrides = if (red == null || red == KoreanHolidays.isRedDay(day, includeSunday, includeSaturday)) redOverrides - day
         else redOverrides + (day to red)
         edit {
             putString("red_overrides", redOverrides.entries.sortedBy { it.key }
@@ -160,6 +171,7 @@ object LeavePrefs {
         KoreanHolidays.name(day) != null -> KoreanHolidays.name(day)
         redOverrides[day] == true -> "직접 지정"
         includeSunday && day.dayOfWeek == java.time.DayOfWeek.SUNDAY -> "일요일"
+        includeSaturday && day.dayOfWeek == java.time.DayOfWeek.SATURDAY -> "토요일"
         else -> null
     }
 
