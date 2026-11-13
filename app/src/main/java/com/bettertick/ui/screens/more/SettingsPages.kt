@@ -584,6 +584,12 @@ fun LeaveTypeSettingsScreen(type: String, onBack: () -> Unit) {
                         checked = LeavePrefs.includeSunday,
                         onCheckedChange = { LeavePrefs.updateIncludeSunday(it) }
                     )
+                    OptionSwitchRow(
+                        title = "토요일도 빨간날로",
+                        subtitle = "켜면 토요일 근무도 지휴로 셉니다.",
+                        checked = LeavePrefs.includeSaturday,
+                        onCheckedChange = { LeavePrefs.updateIncludeSaturday(it) }
+                    )
                     LeavePrefs.WEIGHT_KINDS.forEach { kind ->
                         OptionNavRow(
                             "빨간날 ${com.bettertick.data.model.shiftKindName(kind)} 근무",

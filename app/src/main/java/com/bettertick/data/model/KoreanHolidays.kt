@@ -44,9 +44,10 @@ object KoreanHolidays {
     /** Holiday name on [date] ("추석", "대체공휴일" …), or null. Sundays alone are not named. */
     fun name(date: LocalDate): String? = holidays(date.year)[date]
 
-    /** A red day: a Sunday (when [includeSunday]) or any public holiday. */
-    fun isRedDay(date: LocalDate, includeSunday: Boolean = true): Boolean =
-        (includeSunday && date.dayOfWeek == DayOfWeek.SUNDAY) || name(date) != null
+    /** A red day: a Sunday (when [includeSunday]), a Saturday (when [includeSaturday]) or any public holiday. */
+    fun isRedDay(date: LocalDate, includeSunday: Boolean = true, includeSaturday: Boolean = false): Boolean =
+        (includeSunday && date.dayOfWeek == DayOfWeek.SUNDAY) ||
+            (includeSaturday && date.dayOfWeek == DayOfWeek.SATURDAY) || name(date) != null
 
     /** Every holiday in [year], 대체공휴일 included. */
     @Synchronized

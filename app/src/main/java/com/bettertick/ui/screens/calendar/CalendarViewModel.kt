@@ -225,6 +225,16 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    /** 하위 할일로 넣기: [child] now repeats with [parent], at its own time. */
+    fun nestTask(child: Task, parent: Task) {
+        viewModelScope.launch { taskRepository.nestTask(child, parent) }
+    }
+
+    /** 하위 할일 분리: [child] stays on [day] as a standalone one-off task. */
+    fun unnestTask(child: Task, day: LocalDate) {
+        viewModelScope.launch { taskRepository.unnestTask(child, day) }
+    }
+
     fun deleteTask(taskId: String) {
         viewModelScope.launch {
             taskRepository.deleteTask(taskId)
