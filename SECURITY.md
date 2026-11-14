@@ -92,3 +92,13 @@ Release CI에서는 `FIREBASE_RELEASE_CONFIG_BASE64` Secret을 설정하면 `app
 - https://firebase.google.com/docs/app-check/android/play-integrity-provider
 - https://firebase.google.com/docs/firestore/security/rules-conditions
 - https://firebase.google.com/docs/rules/unit-tests
+
+## 이전 APK 정리
+
+- PR CI는 APK를 Actions 산출물로 업로드하지 않습니다. 빌드·Lint·테스트와 최종 위치 권한 검사는 유지합니다. 최신 설치 파일은 `latest-debug` 릴리즈에서만 제공합니다.
+- `check-secrets.py`는 APK/AAB가 새 커밋에 들어오는 것도 거부합니다.
+- `Purge historical APKs`는 소유자가 승인한 1회성 정리용입니다. 정확히 `maintenance/purge-historical-apks` 브랜치가 만들어질 때만 실행되며, 일반 푸시·PR에서는 실행하지 않습니다. 같은 이름의 브랜치를 임의로 만들지 마세요.
+- 정리는 모든 브랜치·태그의 APK/AAB 파일을 기록에서 제거하고, 현재 코드 트리와 커밋 수가 보존되는지 검사합니다. 원격 참조가 작업 중 바뀌면 중단하고, 변경한 참조는 lease와 atomic push로 함께 갱신합니다. 강제 푸시 제한을 자동 해제하지 않습니다.
+- 최신 Debug APK와 업데이트 정보를 보존하고, 다른 릴리즈의 APK/AAB 자산·APK Actions 산출물·옛 패키징 결과가 있을 수 있는 재생성 가능한 빌드 캐시를 정리합니다. 일반 코드·문서·Lint 보고서·빌드 로그는 삭제 대상이 아닙니다.
+- 기록 재작성 후에는 기존 작업 복사본을 새로 clone하거나 정리된 기록 위로 작업을 옮겨야 합니다. 옛 기록을 merge/push하면 제거한 파일이 다시 들어올 수 있습니다.
+- **브랜치·태그 기록에서 지우더라도 GitHub의 읽기 전용 PR 참조·캐시된 커밋 화면, 다른 사람의 포크·clone·다운로드는 완전히 회수할 수 없습니다.** Firebase 공개 클라이언트 키가 비밀이 되는 것도 아닙니다.
