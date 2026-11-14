@@ -57,5 +57,7 @@ data class Task(
     // 반복 할일의 날짜별 완료: "yyyy-MM-dd" of each occurrence checked off.
     val completedDates: List<String> = emptyList(),
     // true = 체크하면 반복 전체가 완료 (예전 방식); false = 날짜별로 체크.
-    val checkWholeSeries: Boolean = false
+    val checkWholeSeries: Boolean = false,
+    // 개별 메모: 반복 할일의 날짜별 메모 ("yyyy-MM-dd" → 메모). [notes]는 공통 메모.
+    val dayNotes: Map<String, String> = emptyMap()
 )

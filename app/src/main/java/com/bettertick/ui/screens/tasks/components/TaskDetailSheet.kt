@@ -145,6 +145,9 @@ fun TaskDetailSheet(
     // pulls in fresh values instead of leaking from the previous one.
     var title by remember(task.id) { mutableStateOf(task.title) }
     var notes by remember(task.id) { mutableStateOf(task.notes) }
+    // 개별 메모: 반복 할일을 특정 날짜에서 열었을 때 그 날에만 보이는 메모.
+    val dayKey = occurrenceDate?.takeIf { !task.repeatRule.isNullOrBlank() }?.toString()
+    var dayNote by remember(task.id, dayKey) { mutableStateOf(dayKey?.let { task.dayNotes[it] }.orEmpty()) }
     // 근무 할일: 병가 / 지휴 per day.
     var leaves by remember(task.id) { mutableStateOf(task.leaves) }
     // 근무 할일: 그 날만 다른 근무로 (주 / 야 / 비 / 휴).
@@ -202,7 +205,11 @@ fun TaskDetailSheet(
 
     fun commitAndClose() {
         val attachmentsList = attachments.toList()
+        val newDayNotes = if (dayKey == null) task.dayNotes
+            else if (dayNote.isBlank()) task.dayNotes - dayKey
+            else task.dayNotes + (dayKey to dayNote)
         val changed =
+            newDayNotes != task.dayNotes ||
             title != task.title ||
                 notes != task.notes ||
                 notionUrl != task.notionUrl ||
@@ -227,6 +234,7 @@ fun TaskDetailSheet(
                     leaves = leaves,
                     dayShifts = dayShifts,
                     notes = notes,
+                    dayNotes = newDayNotes,
                     notionUrl = notionUrl,
                     dueDate = dueTimestamp,
                     durationMinutes = duration,
@@ -539,11 +547,15 @@ fun TaskDetailSheet(
             // Plain markdown when listMode is None, otherwise an interactive
             // checklist / bullet editor. The list-button in the bottom bar
             // cycles between the two modes and keeps `notes` in sync.
+            if (dayKey != null) {
+                NoteSectionLabel("공통 메모 · 모든 반복에 보여요")
+            }
             if (listMode == ListMode.None) {
                 MarkdownNotesEditor(
                     value = notes,
                     onValueChange = { notes = it },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    minHeight = if (dayKey != null) 72.dp else 160.dp
                 )
             } else {
                 ChecklistEditor(
@@ -554,6 +566,17 @@ fun TaskDetailSheet(
                         syncNotesFromItems()
                         listMode = ListMode.None
                     }
+                )
+            }
+            if (dayKey != null && occurrenceDate != null) {
+                Spacer(Modifier.height(12.dp))
+                NoteSectionLabel("개별 메모 · ${occurrenceDate.monthValue}월 ${occurrenceDate.dayOfMonth}일에만")
+                MarkdownNotesEditor(
+                    value = dayNote,
+                    onValueChange = { dayNote = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = "이 날에만 보이는 메모",
+                    minHeight = 72.dp
                 )
             }
 
@@ -792,10 +815,23 @@ private fun NotionCard(
 // ── Notes editor ─────────────────────────────────────────────────────────
 
 @Composable
+private fun NoteSectionLabel(text: String) {
+    Text(
+        text = text,
+        fontSize = 12.sp,
+        color = TextTertiary,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(bottom = 4.dp)
+    )
+}
+
+@Composable
 private fun MarkdownNotesEditor(
     value: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    placeholder: String = "설명",
+    minHeight: androidx.compose.ui.unit.Dp = 160.dp
 ) {
     val transformation = remember { MarkdownInlineTransformation() }
 
@@ -805,7 +841,7 @@ private fun MarkdownNotesEditor(
     Box(modifier = modifier) {
         if (value.isEmpty()) {
             Text(
-                text = "설명",
+                text = placeholder,
                 fontSize = 16.sp,
                 color = TextTertiary
             )
@@ -822,7 +858,7 @@ private fun MarkdownNotesEditor(
             visualTransformation = transformation,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 160.dp)
+                .heightIn(min = minHeight)
         )
     }
 }

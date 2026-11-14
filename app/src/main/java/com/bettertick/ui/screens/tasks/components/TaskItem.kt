@@ -249,8 +249,9 @@ fun TaskItem(
 
         if (shownDate != null || !task.repeatRule.isNullOrBlank() || task.isPinned) {
             Spacer(Modifier.width(8.dp))
-            // At most about half the row, so a long date never squeezes the title away.
-            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f, fill = false)) {
+            // Capped width (not a weight) so it hugs the right edge and a long
+            // date never squeezes the title away.
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.widthIn(max = 190.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (task.isPinned) {
                         Icon(
@@ -295,7 +296,8 @@ fun TaskItem(
                             lineHeight = 15.sp,
                             color = dateColor,
                             maxLines = 2,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.End
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
                     }
                 }
@@ -310,6 +312,18 @@ fun TaskItem(
             color = TextSecondary,
             fontSize = 13.sp,
             maxLines = 8,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 44.dp, bottom = 4.dp)
+        )
+    }
+    // 개별 메모: 반복 할일의 이 날짜에만 쓴 메모.
+    val dayNote = overrideDate?.let { task.dayNotes[it.toString()] }?.trim()
+    if (showDetails && !dayNote.isNullOrEmpty()) {
+        MarkdownText(
+            text = "· $dayNote",
+            color = accent,
+            fontSize = 13.sp,
+            maxLines = 4,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 44.dp, bottom = 4.dp)
         )
