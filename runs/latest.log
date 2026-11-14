@@ -32,8 +32,8 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:javaPreCompileDebug UP-TO-DATE
-> Task :app:mergeDebugShaders UP-TO-DATE
 > Task :app:processDebugManifestForPackage
+> Task :app:mergeDebugShaders UP-TO-DATE
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets UP-TO-DATE
@@ -51,12 +51,26 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
 > Task :app:processDebugResources
 > Task :app:kspDebugKotlin
+
 > Task :app:compileDebugKotlin
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:209:44 '@Deprecated(...) static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:386:20 '@Deprecated(...) @UiThread() static fun setImportantForAccessibility(@NonNull() p0: View, p1: Int): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:386:66 '@Deprecated(...) static field IMPORTANT_FOR_ACCESSIBILITY_YES: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/QuickOverlayService.kt:111:44 '@Deprecated(...) static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/QuickOverlayService.kt:120:20 '@Deprecated(...) @UiThread() static fun setImportantForAccessibility(@NonNull() p0: View, p1: Int): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/QuickOverlayService.kt:120:66 '@Deprecated(...) static field IMPORTANT_FOR_ACCESSIBILITY_YES: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/calendar/CalendarOptionScreens.kt:434:49 '@property:Deprecated(...) val Icons.Outlined.LabelOff: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.LabelOff.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/calendar/components/SelectedDatePanel.kt:302:62 Condition is always 'true'.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/matrix/MatrixScreen.kt:212:52 '@property:Deprecated(...) val Icons.Outlined.HelpOutline: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.HelpOutline.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/TaskListMenus.kt:88:93 '@property:Deprecated(...) val Icons.Outlined.Notes: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.Notes.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/TasksScreen.kt:698:36 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/TasksScreen.kt:860:68 '@property:Deprecated(...) val Icons.Filled.KeyboardArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Filled.KeyboardArrowRight.
+
 > Task :app:compileDebugJavaWithJavac
 > Task :app:hiltAggregateDepsDebug UP-TO-DATE
-> Task :app:hiltJavaCompileDebug UP-TO-DATE
-> Task :app:processDebugJavaRes UP-TO-DATE
-> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:hiltJavaCompileDebug
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugJavaResource
 > Task :app:transformDebugClassesWithAsm
 > Task :app:dexBuilderDebug
 > Task :app:mergeDebugGlobalSynthetics UP-TO-DATE
@@ -65,5 +79,5 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 34s
-43 actionable tasks: 14 executed, 29 up-to-date
+BUILD SUCCESSFUL in 1m 21s
+43 actionable tasks: 17 executed, 26 up-to-date
