@@ -684,6 +684,27 @@ private fun MainContent(
                 !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen &&
                 !com.bettertick.ui.screens.tasks.TaskListPrefs.selectionActive
             ) {
+                // Soft fade from the page color behind the floating buttons,
+                // so busy content (the month grid) doesn't read through them.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(88.dp)
+                            .background(
+                                androidx.compose.ui.graphics.Brush.verticalGradient(
+                                    0f to Color.Transparent,
+                                    0.55f to DarkBackground.copy(alpha = 0.85f),
+                                    1f to DarkBackground
+                                )
+                            )
+                    )
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
