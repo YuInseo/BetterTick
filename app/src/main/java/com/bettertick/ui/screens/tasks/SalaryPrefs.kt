@@ -215,6 +215,14 @@ object SalaryPrefs {
     fun quarterTotal(year: Int, quarter: Int): Long = quarterMonths(year, quarter).sumOf { total(it) }
     fun yearTotal(year: Int): Long = (1..12).sumOf { total(YearMonth.of(year, it)) }
 
+    /** True only the first time: the 가계부 tab gets added to the user's tab bar once. */
+    fun claimMoneyTabMigration(): Boolean {
+        val p = appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE) ?: return false
+        if (p.getBoolean("money_tab_added", false)) return false
+        p.edit().putBoolean("money_tab_added", true).apply()
+        return true
+    }
+
     fun updateShowButton(on: Boolean) {
         showButton = on
         appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()?.putBoolean("show_button", on)?.apply()

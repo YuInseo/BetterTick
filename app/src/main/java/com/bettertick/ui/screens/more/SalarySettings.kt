@@ -83,15 +83,6 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
     val mil = rules.military
 
     OptionPage(title = "월급 · 가계부", onBack = onBack) {
-        OptionCard {
-            OptionSwitchRow(
-                title = "가계부 버튼",
-                subtitle = "캘린더 화면 왼쪽 아래에 월급·용돈·지출을 보는 버튼을 띄웁니다.",
-                checked = SalaryPrefs.showButton,
-                onCheckedChange = { SalaryPrefs.updateShowButton(it) }
-            )
-        }
-
         PaySectionLabel("근무지")
         OptionCard {
             OptionChoiceRow(
@@ -209,7 +200,7 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
             OptionNavRow("고정 수입 추가 (용돈 등)") { addRecurring = true }
             OptionNavRow("고정 지출 추가 (월세·통신비 등)") { addRecurring = false }
         }
-        PayHint("근무지와 상관없이 매달 들어오고 나가는 돈입니다. 한 번뿐인 수입·지출은 캘린더 왼쪽 아래 '가계부'에서 바로 추가하세요.")
+        PayHint("근무지와 상관없이 매달 들어오고 나가는 돈입니다. 한 번뿐인 수입·지출은 '가계부' 탭에서 바로 추가하세요.")
 
         PaySectionLabel("미리보기")
         OptionCard {
@@ -261,7 +252,7 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
                 )
             }
         }
-        PayHint("이 근무지 규칙만으로 계산한 금액입니다. 근무 기간 밖의 달은 화면 왼쪽 아래 '가계부'에서 0원으로 나옵니다.")
+        PayHint("이 근무지 규칙만으로 계산한 금액입니다. 근무 기간 밖의 달은 '가계부' 탭에서 0원으로 나옵니다.")
     }
 
     addRecurring?.let { inc ->
