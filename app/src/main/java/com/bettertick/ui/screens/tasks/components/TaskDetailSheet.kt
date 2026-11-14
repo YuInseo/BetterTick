@@ -147,7 +147,13 @@ fun TaskDetailSheet(
     var notes by remember(task.id) { mutableStateOf(task.notes) }
     // 개별 메모: 반복 할일을 특정 날짜에서 열었을 때 그 날에만 보이는 메모.
     val dayKey = occurrenceDate?.takeIf { !task.repeatRule.isNullOrBlank() }?.toString()
-    var dayNote by remember(task.id, dayKey) { mutableStateOf(dayKey?.let { task.dayNotes[it] }.orEmpty()) }
+    // 메모장: 기존 날짜별 메모(dayNotes)도 메모로 옮겨 담는다.
+    val memos = remember(task.id) {
+        androidx.compose.runtime.mutableStateListOf<com.bettertick.data.model.TaskMemo>().apply {
+            addAll(task.memos)
+            task.dayNotes.forEach { (d, t) -> add(com.bettertick.data.model.TaskMemo(text = t, day = d)) }
+        }
+    }
     // 근무 할일: 병가 / 지휴 per day.
     var leaves by remember(task.id) { mutableStateOf(task.leaves) }
     // 근무 할일: 그 날만 다른 근무로 (주 / 야 / 비 / 휴).
@@ -205,11 +211,9 @@ fun TaskDetailSheet(
 
     fun commitAndClose() {
         val attachmentsList = attachments.toList()
-        val newDayNotes = if (dayKey == null) task.dayNotes
-            else if (dayNote.isBlank()) task.dayNotes - dayKey
-            else task.dayNotes + (dayKey to dayNote)
+        val newMemos = memos.filter { it.text.isNotBlank() }
         val changed =
-            newDayNotes != task.dayNotes ||
+            newMemos != task.memos || task.dayNotes.isNotEmpty() ||
             title != task.title ||
                 notes != task.notes ||
                 notionUrl != task.notionUrl ||
@@ -234,7 +238,8 @@ fun TaskDetailSheet(
                     leaves = leaves,
                     dayShifts = dayShifts,
                     notes = notes,
-                    dayNotes = newDayNotes,
+                    dayNotes = emptyMap(),
+                    memos = newMemos,
                     notionUrl = notionUrl,
                     dueDate = dueTimestamp,
                     durationMinutes = duration,
@@ -547,15 +552,12 @@ fun TaskDetailSheet(
             // Plain markdown when listMode is None, otherwise an interactive
             // checklist / bullet editor. The list-button in the bottom bar
             // cycles between the two modes and keeps `notes` in sync.
-            if (dayKey != null) {
-                NoteSectionLabel("공통 메모 · 모든 반복에 보여요")
-            }
             if (listMode == ListMode.None) {
                 MarkdownNotesEditor(
                     value = notes,
                     onValueChange = { notes = it },
                     modifier = Modifier.fillMaxWidth(),
-                    minHeight = if (dayKey != null) 72.dp else 160.dp
+                    minHeight = 96.dp
                 )
             } else {
                 ChecklistEditor(
@@ -568,17 +570,13 @@ fun TaskDetailSheet(
                     }
                 )
             }
-            if (dayKey != null && occurrenceDate != null) {
-                Spacer(Modifier.height(12.dp))
-                NoteSectionLabel("개별 메모 · ${occurrenceDate.monthValue}월 ${occurrenceDate.dayOfMonth}일에만")
-                MarkdownNotesEditor(
-                    value = dayNote,
-                    onValueChange = { dayNote = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    placeholder = "이 날에만 보이는 메모",
-                    minHeight = 72.dp
-                )
-            }
+            // ── 메모장: + 로 메모를 하나씩 추가 ──────────────────────────
+            Spacer(Modifier.height(12.dp))
+            MemoSection(
+                memos = memos,
+                dayKey = dayKey,
+                dayLabel = occurrenceDate?.let { "${it.monthValue}월 ${it.dayOfMonth}일" }
+            )
 
             Spacer(Modifier.height(8.dp))
 
@@ -813,6 +811,81 @@ private fun NotionCard(
 }
 
 // ── Notes editor ─────────────────────────────────────────────────────────
+
+/**
+ * 메모장: 메모 카드 목록 + "+ 메모" 버튼. 반복 할일을 날짜에서 열면 버튼이
+ * "이 날 메모"와 "공통 메모" 둘로 나뉜다. 다른 날짜의 메모는 숨겨 두되 지우지 않는다.
+ */
+@Composable
+private fun MemoSection(
+    memos: androidx.compose.runtime.snapshots.SnapshotStateList<com.bettertick.data.model.TaskMemo>,
+    dayKey: String?,
+    dayLabel: String?
+) {
+    val shown = memos.filter { it.day.isBlank() || dayKey == null || it.day == dayKey }
+    val hiddenCount = memos.size - shown.size
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        NoteSectionLabel("메모" + if (hiddenCount > 0) " · 다른 날 메모 ${hiddenCount}개" else "")
+        shown.forEach { memo ->
+            val idx = memos.indexOfFirst { it.id == memo.id }
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(TextTertiary.copy(alpha = 0.1f))
+                    .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        if (memo.day.isBlank()) "공통" else (dayLabel?.takeIf { memo.day == dayKey } ?: memo.day),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (memo.day.isBlank()) TextTertiary else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { if (idx >= 0) memos.removeAt(idx) }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "메모 삭제", tint = TextTertiary, modifier = Modifier.size(16.dp))
+                    }
+                }
+                Box {
+                    if (memo.text.isEmpty()) {
+                        Text("메모 입력", fontSize = 15.sp, color = TextTertiary)
+                    }
+                    BasicTextField(
+                        value = memo.text,
+                        onValueChange = { v -> if (idx >= 0) memos[idx] = memo.copy(text = v) },
+                        textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp, lineHeight = 22.sp),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth().padding(end = 8.dp)
+                    )
+                }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (dayKey != null) {
+                MemoAddButton("+ ${dayLabel ?: "이 날"} 메모") {
+                    memos.add(com.bettertick.data.model.TaskMemo(day = dayKey))
+                }
+                MemoAddButton("+ 공통 메모") { memos.add(com.bettertick.data.model.TaskMemo()) }
+            } else {
+                MemoAddButton("+ 메모") { memos.add(com.bettertick.data.model.TaskMemo()) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MemoAddButton(text: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .border(1.dp, TextTertiary.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(text, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+    }
+}
 
 @Composable
 private fun NoteSectionLabel(text: String) {
