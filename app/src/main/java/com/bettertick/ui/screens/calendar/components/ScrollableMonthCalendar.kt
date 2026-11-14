@@ -22,7 +22,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -77,6 +80,16 @@ fun ScrollableMonthCalendar(
         weeks.indexOfFirst { it.contains(target) }.coerceAtLeast(0)
     }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
+    // Each week with its 7 border edges, built once — the rows get one
+    // stable (@Immutable) value instead of the whole weeks list, so a row
+    // whose inputs didn't change is skipped while scrolling.
+    val calendarWeeks = remember(weeks) {
+        weeks.indices.map { w -> CalendarWeek(weeks[w], List(7) { d -> computeBorderEdges(w, d, weeks) }) }
+    }
+    // Read only by the cell showing the 1st of a month, not by every row.
+    val scrolling = remember { derivedStateOf { listState.isScrollInProgress } }
+    val latestSelect = rememberUpdatedState(onDateSelected)
+    val select: (LocalDate) -> Unit = remember { { d -> latestSelect.value(d) } }
 
     // When a date is selected, animate the calendar so the week containing
     // that date sits at the top of the viewport — the bottom card then has
@@ -125,15 +138,13 @@ fun ScrollableMonthCalendar(
             count = weeks.size,
             key = { idx -> weeks[idx].first().toEpochDay() }
         ) { weekIdx ->
-            WeekRow(
-                week = weeks[weekIdx],
-                weekIdx = weekIdx,
-                allWeeks = weeks,
+            CalendarWeekRow(
+                week = calendarWeeks[weekIdx],
                 today = today,
                 selectedDate = selectedDate,
                 lookup = lookup,
-                onDateSelected = onDateSelected,
-                showMonthChips = listState.isScrollInProgress
+                onDateSelected = select,
+                monthChips = scrolling
             )
         }
     }
@@ -190,33 +201,50 @@ fun WeekRow(
     /** Fixed row height; null fits the row to its busiest day (1–3 chips). */
     height: androidx.compose.ui.unit.Dp? = null
 ) {
-    // Precompute the 7 edge-states once per week so DayCell stays skippable.
-    // Without this, computeBorderEdges fired on every recomposition for every
-    // cell, and the weeks list (unstable) dragged DayCell along with it.
-    val edges = remember(weekIdx, allWeeks) {
-        Array(7) { dayIdx -> computeBorderEdges(weekIdx, dayIdx, allWeeks) }
+    val calendarWeek = remember(week, weekIdx, allWeeks) {
+        CalendarWeek(week, List(7) { dayIdx -> computeBorderEdges(weekIdx, dayIdx, allWeeks) })
     }
+    val chips = remember(showMonthChips) { if (showMonthChips) mutableStateOf(true) else null }
+    val latestSelect = rememberUpdatedState(onDateSelected)
+    val select: (LocalDate) -> Unit = remember { { d -> latestSelect.value(d) } }
+    CalendarWeekRow(calendarWeek, today, selectedDate, lookup, select, chips, height)
+}
+
+/** One week of days with their border edges; immutable so rows can skip. */
+@androidx.compose.runtime.Immutable
+private class CalendarWeek(val days: List<LocalDate>, val edges: List<BorderEdges>)
+
+@Composable
+private fun CalendarWeekRow(
+    week: CalendarWeek,
+    today: LocalDate,
+    selectedDate: LocalDate?,
+    lookup: TaskDateLookup,
+    onDateSelected: (LocalDate) -> Unit,
+    monthChips: androidx.compose.runtime.State<Boolean>?,
+    height: androidx.compose.ui.unit.Dp? = null
+) {
     // Rows only as tall as their chips need, so a week of one-chip days
     // doesn't leave a blank band above the next week's dates.
-    val rowHeight = height ?: run {
-        val chips = week.maxOf { lookup.tasksOn(it).size }.coerceIn(1, MAX_CHIPS_PER_DAY)
-        val chipHeight = (11f * androidx.compose.ui.platform.LocalDensity.current.fontScale + 3f).dp
-        36.dp + chipHeight * chips
+    val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+    val rowHeight = height ?: remember(week, lookup, fontScale) {
+        val chips = week.days.maxOf { lookup.tasksOn(it).size }.coerceIn(1, MAX_CHIPS_PER_DAY)
+        36.dp + (11f * fontScale + 3f).dp * chips
     }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(rowHeight)
     ) {
-        week.forEachIndexed { dayIdx, date ->
+        week.days.forEachIndexed { dayIdx, date ->
             DayCell(
                 date = date,
                 isToday = date == today,
                 isSelected = date == selectedDate,
-                tasks = lookup.tasksOn(date),
-                showMonthChip = showMonthChips && date.dayOfMonth == 1,
-                edges = edges[dayIdx],
-                onClick = { onDateSelected(date) },
+                lookup = lookup,
+                monthChips = monthChips,
+                edges = week.edges[dayIdx],
+                onDateSelected = onDateSelected,
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
@@ -227,6 +255,7 @@ fun WeekRow(
 
 private const val MAX_CHIPS_PER_DAY = 3
 
+@androidx.compose.runtime.Immutable
 private data class BorderEdges(
     val top: Boolean,
     val right: Boolean,
@@ -262,13 +291,16 @@ private fun DayCell(
     date: LocalDate,
     isToday: Boolean,
     isSelected: Boolean,
-    tasks: List<Task>,
-    showMonthChip: Boolean,
+    lookup: TaskDateLookup,
+    monthChips: androidx.compose.runtime.State<Boolean>?,
     edges: BorderEdges,
-    onClick: () -> Unit,
+    onDateSelected: (LocalDate) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val maxVisibleTasks = MAX_CHIPS_PER_DAY
+    val tasks = lookup.tasksOn(date)
+    // Only the 1st of a month subscribes to the scrolling state.
+    val showMonthChip = date.dayOfMonth == 1 && monthChips?.value == true
 
     Column(
         modifier = modifier
@@ -281,7 +313,7 @@ private fun DayCell(
                 if (edges.left) drawLine(DayCellBorderColor, Offset(0f, 0f), Offset(0f, h), sw)
                 if (edges.right) drawLine(DayCellBorderColor, Offset(w, 0f), Offset(w, h), sw)
             }
-            .clickable { onClick() }
+            .clickable { onDateSelected(date) }
             .padding(1.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -391,7 +423,7 @@ fun CalendarTaskChip(
     val time = if (showTime && CalendarPrefs.showDetails) {
         task.dueDate?.toDate()?.toInstant()?.atZone(java.time.ZoneId.systemDefault())?.toLocalTime()
             ?.takeIf { it != java.time.LocalTime.MIDNIGHT }
-            ?.let { "%d:%02d ".format(it.hour, it.minute) } ?: ""
+            ?.let { "${it.hour}:${if (it.minute < 10) "0" else ""}${it.minute} " } ?: ""
     } else ""
     Row(
         modifier = modifier
