@@ -22,6 +22,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.ui.screens.more.AmountDialog
+import com.bettertick.ui.screens.more.MoneyDialog
+import com.bettertick.ui.screens.more.PayRed
+import com.bettertick.ui.screens.tasks.MoneyLine
+import com.bettertick.ui.screens.tasks.MoneyPrefs
 import com.bettertick.ui.screens.more.PayDivider
 import com.bettertick.ui.screens.more.PayRow
 import com.bettertick.ui.screens.more.ymLabel
@@ -46,6 +50,9 @@ fun SalaryMenu(onSettings: () -> Unit, modifier: Modifier = Modifier) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var monthKey by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
     var editOverride by remember { mutableStateOf(false) }
+    // null = closed; true = 수입, false = 지출.
+    var adding by remember { mutableStateOf<Boolean?>(null) }
+    var editLine by remember { mutableStateOf<MoneyLine?>(null) }
 
     Surface(
         onClick = {
@@ -64,7 +71,7 @@ fun SalaryMenu(onSettings: () -> Unit, modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Icons.Outlined.Payments, contentDescription = null, modifier = Modifier.size(20.dp))
-            Text("월급", style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            Text("가계부", style = MaterialTheme.typography.labelLarge, maxLines = 1)
         }
     }
 
@@ -90,7 +97,7 @@ fun SalaryMenu(onSettings: () -> Unit, modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                "월급",
+                "월급 · 가계부",
                 fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
                 modifier = Modifier.padding(start = 4.dp)
             )
@@ -212,6 +219,85 @@ fun SalaryMenu(onSettings: () -> Unit, modifier: Modifier = Modifier) {
                 }
             }
 
+            // ── 가계부: 추가 수입·지출, 매달 고정 (용돈 등) ──
+            val book = MoneyPrefs.book
+            val salary = if (wp != null) rules.total(month) else 0L
+            val extraIn = book.incomeIn(month)
+            val spent = book.expenseIn(month)
+            SheetLabel("${month.monthValue}월 돈 흐름")
+            SheetCard {
+                PayRow("월급", if (wp == null || rules.isEmpty) "설정 안 함" else null, salary)
+                PayRow("추가 수입", "용돈·부수입 등", extraIn)
+                PayRow("지출", null, -spent)
+                PayDivider()
+                val left = salary + extraIn - spent
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("남은 돈", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
+                    Text(
+                        if (left < 0) "−" + won(-left) else won(left),
+                        fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                        color = if (left < 0) PayRed else accent
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickAddButton("+ 지출", PayRed, Modifier.weight(1f)) { adding = false }
+                QuickAddButton("+ 수입", accent, Modifier.weight(1f)) { adding = true }
+            }
+            val byCat = book.expenseByCategory(month)
+            if (byCat.isNotEmpty()) {
+                SheetLabel("지출 분류")
+                SheetCard {
+                    byCat.forEach { (c, a) ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(c, fontSize = 14.sp, color = TextPrimary, modifier = Modifier.width(64.dp))
+                            Box(
+                                Modifier
+                                    .weight(1f)
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(TextTertiary.copy(alpha = 0.15f))
+                            ) {
+                                Box(
+                                    Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth((a.toFloat() / spent.coerceAtLeast(1)).coerceIn(0.02f, 1f))
+                                        .background(PayRed.copy(alpha = 0.7f))
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text(won(a), fontSize = 13.sp, color = TextSecondary)
+                        }
+                    }
+                }
+            }
+            val lines = book.linesIn(month)
+            SheetLabel("${month.monthValue}월 내역")
+            SheetCard {
+                if (lines.isEmpty()) {
+                    Text(
+                        "아직 내역이 없어요. 위 버튼으로 용돈·지출을 추가하세요.",
+                        fontSize = 13.sp, color = TextTertiary,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
+                    )
+                }
+                lines.forEach { line ->
+                    PayRow(
+                        title = line.title,
+                        subtitle = "${line.date.monthValue}/${line.date.dayOfMonth} · ${line.category}" +
+                            if (line.recurring != null) " · 매달" else "",
+                        amount = line.signed,
+                        onClick = { editLine = line }
+                    )
+                }
+            }
+
             TextButton(
                 onClick = { expanded = false; onSettings() },
                 modifier = Modifier.align(Alignment.CenterHorizontally)
@@ -219,6 +305,17 @@ fun SalaryMenu(onSettings: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 
+    adding?.let { inc ->
+        val now = LocalDate.now()
+        MoneyDialog(
+            defaultIncome = inc,
+            defaultDate = if (YearMonth.from(now) == month) now else month.atDay(1),
+            onDismiss = { adding = null }
+        )
+    }
+    editLine?.let { line ->
+        MoneyDialog(entry = line.entry, recurring = line.recurring, onDismiss = { editLine = null })
+    }
     if (editOverride && wp != null) {
         AmountDialog(
             title = "${ymLabel(month)} 총액",
@@ -228,6 +325,20 @@ fun SalaryMenu(onSettings: () -> Unit, modifier: Modifier = Modifier) {
             onClear = if (rules.override(month) != null) ({ SalaryPrefs.updateOverride(wp.id, month, null); editOverride = false }) else null,
             onConfirm = { SalaryPrefs.updateOverride(wp.id, month, it); editOverride = false }
         )
+    }
+}
+
+@Composable
+private fun QuickAddButton(text: String, color: androidx.compose.ui.graphics.Color, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(color.copy(alpha = 0.12f))
+            .clickable { onClick() }
+            .heightIn(min = 48.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = color, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 

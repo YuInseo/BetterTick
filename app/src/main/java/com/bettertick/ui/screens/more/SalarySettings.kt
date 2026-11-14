@@ -75,12 +75,14 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
     var pickOverrideMonth by remember { mutableStateOf(false) }
     var editOverride by remember { mutableStateOf<YearMonth?>(null) }
     var previewYear by remember { mutableStateOf(YearMonth.now().year) }
+    var addRecurring by remember { mutableStateOf<Boolean?>(null) }
+    var editRecurring by remember { mutableStateOf<com.bettertick.ui.screens.tasks.RecurringMoney?>(null) }
 
-    OptionPage(title = "월급", onBack = onBack) {
+    OptionPage(title = "월급 · 가계부", onBack = onBack) {
         OptionCard {
             OptionSwitchRow(
-                title = "월급 버튼",
-                subtitle = "캘린더 화면 왼쪽 아래에 이번 달 월급을 보는 버튼을 띄웁니다.",
+                title = "가계부 버튼",
+                subtitle = "캘린더 화면 왼쪽 아래에 월급·용돈·지출을 보는 버튼을 띄웁니다.",
                 checked = SalaryPrefs.showButton,
                 onCheckedChange = { SalaryPrefs.updateShowButton(it) }
             )
@@ -137,6 +139,21 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
         }
         PayHint("실제로 받은 금액이 다르면 그 달만 총액을 직접 넣으세요. 항목 계산 대신 이 금액을 씁니다.")
 
+        PaySectionLabel("매달 고정 수입·지출 (용돈·월세·구독)")
+        OptionCard {
+            com.bettertick.ui.screens.tasks.MoneyPrefs.book.recurring.forEach { r ->
+                PayRow(
+                    title = r.name,
+                    subtitle = "${r.category} · ${r.scheduleLabel}",
+                    amount = r.signed,
+                    onClick = { editRecurring = r }
+                )
+            }
+            OptionNavRow("고정 수입 추가 (용돈 등)") { addRecurring = true }
+            OptionNavRow("고정 지출 추가 (월세·통신비 등)") { addRecurring = false }
+        }
+        PayHint("근무지와 상관없이 매달 들어오고 나가는 돈입니다. 한 번뿐인 수입·지출은 캘린더 왼쪽 아래 '가계부'에서 바로 추가하세요.")
+
         PaySectionLabel("미리보기")
         OptionCard {
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -187,9 +204,15 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
                 )
             }
         }
-        PayHint("이 근무지 규칙만으로 계산한 금액입니다. 근무 기간 밖의 달은 화면 왼쪽 아래 '월급'에서 0원으로 나옵니다.")
+        PayHint("이 근무지 규칙만으로 계산한 금액입니다. 근무 기간 밖의 달은 화면 왼쪽 아래 '가계부'에서 0원으로 나옵니다.")
     }
 
+    addRecurring?.let { inc ->
+        MoneyDialog(defaultIncome = inc, defaultRepeat = true, onDismiss = { addRecurring = null })
+    }
+    editRecurring?.let { r ->
+        MoneyDialog(recurring = r, onDismiss = { editRecurring = null })
+    }
     editItem?.let { item ->
         SalaryItemDialog(
             initial = item,
@@ -541,4 +564,156 @@ private fun NumberDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
     )
+}
+
+/**
+ * 수입·지출 추가/수정. One dialog for a one-off entry and for a 매달 고정
+ * item (용돈, 월세 …); switching "매달 반복" converts between the two.
+ */
+@Composable
+internal fun MoneyDialog(
+    entry: com.bettertick.ui.screens.tasks.MoneyEntry? = null,
+    recurring: com.bettertick.ui.screens.tasks.RecurringMoney? = null,
+    defaultIncome: Boolean = false,
+    defaultDate: java.time.LocalDate = java.time.LocalDate.now(),
+    defaultRepeat: Boolean = false,
+    onDismiss: () -> Unit
+) {
+    val editing = entry != null || recurring != null
+    var income by remember { mutableStateOf(entry?.income ?: recurring?.income ?: defaultIncome) }
+    var amountText by remember {
+        mutableStateOf((entry?.amount ?: recurring?.amount)?.takeIf { it > 0 }?.toString() ?: "")
+    }
+    var category by remember { mutableStateOf(entry?.category ?: recurring?.category ?: if (defaultIncome) "용돈" else "식비") }
+    var memo by remember { mutableStateOf(entry?.memo ?: recurring?.name ?: "") }
+    var monthly by remember { mutableStateOf(recurring != null || (entry == null && defaultRepeat)) }
+    var date by remember { mutableStateOf(entry?.date ?: defaultDate) }
+    var dayText by remember { mutableStateOf((recurring?.day ?: defaultDate.dayOfMonth).toString()) }
+    var from by remember { mutableStateOf(recurring?.from) }
+    var to by remember { mutableStateOf(recurring?.to) }
+    var pickDate by remember { mutableStateOf(false) }
+    var pickMonth by remember { mutableStateOf<String?>(null) }
+
+    val categories = if (income) com.bettertick.ui.screens.tasks.IncomeCategories else com.bettertick.ui.screens.tasks.ExpenseCategories
+    if (category !in categories) category = categories.first()
+    val amount = amountText.toLongOrNull() ?: 0L
+    val day = dayText.toIntOrNull()
+    val f = from
+    val t = to
+    val valid = amount > 0 && (!monthly || (day != null && day in 1..31 && (f == null || t == null || !t.isBefore(f))))
+
+    fun save() {
+        if (monthly) {
+            entry?.let { com.bettertick.ui.screens.tasks.MoneyPrefs.deleteEntry(it.id) }
+            val base = recurring ?: com.bettertick.ui.screens.tasks.RecurringMoney(name = "", amount = 0, income = income, category = category)
+            com.bettertick.ui.screens.tasks.MoneyPrefs.saveRecurring(
+                base.copy(
+                    name = memo.trim().ifBlank { category }, amount = amount, income = income,
+                    category = category, day = day ?: 1, from = from, to = to
+                )
+            )
+        } else {
+            recurring?.let { com.bettertick.ui.screens.tasks.MoneyPrefs.deleteRecurring(it.id) }
+            val base = entry ?: com.bettertick.ui.screens.tasks.MoneyEntry(date = date, amount = 0, income = income, category = category)
+            com.bettertick.ui.screens.tasks.MoneyPrefs.saveEntry(
+                base.copy(date = date, amount = amount, income = income, category = category, memo = memo.trim())
+            )
+        }
+        onDismiss()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (editing) "내역 수정" else if (income) "수입 추가" else "지출 추가") },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill("지출", !income, Modifier.weight(1f)) { income = false }
+                    Pill("수입", income, Modifier.weight(1f)) { income = true }
+                }
+                OutlinedTextField(
+                    value = amountText, onValueChange = { amountText = digitsOnly(it) },
+                    singleLine = true, label = { Text("금액 (원)") },
+                    supportingText = { if (amount > 0) Text(won(amount)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                DialogLabel("분류")
+                categories.chunked(4).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { c -> Pill(c, category == c, Modifier.weight(1f)) { category = c } }
+                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+                OutlinedTextField(
+                    value = memo, onValueChange = { memo = it.take(30) },
+                    singleLine = true, label = { Text(if (monthly) "이름" else "메모 (선택)") },
+                    placeholder = { Text(if (income) "엄마 용돈, 중고 판매 …" else "점심, 택시 …") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill("한 번", !monthly, Modifier.weight(1f)) { monthly = false }
+                    Pill("매달 반복", monthly, Modifier.weight(1f)) { monthly = true }
+                }
+                if (!monthly) {
+                    DialogLabel("날짜")
+                    Pill(
+                        "${date.year}년 ${date.monthValue}월 ${date.dayOfMonth}일 (${"월화수목금토일"[date.dayOfWeek.value - 1]})",
+                        true, Modifier.fillMaxWidth()
+                    ) { pickDate = true }
+                } else {
+                    OutlinedTextField(
+                        value = dayText, onValueChange = { dayText = it.filter { c -> c.isDigit() }.take(2) },
+                        singleLine = true, label = { Text("매달 며칠") }, suffix = { Text("일") },
+                        supportingText = { Text("31 = 말일") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    DialogLabel("기간 (비워 두면 계속)")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Pill(from?.let { ymLabel(it) } ?: "처음부터", from != null, Modifier.weight(1f)) { pickMonth = "from" }
+                        Text("~", color = TextTertiary)
+                        Pill(to?.let { ymLabel(it) } ?: "계속", to != null, Modifier.weight(1f)) { pickMonth = "to" }
+                    }
+                }
+                if (editing) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "삭제", color = PayRed, fontSize = 14.sp,
+                        modifier = Modifier
+                            .clickable {
+                                entry?.let { com.bettertick.ui.screens.tasks.MoneyPrefs.deleteEntry(it.id) }
+                                recurring?.let { com.bettertick.ui.screens.tasks.MoneyPrefs.deleteRecurring(it.id) }
+                                onDismiss()
+                            }
+                            .padding(vertical = 6.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(enabled = valid, onClick = { save() }) { Text("저장") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+    )
+
+    if (pickDate) {
+        WorkStartPickerDialog(
+            initial = date,
+            title = "날짜",
+            onDismiss = { pickDate = false },
+            onPick = { date = it; pickDate = false }
+        )
+    }
+    pickMonth?.let { which ->
+        MonthPickerDialog(
+            title = if (which == "from") "시작 달" else "끝 달",
+            initial = (if (which == "from") from else to) ?: YearMonth.now(),
+            clearLabel = if (which == "from") "처음부터" else "계속",
+            onClear = { if (which == "from") from = null else to = null; pickMonth = null },
+            onDismiss = { pickMonth = null },
+            onPick = { if (which == "from") from = it else to = it; pickMonth = null }
+        )
+    }
 }
