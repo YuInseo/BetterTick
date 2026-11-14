@@ -78,7 +78,12 @@ object AppPrefs {
         newTaskOnTop = p.getBoolean("new_on_top", false)
         completionSound = p.getBoolean("completion_sound", true)
         completionVibrate = p.getBoolean("completion_vibrate", true)
-        startTab = p.getString("start_tab", "tasks") ?: "tasks"
+        // Older installations could launch directly into the removed location tab.
+        val savedStartTab = p.getString("start_tab", "tasks") ?: "tasks"
+        startTab = savedStartTab.takeUnless { it == "location" } ?: "tasks"
+        if (savedStartTab != startTab) p.edit().putString("start_tab", startTab).apply()
+        context.getSharedPreferences("bettertick_prefs", Context.MODE_PRIVATE)
+            .edit().remove("location_tracking").apply()
         reminderRingtone = if (p.contains("reminder_ringtone")) p.getString("reminder_ringtone", null) else null
         dailySummary = p.getBoolean("daily_summary", false)
         dailySummaryMinutes = p.getInt("daily_summary_minutes", 8 * 60)

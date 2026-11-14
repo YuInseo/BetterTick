@@ -16,18 +16,6 @@ private val keystoreProperties = Properties().apply {
     if (keystorePropertiesFile.exists()) load(keystorePropertiesFile.inputStream())
 }
 
-// Kakao 길찾기 REST API 키. 로컬: local.properties(KAKAO_REST_API_KEY=...),
-// CI: 환경변수 KAKAO_REST_API_KEY. 둘 다 없으면 빈 값 → 런타임에 직선 폴백.
-// 키를 소스에 박지 않아 공개 저장소에 노출되지 않는다.
-private val localPropertiesFile = rootProject.file("local.properties")
-private val localProperties = Properties().apply {
-    if (localPropertiesFile.exists()) load(localPropertiesFile.inputStream())
-}
-private val kakaoRestApiKey: String =
-    (localProperties["KAKAO_REST_API_KEY"] as String?)
-        ?: System.getenv("KAKAO_REST_API_KEY")
-        ?: ""
-
 android {
     namespace = "com.bettertick"
     compileSdk = 34
@@ -43,8 +31,6 @@ android {
         versionName = System.getenv("CI_VERSION_NAME") ?: "0.1.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        buildConfigField("String", "KAKAO_REST_API_KEY", "\"$kakaoRestApiKey\"")
     }
 
     signingConfigs {
@@ -74,11 +60,6 @@ android {
     }
 
     buildTypes {
-        debug {
-            // Only 64-bit ARM — every current phone. Drops the 32-bit copy of
-            // the Kakao map engine (~15 MB) from the auto-update APK.
-            ndk { abiFilters += "arm64-v8a" }
-        }
         // 테스트용 작은 APK (BetterTick-small.apk): debug와 같은 서명·패키지라
         // 그 위에 바로 설치된다. R8로 쓰지 않는 코드·리소스를 빼서 크기를 줄인다.
         // 기기에서 이상 없음이 확인되기 전까지는 자동 업데이트에 쓰지 않는다.
@@ -174,6 +155,4 @@ dependencies {
     // ML Kit Document Scanner (Play Services) — powers 첨부 → 문서 스캔
     // with auto-capture + edge detection UI, matching the TickTick UX.
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0-beta1")
-    implementation("com.google.android.gms:play-services-location:21.3.0")
-    implementation("com.kakao.maps.open:android:2.11.9")
 }

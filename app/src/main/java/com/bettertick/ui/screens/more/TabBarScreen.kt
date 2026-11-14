@@ -31,7 +31,6 @@ import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -94,8 +93,7 @@ fun tabCatalog(): List<TabItem> = listOf(
     TabItem("diary", "일기", "매일의 생각과 감정을 기록하세요.", Icons.Outlined.Book),
     TabItem("money", "가계부", "월급·용돈·지출을 한눈에 관리하세요.", Icons.Outlined.Payments),
     TabItem("dday", "디데이", "특별한 날을 기억하세요.", Icons.Outlined.Star),
-    TabItem("search", "검색", "빠르게 작업을 검색하세요.", Icons.Outlined.Search),
-    TabItem("location", "동선", "오늘 어디에 있었는지 기록하세요.", Icons.Outlined.LocationOn)
+    TabItem("search", "검색", "빠르게 작업을 검색하세요.", Icons.Outlined.Search)
 )
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -16,7 +16,6 @@ import com.bettertick.widget.WidgetUpdateWorker
 import com.bettertick.widget.calendar.ReminderWidget
 import com.bettertick.widget.calendar.WeeklyCalendarWidget
 import com.bettertick.widget.focus.FocusDistributionWidget
-import com.kakao.vectormap.KakaoMapSdk
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -64,7 +63,6 @@ class BetterTickApplication : Application() {
         com.bettertick.ui.screens.tasks.SalaryPrefs.init(this)
         com.bettertick.ui.screens.tasks.MoneyPrefs.init(this)
         com.bettertick.reminder.ReminderScheduler.scheduleDailySummary(this)
-        KakaoMapSdk.init(this, "36af0c02f9ab81fb67df8c9bbeefc7f1")
         // Initialize widget service locator for AppWidget access
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
         // Schedule periodic widget updates

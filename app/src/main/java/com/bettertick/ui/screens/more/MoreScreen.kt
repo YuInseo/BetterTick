@@ -1,15 +1,9 @@
 package com.bettertick.ui.screens.more
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.provider.Settings
-import android.os.Build
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.material3.Switch
-import androidx.core.content.ContextCompat
 import com.bettertick.LockScreenBar
 import com.bettertick.overlay.FloatingOverlayService
 import androidx.compose.foundation.clickable
@@ -33,12 +27,10 @@ import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Widgets
-import com.bettertick.location.LocationTrackingService
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -92,50 +84,6 @@ fun MoreScreen(
     var lockScreenBarEnabled by remember {
         mutableStateOf(prefs.getBoolean("lock_screen_bar", true))
     }
-    var locationTrackingEnabled by remember {
-        mutableStateOf(prefs.getBoolean("location_tracking", false))
-    }
-
-    // 백그라운드 위치('항상 허용')는 Android 11+에서 전경 권한과 같은 다이얼로그로
-    // 요청할 수 없어, 전경 권한이 허용된 뒤 별도로 요청한다. 이게 없으면 앱이
-    // 백그라운드로 가는 순간 위치 업데이트가 끊긴다.
-    val backgroundLocationLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (!granted) {
-            Toast.makeText(
-                context,
-                "백그라운드 기록은 위치 권한을 '항상 허용'으로 설정해야 합니다",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-    }
-    fun requestBackgroundLocationIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
-            ContextCompat.checkSelfPermission(
-                context, Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            backgroundLocationLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-        }
-    }
-
-    val locationPermissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val granted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
-            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
-        if (granted) {
-            locationTrackingEnabled = true
-            prefs.edit().putBoolean("location_tracking", true).apply()
-            LocationTrackingService.start(context)
-            // 전경 권한 확보 직후 백그라운드 권한도 요청.
-            requestBackgroundLocationIfNeeded()
-        } else {
-            Toast.makeText(context, "위치 권한이 필요합니다", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -290,64 +238,6 @@ fun MoreScreen(
                             } else {
                                 LockScreenBar.hide(context)
                                 FloatingOverlayService.stop(context)
-                            }
-                        }
-                    )
-                }
-            }
-
-            // Location tracking
-            SettingsCard {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Outlined.LocationOn,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "오늘의 동선 기록",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            "GPS로 오늘 방문한 장소를 자동 기록 (10분 간격)",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
-                    }
-                    Switch(
-                        checked = locationTrackingEnabled,
-                        onCheckedChange = { enabled ->
-                            if (!enabled) {
-                                locationTrackingEnabled = false
-                                prefs.edit().putBoolean("location_tracking", false).apply()
-                                LocationTrackingService.stop(context)
-                                return@Switch
-                            }
-                            val hasPermission = ContextCompat.checkSelfPermission(
-                                context, Manifest.permission.ACCESS_FINE_LOCATION
-                            ) == PackageManager.PERMISSION_GRANTED
-                            if (hasPermission) {
-                                locationTrackingEnabled = true
-                                prefs.edit().putBoolean("location_tracking", true).apply()
-                                LocationTrackingService.start(context)
-                                // 전경 권한은 있어도 백그라운드('항상 허용')는
-                                // 따로 받아야 백그라운드 추적이 끊기지 않는다.
-                                requestBackgroundLocationIfNeeded()
-                            } else {
-                                locationPermissionLauncher.launch(arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
-                                ))
                             }
                         }
                     )

@@ -20,8 +20,6 @@ const fixtures = {
   focusCategories: { name: '공부', id: '' },
   focusSessions: { activityName: '공부', durationSeconds: 1500, completed: true },
   diary: { dateStr: '2026-11-14', content: '오늘의 일기', mood: 2 },
-  locationRecords: { dateStr: '2026-11-14', latitude: 37.5, longitude: 127, place: true },
-  favoritePlaces: { name: '집', latitude: 37.5, longitude: 127 },
   'settings/tabbar': { enabledIds: ['tasks', 'calendar', 'more'], maxTabs: 5 },
   'settings/matrix': { quadrants: [{ id: 'I' }, { id: 'II' }, { id: 'III' }, { id: 'IV' }] },
 };
@@ -129,3 +127,22 @@ test('unlisted collections, nested documents and public roots default to deny', 
     await assertFails(setDoc(doc(db('alice'), path), { name: 'x' }));
   }
 });
+
+for (const kind of ['locationRecords', 'favoritePlaces']) {
+  test(`${kind}: retired feature rejects old-client writes and preserves historical data access`, async () => {
+    const path = `users/alice/${kind}/old-record`;
+    const old = { id: 'old-record', name: '기존 기록', latitude: 37.5, longitude: 127 };
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), path), old);
+    });
+    const ref = doc(db('alice'), path);
+    await assertSucceeds(getDoc(ref));
+    await assertFails(updateDoc(ref, { latitude: 38 }));
+    await assertFails(setDoc(doc(db('alice'), `users/alice/${kind}/new-record`), old));
+    for (const uid of [undefined, 'bob']) {
+      await assertFails(getDoc(doc(db(uid), path)));
+      await assertFails(deleteDoc(doc(db(uid), path)));
+    }
+    await assertSucceeds(deleteDoc(ref));
+  });
+}
