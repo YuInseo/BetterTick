@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,6 +52,9 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.PhotoCamera
 import com.bettertick.ui.components.DropdownMenu
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material.icons.outlined.CalendarToday
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -263,85 +267,36 @@ fun TaskDetailSheet(
     ModalBottomSheet(
         onDismissRequest = { commitAndClose() },
         sheetState = sheetState,
-        containerColor = DarkBackground,
-        dragHandle = null
+        containerColor = DarkSurface,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = TextTertiary.copy(alpha = 0.5f)) }
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
-                .padding(top = 18.dp, bottom = 8.dp)
+                .padding(top = 0.dp, bottom = 16.dp)
         ) {
-            // ── Date / time row — checkbox on the left, tappable chip ────
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                val checkboxShape = RoundedCornerShape(6.dp)
-                val isShift = task.copy(title = title).isShiftTask()
-                if (!isShift) Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(checkboxShape)
-                        .then(
-                            if (task.isCompleted) {
-                                Modifier.background(MaterialTheme.colorScheme.primary)
-                            } else {
-                                Modifier.border(2.dp, TextSecondary, checkboxShape)
-                            }
-                        )
-                        .clickable { onToggleComplete() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (task.isCompleted) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = "완료됨",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-
-                if (!isShift) Spacer(Modifier.width(12.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { showDatePicker = true }
-                        .padding(vertical = 4.dp, horizontal = 2.dp)
-                ) {
-                    Text(
-                        text = formatDueLabel(dueTimestamp, duration),
-                        fontSize = 15.sp,
-                        color = DetailAccent,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Icon(
-                        Icons.Outlined.NotificationsActive,
-                        contentDescription = "알림",
-                        tint = DetailAccent,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(6.dp))
-
             // ── Header: list selector + flag + more ──────────────────────
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { showListPicker = true }
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        .background(TextTertiary.copy(alpha = 0.08f))
+                        .clickable { showListPicker = true }
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
+                    Icon(Icons.Outlined.Folder, null, tint = TextSecondary, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(6.dp))
                     Text(
                         text = shownListName,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = TextPrimary
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 110.dp)
                     )
                     Spacer(Modifier.width(4.dp))
                     Icon(
@@ -500,23 +455,48 @@ fun TaskDetailSheet(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // ── Title (editable) ─────────────────────────────────────────
-            BasicTextField(
-                value = title,
-                onValueChange = { title = it },
-                textStyle = TextStyle(
-                    color = TextPrimary,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.Bold,
-                    textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                modifier = Modifier.fillMaxWidth()
-            )
-
+            if (!parentTitle.isNullOrBlank()) {
+                Text("↳ $parentTitle", color = TextSecondary, fontSize = 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(bottom = 10.dp))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (!task.copy(title = title).isShiftTask()) {
+                    Box(Modifier.size(44.dp).clip(CircleShape).clickable { onToggleComplete() },
+                        contentAlignment = Alignment.Center) {
+                        TickCheckbox(priority, task.isCompleted, isAbandoned, size = 23.dp, rounded = true)
+                    }
+                    Spacer(Modifier.width(6.dp))
+                }
+                BasicTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 26.sp, lineHeight = 34.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.weight(1f).padding(vertical = 6.dp)
+                )
+            }
             Spacer(Modifier.height(16.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                    .background(DetailAccent.copy(alpha = 0.08f))
+                    .clickable { showDatePicker = true }.padding(horizontal = 14.dp, vertical = 13.dp)
+            ) {
+                Icon(Icons.Outlined.CalendarToday, null, tint = DetailAccent, modifier = Modifier.size(17.dp))
+                Text(formatDueLabel(dueTimestamp, duration, occurrenceDate.takeIf {
+                    !repeatRule.isNullOrBlank() && dueTimestamp == task.dueDate
+                }), color = DetailAccent, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f))
+                if (!repeatRule.isNullOrBlank()) Icon(Icons.Outlined.Repeat, "반복 일정", tint = DetailAccent, modifier = Modifier.size(16.dp))
+                if (reminders.isNotEmpty()) Icon(Icons.Outlined.NotificationsActive, "알림 설정됨", tint = DetailAccent, modifier = Modifier.size(16.dp))
+            }
+            Spacer(Modifier.height(22.dp))
 
             // ── 근무 일정: 지휴 · 병가 · 연차 (one straight row) ────────────
             // ── Selected-tag chips ───────────────────────────────────────
@@ -536,12 +516,13 @@ fun TaskDetailSheet(
             // Plain markdown when listMode is None, otherwise an interactive
             // checklist / bullet editor. The list-button in the bottom bar
             // cycles between the two modes and keeps `notes` in sync.
+            NoteSectionLabel("설명")
             if (listMode == ListMode.None) {
                 MarkdownNotesEditor(
                     value = notes,
                     onValueChange = { notes = it },
                     modifier = Modifier.fillMaxWidth(),
-                    minHeight = 96.dp
+                    minHeight = 48.dp
                 )
             } else {
                 ChecklistEditor(
@@ -612,7 +593,8 @@ fun TaskDetailSheet(
         // 14:00 default. The callback returns everything we need to rebuild
         // the timestamp and commit a new durationMinutes.
         val zoned = dueTimestamp?.toDate()?.toInstant()?.atZone(ZoneId.systemDefault())
-        val initialDate = zoned?.toLocalDate() ?: LocalDate.now()
+        val initialDate = occurrenceDate?.takeIf { !repeatRule.isNullOrBlank() && dueTimestamp == task.dueDate }
+            ?: zoned?.toLocalDate() ?: LocalDate.now()
         val initialTime = zoned?.toLocalTime()?.takeIf { it != LocalTime.MIDNIGHT }
         TaskDatePickerSheet(
             initialDate = initialDate,
@@ -808,66 +790,56 @@ private fun MemoSection(
 ) {
     val shown = memos.filter { it.day.isBlank() || dayKey == null || it.day == dayKey }
     val hiddenCount = memos.size - shown.size
+    var addMenu by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        NoteSectionLabel("메모" + if (hiddenCount > 0) " · 다른 날 메모 ${hiddenCount}개" else "")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("메모", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+            if (shown.isNotEmpty()) Text("  ${shown.size}", fontSize = 12.sp, color = TextTertiary)
+            Spacer(Modifier.weight(1f))
+            Box {
+                TextButton(onClick = {
+                    if (dayKey == null) memos.add(com.bettertick.data.model.TaskMemo()) else addMenu = true
+                }) {
+                    Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("추가", fontSize = 12.sp)
+                }
+                DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
+                    DropdownMenuItem(text = { Text("${dayLabel ?: "이 날"} 메모") }, onClick = {
+                        memos.add(com.bettertick.data.model.TaskMemo(day = dayKey.orEmpty())); addMenu = false
+                    })
+                    DropdownMenuItem(text = { Text("공통 메모") }, onClick = {
+                        memos.add(com.bettertick.data.model.TaskMemo()); addMenu = false
+                    })
+                }
+            }
+        }
+        if (shown.isEmpty()) Text("필요한 내용을 메모로 남겨보세요", fontSize = 13.sp, color = TextTertiary,
+            modifier = Modifier.padding(bottom = 12.dp))
         shown.forEach { memo ->
             val idx = memos.indexOfFirst { it.id == memo.id }
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(TextTertiary.copy(alpha = 0.1f))
-                    .padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 10.dp)
-            ) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(TextTertiary.copy(alpha = 0.08f)).padding(start = 14.dp, end = 8.dp, top = 4.dp, bottom = 14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (memo.day.isBlank()) "공통" else (dayLabel?.takeIf { memo.day == dayKey } ?: memo.day),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (memo.day.isBlank()) TextTertiary else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { if (idx >= 0) memos.removeAt(idx) }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "메모 삭제", tint = TextTertiary, modifier = Modifier.size(16.dp))
+                    Text(if (memo.day.isBlank()) "공통 메모" else (dayLabel?.takeIf { memo.day == dayKey } ?: memo.day),
+                        fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                        color = if (memo.day.isBlank()) TextSecondary else DetailAccent,
+                        modifier = Modifier.weight(1f))
+                    IconButton(onClick = { if (idx >= 0) memos.removeAt(idx) }, modifier = Modifier.size(40.dp)) {
+                        Icon(Icons.Default.Close, "메모 삭제", tint = TextTertiary, modifier = Modifier.size(16.dp))
                     }
                 }
                 Box {
-                    if (memo.text.isEmpty()) {
-                        Text("메모 입력", fontSize = 15.sp, color = TextTertiary)
-                    }
-                    BasicTextField(
-                        value = memo.text,
+                    if (memo.text.isEmpty()) Text("메모를 입력하세요", fontSize = 14.sp, color = TextTertiary)
+                    BasicTextField(value = memo.text,
                         onValueChange = { v -> if (idx >= 0) memos[idx] = memo.copy(text = v) },
-                        textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp, lineHeight = 22.sp),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                        modifier = Modifier.fillMaxWidth().padding(end = 8.dp)
-                    )
+                        textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp, lineHeight = 22.sp),
+                        cursorBrush = SolidColor(DetailAccent),
+                        modifier = Modifier.fillMaxWidth().padding(end = 6.dp))
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (dayKey != null) {
-                MemoAddButton("+ ${dayLabel ?: "이 날"} 메모") {
-                    memos.add(com.bettertick.data.model.TaskMemo(day = dayKey))
-                }
-                MemoAddButton("+ 공통 메모") { memos.add(com.bettertick.data.model.TaskMemo()) }
-            } else {
-                MemoAddButton("+ 메모") { memos.add(com.bettertick.data.model.TaskMemo()) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MemoAddButton(text: String, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .border(1.dp, TextTertiary.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp)
-    ) {
-        Text(text, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+        if (hiddenCount > 0) Text("다른 날짜의 메모 ${hiddenCount}개", fontSize = 11.sp, color = TextTertiary)
     }
 }
 
@@ -887,7 +859,7 @@ private fun MarkdownNotesEditor(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
-    placeholder: String = "설명",
+    placeholder: String = "설명을 추가하세요",
     minHeight: androidx.compose.ui.unit.Dp = 160.dp
 ) {
     val transformation = remember { MarkdownInlineTransformation() }
@@ -899,7 +871,7 @@ private fun MarkdownNotesEditor(
         if (value.isEmpty()) {
             Text(
                 text = placeholder,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 color = TextTertiary
             )
         }
@@ -908,8 +880,8 @@ private fun MarkdownNotesEditor(
             onValueChange = onValueChange,
             textStyle = TextStyle(
                 color = TextPrimary,
-                fontSize = 16.sp,
-                lineHeight = 24.sp
+                fontSize = 14.sp,
+                lineHeight = 22.sp
             ),
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             visualTransformation = transformation,
@@ -1698,46 +1670,6 @@ private fun TagPickerRow(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────
-
-/** "오늘, 4월 20일, 오전 10:00 - 오전 11:45" style label. Falls back to
- *  "날짜 설정" when the task has no due date yet. End time is derived from
- *  [durationMinutes]; a zero/negative duration collapses to just the start. */
-private fun formatDueLabel(ts: Timestamp?, durationMinutes: Int): String {
-    if (ts == null) return "날짜 설정"
-    val instant = ts.toDate().toInstant()
-    val zoned = instant.atZone(ZoneId.systemDefault())
-    val date = zoned.toLocalDate()
-    val time = zoned.toLocalTime()
-    val today = LocalDate.now()
-    val tomorrow = today.plusDays(1)
-    val dayLabel = when (date) {
-        today -> "오늘"
-        tomorrow -> "내일"
-        else -> null
-    }
-    val datePart = "${date.monthValue}월 ${date.dayOfMonth}일"
-    val prefix = if (dayLabel != null) "$dayLabel, $datePart" else datePart
-
-    val hasTime = time != LocalTime.MIDNIGHT
-    if (!hasTime) return prefix
-    val startLabel = formatKorean12h(time)
-    return if (durationMinutes > 0) {
-        val endLabel = formatKorean12h(time.plusMinutes(durationMinutes.toLong()))
-        "$prefix, $startLabel - $endLabel"
-    } else {
-        "$prefix, $startLabel"
-    }
-}
-
-private fun formatKorean12h(time: LocalTime): String {
-    val ampm = if (time.hour < 12) "오전" else "오후"
-    val h = when {
-        time.hour == 0 -> 12
-        time.hour > 12 -> time.hour - 12
-        else -> time.hour
-    }
-    return "%s %d:%02d".format(ampm, h, time.minute)
-}
 
 private fun String.ensureScheme(): String =
     if (startsWith("http://") || startsWith("https://")) this else "https://$this"

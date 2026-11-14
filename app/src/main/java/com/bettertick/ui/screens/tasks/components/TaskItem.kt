@@ -141,7 +141,7 @@ fun TaskItem(
         modifier = modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(start = 4.dp, end = 16.dp, top = if (compactRow) 5.dp else 6.dp, bottom = if (compactRow) 5.dp else 6.dp)
+            .padding(start = 4.dp, end = 16.dp, top = if (compactRow) 2.dp else 6.dp, bottom = if (compactRow) 2.dp else 6.dp)
     ) {
     Row(
         modifier = Modifier
@@ -181,7 +181,8 @@ fun TaskItem(
                     priority = task.priority,
                     isCompleted = task.isCompleted,
                     isAbandoned = task.isAbandoned,
-                    size = if (compactRow) 16.dp else 18.dp
+                    size = 18.dp,
+                    rounded = compactRow
                 )
                 if (onStatusAction != null) {
                     com.bettertick.ui.components.DropdownMenu(
@@ -291,7 +292,7 @@ fun TaskItem(
                     shownDate?.let { date ->
                         Text(
                             text = buildDateLabel(date, startTime, task.durationMinutes, hasTime),
-                            fontSize = if (compactRow) 11.sp else 12.sp,
+                            fontSize = 12.sp,
                             lineHeight = 15.sp,
                             color = dateColor,
                             maxLines = 2,
@@ -340,9 +341,10 @@ fun TickCheckbox(
     priority: Int,
     isCompleted: Boolean,
     isAbandoned: Boolean = false,
-    size: androidx.compose.ui.unit.Dp = 18.dp
+    size: androidx.compose.ui.unit.Dp = 18.dp,
+    rounded: Boolean = false
 ) {
-    val shape = RoundedCornerShape(4.dp)
+    val shape = if (rounded) RoundedCornerShape(50) else RoundedCornerShape(4.dp)
     val border = priorityColor(priority)
     Box(
         modifier = Modifier
