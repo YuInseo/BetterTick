@@ -50,3 +50,16 @@ captures/
 .cxx/
 proguard/
 *.log
+
+# Firebase admin credentials and local tooling (client google-services.json is public)
+**/service-account*.json
+**/*firebase-adminsdk*.json
+*.pem
+*.p12
+.env
+.env.*
+!.env.example
+.firebase/
+*-debug.log
+node_modules/
+security-tests/node_modules/
