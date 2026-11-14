@@ -209,17 +209,39 @@ fun TaskItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            // 목록 이름: 제목 바로 아래 왼쪽, 작게.
-            if (listName.isNotBlank()) {
-                Text(
-                    text = listName,
-                    fontSize = 11.sp,
-                    lineHeight = 13.sp,
-                    color = TextTertiary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+            // 목록 이름 + 작은 아이콘(고정·메모·반복·알림): 제목 바로 아래 한 줄.
+            val hasMetaIcons = task.isPinned || task.notes.isNotBlank() ||
+                !task.repeatRule.isNullOrBlank() || hasTime
+            if (listName.isNotBlank() || hasMetaIcons) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.padding(top = 1.dp)
-                )
+                ) {
+                    if (listName.isNotBlank()) {
+                        Text(
+                            text = listName,
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp,
+                            color = TextTertiary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                    }
+                    if (task.isPinned) {
+                        Icon(Icons.Outlined.PushPin, contentDescription = "고정됨", tint = accent, modifier = Modifier.size(11.dp))
+                    }
+                    if (task.notes.isNotBlank()) {
+                        Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = "메모", tint = metaIconTint, modifier = Modifier.size(12.dp))
+                    }
+                    if (!task.repeatRule.isNullOrBlank()) {
+                        Icon(Icons.Outlined.Repeat, contentDescription = "반복", tint = metaIconTint, modifier = Modifier.size(12.dp))
+                    }
+                    if (hasTime) {
+                        Icon(Icons.Outlined.Alarm, contentDescription = "알림", tint = metaIconTint, modifier = Modifier.size(12.dp))
+                    }
+                }
             }
             if (showLeaveChips && isShift && (onToggleLeave != null || leave != null)) {
                 Spacer(Modifier.height(4.dp))
@@ -247,48 +269,12 @@ fun TaskItem(
             }
         }
 
-        if (shownDate != null || !task.repeatRule.isNullOrBlank() || task.isPinned) {
+        if (shownDate != null) {
             Spacer(Modifier.width(8.dp))
             // Capped width (not a weight) so it hugs the right edge and a long
             // date never squeezes the title away.
             Column(horizontalAlignment = Alignment.End, modifier = Modifier.widthIn(max = 190.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (task.isPinned) {
-                        Icon(
-                            imageVector = Icons.Outlined.PushPin,
-                            contentDescription = "고정됨",
-                            tint = accent,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    if (task.notes.isNotBlank()) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.Notes,
-                            contentDescription = "메모",
-                            tint = metaIconTint,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    if (!task.repeatRule.isNullOrBlank()) {
-                        Icon(
-                            imageVector = Icons.Outlined.Repeat,
-                            contentDescription = "반복",
-                            tint = metaIconTint,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    if (hasTime) {
-                        Icon(
-                            imageVector = Icons.Outlined.Alarm,
-                            contentDescription = "알림",
-                            tint = metaIconTint,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    }
                     shownDate?.let { date ->
                         Text(
                             text = buildDateLabel(date, startTime, task.durationMinutes, hasTime),
