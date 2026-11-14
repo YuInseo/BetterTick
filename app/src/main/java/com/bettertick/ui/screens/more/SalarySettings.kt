@@ -75,12 +75,18 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
     var pickOverrideMonth by remember { mutableStateOf(false) }
     var editOverride by remember { mutableStateOf<YearMonth?>(null) }
     var previewYear by remember { mutableStateOf(YearMonth.now().year) }
+    var addRecurring by remember { mutableStateOf<Boolean?>(null) }
+    var editRecurring by remember { mutableStateOf<com.bettertick.ui.screens.tasks.RecurringMoney?>(null) }
+    var askMilitary by remember { mutableStateOf(false) }
+    var pickEnlist by remember { mutableStateOf(false) }
+    var editRank by remember { mutableStateOf<Int?>(null) } // -1 = 새 계급
+    val mil = rules.military
 
-    OptionPage(title = "월급", onBack = onBack) {
+    OptionPage(title = "월급 · 가계부", onBack = onBack) {
         OptionCard {
             OptionSwitchRow(
-                title = "월급 버튼",
-                subtitle = "캘린더 화면 왼쪽 아래에 이번 달 월급을 보는 버튼을 띄웁니다.",
+                title = "가계부 버튼",
+                subtitle = "캘린더 화면 왼쪽 아래에 월급·용돈·지출을 보는 버튼을 띄웁니다.",
                 checked = SalaryPrefs.showButton,
                 onCheckedChange = { SalaryPrefs.updateShowButton(it) }
             )
@@ -100,6 +106,59 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
                 "월급날",
                 value = if (rules.payday >= 31) "매달 말일" else "매달 ${rules.payday}일"
             ) { editPayday = true }
+        }
+
+        PaySectionLabel("군 복무 월급")
+        OptionCard {
+            if (!mil.enabled) {
+                OptionNavRow(
+                    "군 월급 자동 계산",
+                    subtitle = "입대일만 넣으면 이병·일병·상병·병장 월급을 달마다 계산합니다."
+                ) { askMilitary = true }
+            } else {
+                OptionSwitchRow(
+                    title = "군 월급 자동 계산",
+                    subtitle = "끄면 계급 설정은 남고 월급 계산에서만 빠집니다.",
+                    checked = true,
+                    onCheckedChange = { on -> SalaryPrefs.updateMilitary(wpId) { it.copy(enabled = on) } }
+                )
+                OptionNavRow("입대일", value = mil.enlist?.toString() ?: "설정 안 함") { pickEnlist = true }
+                mil.discharge?.let { end ->
+                    val today = java.time.LocalDate.now()
+                    val left = java.time.temporal.ChronoUnit.DAYS.between(today, end)
+                    PayInfoRow("전역일 (자동)", "$end" + if (left >= 0) " · D-$left" else " · 전역")
+                    val now = mil.rankIn(YearMonth.from(today))
+                    val next = mil.rankStarts().firstOrNull { it.second.isAfter(today) }
+                    if (now != null) {
+                        PayInfoRow(
+                            "지금 계급",
+                            now.name + (next?.let { " · ${it.second} ${it.first.name} 진급" } ?: "")
+                        )
+                    }
+                }
+                PayDivider()
+                val starts = mil.rankStarts().map { it.second }
+                mil.ranks.forEachIndexed { i, r ->
+                    OptionNavRow(
+                        r.name,
+                        value = won(r.pay),
+                        subtitle = "${r.months}개월" + (starts.getOrNull(i)?.let { " · ${it}부터" } ?: "")
+                    ) { editRank = i }
+                }
+                OptionNavRow("계급 추가") { editRank = -1 }
+                OptionSwitchRow(
+                    title = "입대·전역한 달은 일할 계산",
+                    subtitle = "그 달에 복무한 날수만큼만 받습니다.",
+                    checked = mil.prorate,
+                    onCheckedChange = { on -> SalaryPrefs.updateMilitary(wpId) { it.copy(prorate = on) } }
+                )
+                OptionNavRow("기본값으로 (육군 18개월 · 2025년 봉급)") {
+                    SalaryPrefs.updateMilitary(wpId) { it.copy(ranks = com.bettertick.ui.screens.tasks.DefaultMilitaryRanks) }
+                }
+            }
+        }
+        if (mil.enabled) {
+            PayHint("입대한 달이 이병 1개월째이고, 다음 계급은 그 개월 수를 채운 뒤 1일에 진급합니다. 기본값(이병 75만·일병 90만·상병 120만·병장 150만, 2·6·6·4개월)은 직접 고칠 수 있어요. 해군·공군·해병대나 진급 누락은 계급별 개월 수를 바꾸세요. 이 근무지 기간은 입대일~전역일로 맞춰집니다.")
         }
 
         PaySectionLabel("항목 · 지급과 공제")
@@ -136,6 +195,21 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
             OptionNavRow("달 추가") { pickOverrideMonth = true }
         }
         PayHint("실제로 받은 금액이 다르면 그 달만 총액을 직접 넣으세요. 항목 계산 대신 이 금액을 씁니다.")
+
+        PaySectionLabel("매달 고정 수입·지출 (용돈·월세·구독)")
+        OptionCard {
+            com.bettertick.ui.screens.tasks.MoneyPrefs.book.recurring.forEach { r ->
+                PayRow(
+                    title = r.name,
+                    subtitle = "${r.category} · ${r.scheduleLabel}",
+                    amount = r.signed,
+                    onClick = { editRecurring = r }
+                )
+            }
+            OptionNavRow("고정 수입 추가 (용돈 등)") { addRecurring = true }
+            OptionNavRow("고정 지출 추가 (월세·통신비 등)") { addRecurring = false }
+        }
+        PayHint("근무지와 상관없이 매달 들어오고 나가는 돈입니다. 한 번뿐인 수입·지출은 캘린더 왼쪽 아래 '가계부'에서 바로 추가하세요.")
 
         PaySectionLabel("미리보기")
         OptionCard {
@@ -187,9 +261,65 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
                 )
             }
         }
-        PayHint("이 근무지 규칙만으로 계산한 금액입니다. 근무 기간 밖의 달은 화면 왼쪽 아래 '월급'에서 0원으로 나옵니다.")
+        PayHint("이 근무지 규칙만으로 계산한 금액입니다. 근무 기간 밖의 달은 화면 왼쪽 아래 '가계부'에서 0원으로 나옵니다.")
     }
 
+    addRecurring?.let { inc ->
+        MoneyDialog(defaultIncome = inc, defaultRepeat = true, onDismiss = { addRecurring = null })
+    }
+    editRecurring?.let { r ->
+        MoneyDialog(recurring = r, onDismiss = { editRecurring = null })
+    }
+    if (askMilitary) {
+        AlertDialog(
+            onDismissRequest = { askMilitary = false },
+            title = { Text("군 월급 자동 계산") },
+            text = {
+                Text("군 복무 기간을 근무지 하나로 둡니다. 그 근무지의 기간은 입대일~전역일로 맞춰져요. 지금 '${wp.name}'이(가) 다니는 회사라면 새 근무지를 만드세요.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    askMilitary = false
+                    val id = LeavePrefs.addWorkplace("군 복무", start = null, end = null).id
+                    wpId = id
+                    SalaryPrefs.updateMilitary(id) { it.copy(enabled = true) }
+                    pickEnlist = true
+                }) { Text("새 근무지 '군 복무' 만들기") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    askMilitary = false
+                    SalaryPrefs.updateMilitary(wpId) { it.copy(enabled = true) }
+                    pickEnlist = true
+                }) { Text("'${wp.name}'에서 켜기") }
+            }
+        )
+    }
+    if (pickEnlist) {
+        WorkStartPickerDialog(
+            initial = mil.enlist,
+            title = "입대일",
+            onDismiss = { pickEnlist = false },
+            onPick = { day -> SalaryPrefs.updateMilitary(wpId) { it.copy(enlist = day) }; pickEnlist = false }
+        )
+    }
+    editRank?.let { idx ->
+        RankDialog(
+            initial = mil.ranks.getOrNull(idx),
+            canDelete = idx >= 0 && mil.ranks.size > 1,
+            onDismiss = { editRank = null },
+            onSave = { r ->
+                SalaryPrefs.updateMilitary(wpId) { m ->
+                    m.copy(ranks = if (idx >= 0) m.ranks.mapIndexed { i, old -> if (i == idx) r else old } else m.ranks + r)
+                }
+                editRank = null
+            },
+            onDelete = {
+                SalaryPrefs.updateMilitary(wpId) { m -> m.copy(ranks = m.ranks.filterIndexed { i, _ -> i != idx }) }
+                editRank = null
+            }
+        )
+    }
     editItem?.let { item ->
         SalaryItemDialog(
             initial = item,
@@ -538,6 +668,223 @@ private fun NumberDialog(
         },
         confirmButton = {
             TextButton(enabled = n != null && valid(n), onClick = { n?.let(onConfirm) }) { Text("저장") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+    )
+}
+
+/**
+ * 수입·지출 추가/수정. One dialog for a one-off entry and for a 매달 고정
+ * item (용돈, 월세 …); switching "매달 반복" converts between the two.
+ */
+@Composable
+internal fun MoneyDialog(
+    entry: com.bettertick.ui.screens.tasks.MoneyEntry? = null,
+    recurring: com.bettertick.ui.screens.tasks.RecurringMoney? = null,
+    defaultIncome: Boolean = false,
+    defaultDate: java.time.LocalDate = java.time.LocalDate.now(),
+    defaultRepeat: Boolean = false,
+    onDismiss: () -> Unit
+) {
+    val editing = entry != null || recurring != null
+    var income by remember { mutableStateOf(entry?.income ?: recurring?.income ?: defaultIncome) }
+    var amountText by remember {
+        mutableStateOf((entry?.amount ?: recurring?.amount)?.takeIf { it > 0 }?.toString() ?: "")
+    }
+    var category by remember { mutableStateOf(entry?.category ?: recurring?.category ?: if (defaultIncome) "용돈" else "식비") }
+    var memo by remember { mutableStateOf(entry?.memo ?: recurring?.name ?: "") }
+    var monthly by remember { mutableStateOf(recurring != null || (entry == null && defaultRepeat)) }
+    var date by remember { mutableStateOf(entry?.date ?: defaultDate) }
+    var dayText by remember { mutableStateOf((recurring?.day ?: defaultDate.dayOfMonth).toString()) }
+    var from by remember { mutableStateOf(recurring?.from) }
+    var to by remember { mutableStateOf(recurring?.to) }
+    var pickDate by remember { mutableStateOf(false) }
+    var pickMonth by remember { mutableStateOf<String?>(null) }
+
+    val categories = if (income) com.bettertick.ui.screens.tasks.IncomeCategories else com.bettertick.ui.screens.tasks.ExpenseCategories
+    if (category !in categories) category = categories.first()
+    val amount = amountText.toLongOrNull() ?: 0L
+    val day = dayText.toIntOrNull()
+    val f = from
+    val t = to
+    val valid = amount > 0 && (!monthly || (day != null && day in 1..31 && (f == null || t == null || !t.isBefore(f))))
+
+    fun save() {
+        if (monthly) {
+            entry?.let { com.bettertick.ui.screens.tasks.MoneyPrefs.deleteEntry(it.id) }
+            val base = recurring ?: com.bettertick.ui.screens.tasks.RecurringMoney(name = "", amount = 0, income = income, category = category)
+            com.bettertick.ui.screens.tasks.MoneyPrefs.saveRecurring(
+                base.copy(
+                    name = memo.trim().ifBlank { category }, amount = amount, income = income,
+                    category = category, day = day ?: 1, from = from, to = to
+                )
+            )
+        } else {
+            recurring?.let { com.bettertick.ui.screens.tasks.MoneyPrefs.deleteRecurring(it.id) }
+            val base = entry ?: com.bettertick.ui.screens.tasks.MoneyEntry(date = date, amount = 0, income = income, category = category)
+            com.bettertick.ui.screens.tasks.MoneyPrefs.saveEntry(
+                base.copy(date = date, amount = amount, income = income, category = category, memo = memo.trim())
+            )
+        }
+        onDismiss()
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (editing) "내역 수정" else if (income) "수입 추가" else "지출 추가") },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill("지출", !income, Modifier.weight(1f)) { income = false }
+                    Pill("수입", income, Modifier.weight(1f)) { income = true }
+                }
+                OutlinedTextField(
+                    value = amountText, onValueChange = { amountText = digitsOnly(it) },
+                    singleLine = true, label = { Text("금액 (원)") },
+                    supportingText = { if (amount > 0) Text(won(amount)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                DialogLabel("분류")
+                categories.chunked(4).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { c -> Pill(c, category == c, Modifier.weight(1f)) { category = c } }
+                        repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                    }
+                }
+                OutlinedTextField(
+                    value = memo, onValueChange = { memo = it.take(30) },
+                    singleLine = true, label = { Text(if (monthly) "이름" else "메모 (선택)") },
+                    placeholder = { Text(if (income) "엄마 용돈, 중고 판매 …" else "점심, 택시 …") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Pill("한 번", !monthly, Modifier.weight(1f)) { monthly = false }
+                    Pill("매달 반복", monthly, Modifier.weight(1f)) { monthly = true }
+                }
+                if (!monthly) {
+                    DialogLabel("날짜")
+                    Pill(
+                        "${date.year}년 ${date.monthValue}월 ${date.dayOfMonth}일 (${"월화수목금토일"[date.dayOfWeek.value - 1]})",
+                        true, Modifier.fillMaxWidth()
+                    ) { pickDate = true }
+                } else {
+                    OutlinedTextField(
+                        value = dayText, onValueChange = { dayText = it.filter { c -> c.isDigit() }.take(2) },
+                        singleLine = true, label = { Text("매달 며칠") }, suffix = { Text("일") },
+                        supportingText = { Text("31 = 말일") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    DialogLabel("기간 (비워 두면 계속)")
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Pill(from?.let { ymLabel(it) } ?: "처음부터", from != null, Modifier.weight(1f)) { pickMonth = "from" }
+                        Text("~", color = TextTertiary)
+                        Pill(to?.let { ymLabel(it) } ?: "계속", to != null, Modifier.weight(1f)) { pickMonth = "to" }
+                    }
+                }
+                if (editing) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "삭제", color = PayRed, fontSize = 14.sp,
+                        modifier = Modifier
+                            .clickable {
+                                entry?.let { com.bettertick.ui.screens.tasks.MoneyPrefs.deleteEntry(it.id) }
+                                recurring?.let { com.bettertick.ui.screens.tasks.MoneyPrefs.deleteRecurring(it.id) }
+                                onDismiss()
+                            }
+                            .padding(vertical = 6.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = { TextButton(enabled = valid, onClick = { save() }) { Text("저장") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+    )
+
+    if (pickDate) {
+        WorkStartPickerDialog(
+            initial = date,
+            title = "날짜",
+            onDismiss = { pickDate = false },
+            onPick = { date = it; pickDate = false }
+        )
+    }
+    pickMonth?.let { which ->
+        MonthPickerDialog(
+            title = if (which == "from") "시작 달" else "끝 달",
+            initial = (if (which == "from") from else to) ?: YearMonth.now(),
+            clearLabel = if (which == "from") "처음부터" else "계속",
+            onClear = { if (which == "from") from = null else to = null; pickMonth = null },
+            onDismiss = { pickMonth = null },
+            onPick = { if (which == "from") from = it else to = it; pickMonth = null }
+        )
+    }
+}
+
+@Composable
+private fun PayInfoRow(title: String, value: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, fontSize = 15.sp, color = TextPrimary, modifier = Modifier.weight(1f))
+        Text(value, fontSize = 14.sp, color = TextSecondary)
+    }
+}
+
+@Composable
+private fun RankDialog(
+    initial: com.bettertick.ui.screens.tasks.MilitaryRank?,
+    canDelete: Boolean,
+    onDismiss: () -> Unit,
+    onSave: (com.bettertick.ui.screens.tasks.MilitaryRank) -> Unit,
+    onDelete: () -> Unit
+) {
+    var name by remember { mutableStateOf(initial?.name ?: "") }
+    var monthsText by remember { mutableStateOf(initial?.months?.toString() ?: "") }
+    var payText by remember { mutableStateOf(initial?.pay?.takeIf { it > 0 }?.toString() ?: "") }
+    val months = monthsText.toIntOrNull()
+    val pay = payText.toLongOrNull()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (initial == null) "계급 추가" else "${initial.name} 설정") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = name, onValueChange = { name = it.take(10) },
+                    singleLine = true, label = { Text("계급") }, placeholder = { Text("병장") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = monthsText, onValueChange = { monthsText = it.filter { c -> c.isDigit() }.take(2) },
+                    singleLine = true, label = { Text("기간") }, suffix = { Text("개월") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = payText, onValueChange = { payText = digitsOnly(it) },
+                    singleLine = true, label = { Text("한 달 월급 (원)") },
+                    supportingText = { pay?.let { Text(won(it)) } },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (canDelete) {
+                    Text(
+                        "계급 삭제", color = PayRed, fontSize = 14.sp,
+                        modifier = Modifier.clickable { onDelete() }.padding(vertical = 6.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = name.isNotBlank() && months != null && months in 1..60 && pay != null,
+                onClick = { onSave(com.bettertick.ui.screens.tasks.MilitaryRank(name.trim(), months!!, pay!!)) }
+            ) { Text("저장") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
     )

@@ -397,10 +397,10 @@ fun GeneralSettingsScreen(
             val thisMonth = java.time.YearMonth.now()
             val salaryRules = com.bettertick.ui.screens.tasks.SalaryPrefs.rulesIn(thisMonth)
             OptionNavRow(
-                "월급",
+                "월급 · 가계부",
                 value = if (salaryRules.isEmpty) "설정 안 함"
                 else com.bettertick.ui.screens.tasks.won(salaryRules.total(thisMonth)),
-                subtitle = "회사별로 월급날, 매달·분기·매년·한 번 받는 항목, 공제, 달별 금액을 정합니다."
+                subtitle = "회사별 월급(매달·분기·매년·한 번·공제·달별 금액)과 용돈 같은 매달 고정 수입·지출을 정합니다."
             ) { showSalary = true }
         }
         Text(

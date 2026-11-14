@@ -34,7 +34,9 @@ data class SalaryItem(
     val quarterMonth: Int = 3,
     val months: Set<Int> = emptySet(),
     val from: YearMonth? = null,
-    val to: YearMonth? = null
+    val to: YearMonth? = null,
+    /** Shown instead of the schedule (자동 항목, 예: 군 월급). */
+    val note: String? = null
 ) {
     fun paysIn(month: YearMonth): Boolean {
         if (repeat == SalaryRepeat.ONCE) return from == month
@@ -53,6 +55,7 @@ data class SalaryItem(
     /** "매달 · 2026년 1월부터", "분기 마지막 달 (3·6·9·12월)", "2026년 12월 한 번" */
     val scheduleLabel: String
         get() {
+            note?.let { return it }
             fun ym(m: YearMonth) = "${m.year}년 ${m.monthValue}월"
             val base = when (repeat) {
                 SalaryRepeat.MONTHLY -> "매달"
@@ -75,16 +78,85 @@ data class SalaryItem(
 }
 
 /** One workplace's salary rules. */
+/** 계급 하나: 이름, 그 계급으로 지내는 개월 수, 한 달 월급. */
+data class MilitaryRank(val name: String, val months: Int, val pay: Long)
+
+/** 이병 2 · 일병 6 · 상병 6 · 병장 4개월 (육군 18개월), 2025년 병 봉급. 모두 수정 가능. */
+val DefaultMilitaryRanks = listOf(
+    MilitaryRank("이병", 2, 750_000),
+    MilitaryRank("일병", 6, 900_000),
+    MilitaryRank("상병", 6, 1_200_000),
+    MilitaryRank("병장", 4, 1_500_000)
+)
+
+/**
+ * 군 복무 월급 자동 계산. The 입대한 달 counts as the first month of 이병;
+ * each next rank starts on the 1st of the month after the previous one's
+ * months are used up (예: 1월 15일 입대 → 3월 1일 일병). 전역일 = 입대일 +
+ * 총 개월 − 1일. With [prorate], the 입대·전역 달 are paid by days served.
+ */
+data class MilitaryPay(
+    val enabled: Boolean = false,
+    val enlist: LocalDate? = null,
+    val ranks: List<MilitaryRank> = DefaultMilitaryRanks,
+    val prorate: Boolean = true
+) {
+    val totalMonths: Int get() = ranks.sumOf { it.months.coerceAtLeast(0) }
+    val discharge: LocalDate? get() = enlist?.plusMonths(totalMonths.toLong())?.minusDays(1)
+
+    /** 계급별 시작일 (첫 계급은 입대일, 나머지는 그 달 1일). */
+    fun rankStarts(): List<Pair<MilitaryRank, LocalDate>> {
+        val start = enlist ?: return emptyList()
+        var month = YearMonth.from(start)
+        return ranks.mapIndexed { i, r ->
+            val day = if (i == 0) start else month.atDay(1)
+            month = month.plusMonths(r.months.coerceAtLeast(0).toLong())
+            r to day
+        }
+    }
+
+    /** Rank held at the start of [month] (or on 입대일 in the 입대한 달). */
+    fun rankIn(month: YearMonth): MilitaryRank? {
+        val end = discharge ?: return null
+        if (month < YearMonth.from(enlist!!) || month > YearMonth.from(end)) return null
+        return rankStarts().lastOrNull { YearMonth.from(it.second) <= month }?.first
+    }
+
+    /** That month's pay (일할 for the 입대·전역 달 when [prorate]); null outside service. */
+    fun payIn(month: YearMonth): Long? {
+        if (!enabled) return null
+        val rank = rankIn(month) ?: return null
+        if (!prorate) return rank.pay
+        val first = maxOf(month.atDay(1), enlist!!)
+        val last = minOf(month.atEndOfMonth(), discharge!!)
+        val served = java.time.temporal.ChronoUnit.DAYS.between(first, last) + 1
+        return rank.pay * served / month.lengthOfMonth()
+    }
+}
+
 data class SalaryRules(
     /** 월급날 (1~31; a short month pays on its last day). */
     val payday: Int = 25,
     val items: List<SalaryItem> = emptyList(),
     /** 달별 총액 직접 입력: replaces the items for that month. */
-    val monthOverrides: Map<YearMonth, Long> = emptyMap()
+    val monthOverrides: Map<YearMonth, Long> = emptyMap(),
+    val military: MilitaryPay = MilitaryPay()
 ) {
-    val isEmpty: Boolean get() = items.isEmpty() && monthOverrides.isEmpty()
+    val isEmpty: Boolean get() = items.isEmpty() && monthOverrides.isEmpty() && !military.enabled
 
-    fun itemsIn(month: YearMonth): List<SalaryItem> = items.filter { it.paysIn(month) }
+    /** Items paid in [month], with the 군 월급 for that month first. */
+    fun itemsIn(month: YearMonth): List<SalaryItem> {
+        val own = items.filter { it.paysIn(month) }
+        val pay = military.payIn(month) ?: return own
+        val rank = military.rankIn(month)?.name.orEmpty()
+        val partial = pay != military.rankIn(month)?.pay
+        return listOf(
+            SalaryItem(
+                id = "military", name = "군 월급 · $rank", amount = pay,
+                note = "입대일로 자동 계산" + if (partial) " (일할)" else ""
+            )
+        ) + own
+    }
     fun autoTotal(month: YearMonth): Long = itemsIn(month).sumOf { it.signed }
     fun override(month: YearMonth): Long? = monthOverrides[month]
     /** 실수령: the typed-in amount for the month, else paid − deducted. */
@@ -153,6 +225,23 @@ object SalaryPrefs {
         appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()?.putString("rules", encode(rules))?.apply()
     }
 
+    /**
+     * 군 복무 설정 바꾸기. With an 입대일, the workplace's 근무 기간 follows
+     * 입대일 ~ 전역일 so each month's pay lands on this workplace.
+     */
+    fun updateMilitary(workplaceId: String, transform: (MilitaryPay) -> MilitaryPay) {
+        val before = rulesFor(workplaceId)
+        val next = transform(before.military)
+        update(workplaceId) { r ->
+            // First switch-on with nothing else set: 군 월급날은 매달 10일.
+            val payday = if (next.enabled && !before.military.enabled && r.items.isEmpty() && r.payday == 25) 10 else r.payday
+            r.copy(military = next, payday = payday)
+        }
+        if (next.enabled && next.enlist != null) {
+            LeavePrefs.updateWorkplaceDates(workplaceId, next.enlist, next.discharge)
+        }
+    }
+
     fun updatePayday(workplaceId: String, day: Int) = update(workplaceId) { it.copy(payday = day.coerceIn(1, 31)) }
 
     /** Adds [item] or replaces the one with the same id. */
@@ -191,6 +280,16 @@ object SalaryPrefs {
                 put("overrides", org.json.JSONObject().apply {
                     r.monthOverrides.forEach { (m, a) -> put(m.toString(), a) }
                 })
+                put("military", org.json.JSONObject().apply {
+                    put("enabled", r.military.enabled)
+                    r.military.enlist?.let { put("enlist", it.toString()) }
+                    put("prorate", r.military.prorate)
+                    put("ranks", org.json.JSONArray().apply {
+                        r.military.ranks.forEach { k ->
+                            put(org.json.JSONObject().apply { put("name", k.name); put("months", k.months); put("pay", k.pay) })
+                        }
+                    })
+                })
             })
         }
     }.toString()
@@ -217,7 +316,24 @@ object SalaryPrefs {
                 )
             }
             val ov = o.optJSONObject("overrides")
+            val mil = o.optJSONObject("military")
+            val military = if (mil == null) MilitaryPay() else {
+                val ra = mil.optJSONArray("ranks")
+                MilitaryPay(
+                    enabled = mil.optBoolean("enabled"),
+                    enlist = mil.optString("enlist", "").takeIf { it.isNotBlank() }
+                        ?.let { runCatching { LocalDate.parse(it) }.getOrNull() },
+                    prorate = mil.optBoolean("prorate", true),
+                    ranks = ra?.let { a ->
+                        (0 until a.length()).mapNotNull { idx ->
+                            val k = a.optJSONObject(idx) ?: return@mapNotNull null
+                            MilitaryRank(k.optString("name"), k.optInt("months"), k.optLong("pay"))
+                        }
+                    }?.takeIf { it.isNotEmpty() } ?: DefaultMilitaryRanks
+                )
+            }
             SalaryRules(
+                military = military,
                 payday = o.optInt("payday", 25),
                 items = items,
                 monthOverrides = ov?.keys()?.asSequence()?.mapNotNull { k -> ym(k)?.let { it to ov.optLong(k) } }?.toMap().orEmpty()
