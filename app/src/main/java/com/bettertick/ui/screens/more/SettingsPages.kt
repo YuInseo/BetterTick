@@ -311,9 +311,15 @@ fun GeneralSettingsScreen(
     }
     var leaveType by remember { mutableStateOf<String?>(null) }
     var showWorkplaces by remember { mutableStateOf(false) }
+    var showSalary by remember { mutableStateOf(false) }
     leaveType?.let { type ->
         androidx.activity.compose.BackHandler { leaveType = null }
         LeaveTypeSettingsScreen(type = type, onBack = { leaveType = null })
+        return
+    }
+    if (showSalary) {
+        androidx.activity.compose.BackHandler { showSalary = false }
+        SalarySettingsScreen(onBack = { showSalary = false })
         return
     }
     if (showWorkplaces) {
@@ -382,6 +388,21 @@ fun GeneralSettingsScreen(
             fontSize = 13.sp, color = TextTertiary, lineHeight = 18.sp,
             modifier = Modifier.padding(horizontal = 20.dp)
         )
+        Text(
+            "월급 · ${LeavePrefs.currentWorkplace.name}",
+            fontSize = 13.sp, color = TextSecondary,
+            modifier = Modifier.padding(start = 20.dp)
+        )
+        OptionCard {
+            val thisMonth = java.time.YearMonth.now()
+            val salaryRules = com.bettertick.ui.screens.tasks.SalaryPrefs.rulesIn(thisMonth)
+            OptionNavRow(
+                "월급",
+                value = if (salaryRules.isEmpty) "설정 안 함"
+                else com.bettertick.ui.screens.tasks.won(salaryRules.total(thisMonth)),
+                subtitle = "회사별로 월급날, 매달·분기·매년·한 번 받는 항목, 공제, 달별 금액을 정합니다."
+            ) { showSalary = true }
+        }
         Text(
             "근무 블록 색상",
             fontSize = 13.sp, color = TextSecondary,
