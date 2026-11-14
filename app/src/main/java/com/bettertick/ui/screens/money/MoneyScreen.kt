@@ -1,6 +1,5 @@
-package com.bettertick.ui.screens.calendar.components
+package com.bettertick.ui.screens.money
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,7 +9,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -43,64 +42,40 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 
-/** Bottom-left floating '월급' button and its month-by-month sheet. */
-@OptIn(ExperimentalMaterial3Api::class)
+/** 가계부 탭: 월급(근무지별·군 월급), 추가 수입·지출, 매달 고정 항목을 달마다 본다. */
 @Composable
-fun SalaryMenu(onSettings: () -> Unit, modifier: Modifier = Modifier) {
-    var expanded by rememberSaveable { mutableStateOf(false) }
+fun MoneyScreen(onSettings: () -> Unit) {
     var monthKey by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
     var editOverride by remember { mutableStateOf(false) }
     // null = closed; true = 수입, false = 지출.
     var adding by remember { mutableStateOf<Boolean?>(null) }
     var editLine by remember { mutableStateOf<MoneyLine?>(null) }
 
-    Surface(
-        onClick = {
-            monthKey = YearMonth.now().toString()
-            expanded = true
-        },
-        modifier = modifier,
-        shape = RoundedCornerShape(20.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        shadowElevation = 4.dp
-    ) {
-        Row(
-            Modifier.heightIn(min = 40.dp).padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Outlined.Payments, contentDescription = null, modifier = Modifier.size(16.dp))
-            Text("가계부", style = MaterialTheme.typography.labelMedium, maxLines = 1)
-        }
-    }
-
-    if (!expanded) return
     val month = YearMonth.parse(monthKey)
     val today = LocalDate.now()
     val accent = ThemeState.accentColor
     val wp = SalaryPrefs.workplaceFor(month)
     val rules = SalaryPrefs.rulesIn(month)
 
-    ModalBottomSheet(
-        onDismissRequest = { expanded = false },
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false),
-        containerColor = GroupedBackground,
-        dragHandle = { BottomSheetDefaults.DragHandle(color = TextTertiary.copy(alpha = 0.5f)) }
-    ) {
+    Box(Modifier.fillMaxSize().background(GroupedBackground)) {
         Column(
             Modifier
-                .fillMaxWidth()
+                .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp)
-                .padding(bottom = 24.dp),
+                .padding(top = 12.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(
-                "월급 · 가계부",
-                fontSize = 22.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
-                modifier = Modifier.padding(start = 4.dp)
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "가계부",
+                    fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextPrimary,
+                    modifier = Modifier.padding(start = 4.dp).weight(1f)
+                )
+                IconButton(onClick = onSettings) {
+                    Icon(Icons.Outlined.Settings, contentDescription = "월급 · 가계부 설정", tint = TextSecondary)
+                }
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { monthKey = month.minusMonths(1).toString() }) {
                     Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "이전 달", tint = TextSecondary)
@@ -127,7 +102,7 @@ fun SalaryMenu(onSettings: () -> Unit, modifier: Modifier = Modifier) {
                     Column(
                         Modifier
                             .fillMaxWidth()
-                            .clickable { expanded = false; onSettings() }
+                            .clickable { onSettings() }
                             .padding(horizontal = 18.dp, vertical = 16.dp)
                     ) {
                         Text("${wp.name} 월급을 아직 정하지 않았어요", fontSize = 15.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
@@ -299,7 +274,7 @@ fun SalaryMenu(onSettings: () -> Unit, modifier: Modifier = Modifier) {
             }
 
             TextButton(
-                onClick = { expanded = false; onSettings() },
+                onClick = { onSettings() },
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) { Text("월급 설정", color = accent, fontWeight = FontWeight.SemiBold) }
         }

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.Book
+import androidx.compose.material.icons.outlined.Payments
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.DragHandle
@@ -91,6 +92,7 @@ fun tabCatalog(): List<TabItem> = listOf(
     TabItem("more", "설정", "현재 설정을 변경하고 확인하세요.", Icons.Outlined.MoreHoriz),
     TabItem("habits", "습관", "매일 기록하며 꾸준히 이어가세요.", Icons.Outlined.Schedule),
     TabItem("diary", "일기", "매일의 생각과 감정을 기록하세요.", Icons.Outlined.Book),
+    TabItem("money", "가계부", "월급·용돈·지출을 한눈에 관리하세요.", Icons.Outlined.Payments),
     TabItem("dday", "디데이", "특별한 날을 기억하세요.", Icons.Outlined.Star),
     TabItem("search", "검색", "빠르게 작업을 검색하세요.", Icons.Outlined.Search),
     TabItem("location", "동선", "오늘 어디에 있었는지 기록하세요.", Icons.Outlined.LocationOn)

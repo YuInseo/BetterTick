@@ -152,6 +152,7 @@ internal fun tabRouteFor(tabId: String): String? = when (tabId) {
     "pomodoro" -> BottomNavItem.Focus.route
     "habits" -> BottomNavItem.Habits.route
     "diary" -> BottomNavItem.Diary.route
+    "money" -> BottomNavItem.Money.route
     "location" -> "location"
     "more" -> BottomNavItem.More.route
     else -> null
@@ -241,6 +242,20 @@ private fun MainContent(
         if (openQuickAdd.value) {
             showTaskInput = true
             openQuickAdd.value = false
+        }
+    }
+
+    // 가계부 탭이 생겼을 때 한 번: 직접 고른 탭 구성에 '가계부'를 넣는다 (설정 앞).
+    LaunchedEffect(tabBarConfig) {
+        val cfg = tabBarConfig
+        if (cfg !== com.bettertick.data.model.defaultTabBarConfig &&
+            "money" !in cfg.enabledIds &&
+            com.bettertick.ui.screens.tasks.SalaryPrefs.claimMoneyTabMigration()
+        ) {
+            val ids = cfg.enabledIds.toMutableList()
+            val at = ids.indexOf("more").takeIf { it >= 0 } ?: ids.size
+            ids.add(at, "money")
+            tabBarViewModel.saveConfig(cfg.copy(enabledIds = ids))
         }
     }
 
@@ -575,6 +590,11 @@ private fun MainContent(
                 composable(BottomNavItem.Diary.route) {
                     DiaryScreen()
                 }
+                composable(BottomNavItem.Money.route) {
+                    com.bettertick.ui.screens.money.MoneyScreen(
+                        onSettings = { navController.navigate("salary_settings") }
+                    )
+                }
                 composable(BottomNavItem.More.route) {
                     MoreScreen(
                         userName = authViewModel.userName,
@@ -675,6 +695,7 @@ private fun MainContent(
             // 오른쪽 아래, 하단 네비게이션 바 바로 위에 떠 있는 플로팅 버튼.
             if (isTabRoute && currentRoute != "location" && currentRoute != "more" &&
                 currentRoute != BottomNavItem.Habits.route &&
+                currentRoute != BottomNavItem.Money.route &&
                 !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen &&
                 !com.bettertick.ui.screens.tasks.TaskListPrefs.selectionActive
             ) {
@@ -685,14 +706,6 @@ private fun MainContent(
                         .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     contentAlignment = Alignment.BottomEnd
                 ) {
-                    if (currentRoute == BottomNavItem.Calendar.route &&
-                        com.bettertick.ui.screens.tasks.SalaryPrefs.showButton
-                    ) {
-                        com.bettertick.ui.screens.calendar.components.SalaryMenu(
-                            onSettings = { navController.navigate("salary_settings") },
-                            modifier = Modifier.align(Alignment.BottomStart)
-                        )
-                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
