@@ -47,7 +47,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -253,7 +252,6 @@ fun SelectedDatePanel(
                                         depth = depth,
                                         first = firstNested,
                                         last = lastNested,
-                                        tint = accent,
                                         surface = MaterialTheme.colorScheme.onSurface
                                     ) else Modifier.padding(top = if (activeIdx > 0) 8.dp else 0.dp)
                                 )
@@ -410,7 +408,6 @@ fun SelectedDatePanel(
                                     depth = doneDepth,
                                     first = (done.getOrNull(index - 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
                                     last = (done.getOrNull(index + 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
-                                    tint = TextTertiary,
                                     surface = MaterialTheme.colorScheme.onSurface
                                 ) else Modifier.padding(top = if (index > 0) 8.dp else 0.dp)
                             )
@@ -759,30 +756,21 @@ private fun Modifier.subtaskSurface(
     depth: Int,
     first: Boolean,
     last: Boolean,
-    tint: Color,
     surface: Color
 ): Modifier {
-    val indent = (12 + 12 * (depth.coerceIn(1, 3) - 1)).dp
-    val shape = RoundedCornerShape(
-        topStart = if (first) 12.dp else 0.dp,
-        topEnd = if (first) 12.dp else 0.dp,
-        bottomStart = if (last) 12.dp else 0.dp,
-        bottomEnd = if (last) 12.dp else 0.dp
-    )
-    return padding(start = indent, end = 12.dp, top = if (first) 4.dp else 0.dp)
-        .clip(shape)
-        .background(surface.copy(alpha = 0.035f))
+    // A single flat family: indentation and hairlines, without another card or rail.
+    val indent = (20 + 12 * (depth.coerceIn(1, 3) - 1)).dp
+    return padding(start = indent, end = 8.dp, top = if (first) 6.dp else 0.dp)
         .drawBehind {
-            val x = 5.dp.toPx()
-            drawLine(
-                color = tint.copy(alpha = 0.22f),
-                start = Offset(x, if (first) 12.dp.toPx() else 0f),
-                end = Offset(x, (size.height - if (last) 12.dp.toPx() else 0f).coerceAtLeast(12.dp.toPx())),
-                strokeWidth = 1.5.dp.toPx(),
-                cap = StrokeCap.Round
+            if (!first) drawLine(
+                color = surface.copy(alpha = 0.06f),
+                start = Offset(48.dp.toPx(), 0f),
+                end = Offset(size.width - 8.dp.toPx(), 0f),
+                strokeWidth = 1.dp.toPx()
             )
         }
-        .padding(start = 8.dp, top = if (first) 3.dp else 0.dp, bottom = if (last) 3.dp else 0.dp)
+        .padding(bottom = if (last) 4.dp else 0.dp)
+
 }
 
 /**
