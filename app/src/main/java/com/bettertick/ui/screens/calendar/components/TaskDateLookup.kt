@@ -16,7 +16,6 @@ import java.time.LocalDate
  * equality by reference is correct for stability purposes.
  */
 @Immutable
-@androidx.compose.runtime.Immutable
 class TaskDateLookup(private val map: Map<LocalDate, List<Task>>) {
     fun hasTasksOn(date: LocalDate): Boolean = map[date]?.isNotEmpty() == true
     fun tasksOn(date: LocalDate): List<Task> = map[date].orEmpty()
