@@ -131,6 +131,7 @@ fun TaskItem(
     val dateColor = when {
         isDone -> TextTertiary
         isOverdue -> OverdueRed
+        compactRow -> TextSecondary
         shownDate == LocalDate.now() -> accent
         else -> TextSecondary
     }
@@ -140,7 +141,7 @@ fun TaskItem(
         modifier = modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(start = 4.dp, end = 16.dp, top = if (compactRow) 3.dp else 6.dp, bottom = if (compactRow) 3.dp else 6.dp)
+            .padding(start = 4.dp, end = 16.dp, top = if (compactRow) 5.dp else 6.dp, bottom = if (compactRow) 5.dp else 6.dp)
     ) {
     Row(
         modifier = Modifier
@@ -179,7 +180,8 @@ fun TaskItem(
                 TickCheckbox(
                     priority = task.priority,
                     isCompleted = task.isCompleted,
-                    isAbandoned = task.isAbandoned
+                    isAbandoned = task.isAbandoned,
+                    size = if (compactRow) 16.dp else 18.dp
                 )
                 if (onStatusAction != null) {
                     com.bettertick.ui.components.DropdownMenu(
@@ -210,8 +212,8 @@ fun TaskItem(
             MarkdownText(
                 text = if (isShift) task.shiftTitleOn(shiftDay) else task.title,
                 color = if (isDone) TextTertiary else TextPrimary,
-                // 하위 할일은 조금 작게 — 부모 아래 딸린 줄로 보이게.
-                fontSize = if (compactRow) 14.sp else 15.sp,
+                // Nested rows stay readable; the inset group carries the hierarchy.
+                fontSize = 15.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -219,13 +221,17 @@ fun TaskItem(
             val hasNotes = task.notes.isNotBlank() || task.memos.isNotEmpty() || task.dayNotes.isNotEmpty()
             val hasMetaIcons = task.isPinned || hasNotes ||
                 !task.repeatRule.isNullOrBlank() || hasTime
-            if (listName.isNotBlank() || hasMetaIcons) {
+            // Inherited list/repeat/alarm labels clutter every child. Keep only
+            // meaningful pin/note indicators here; full metadata stays in detail.
+            val showListName = !compactRow && listName.isNotBlank()
+            val showMeta = if (compactRow) task.isPinned || hasNotes else hasMetaIcons
+            if (showListName || showMeta) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.padding(top = 1.dp)
                 ) {
-                    if (listName.isNotBlank()) {
+                    if (showListName) {
                         Text(
                             text = listName,
                             fontSize = 11.sp,
@@ -242,10 +248,10 @@ fun TaskItem(
                     if (hasNotes) {
                         Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = "메모", tint = metaIconTint, modifier = Modifier.size(12.dp))
                     }
-                    if (!task.repeatRule.isNullOrBlank()) {
+                    if (!compactRow && !task.repeatRule.isNullOrBlank()) {
                         Icon(Icons.Outlined.Repeat, contentDescription = "반복", tint = metaIconTint, modifier = Modifier.size(12.dp))
                     }
-                    if (hasTime) {
+                    if (!compactRow && hasTime) {
                         Icon(Icons.Outlined.Alarm, contentDescription = "알림", tint = metaIconTint, modifier = Modifier.size(12.dp))
                     }
                 }
@@ -285,7 +291,7 @@ fun TaskItem(
                     shownDate?.let { date ->
                         Text(
                             text = buildDateLabel(date, startTime, task.durationMinutes, hasTime),
-                            fontSize = 12.sp,
+                            fontSize = if (compactRow) 11.sp else 12.sp,
                             lineHeight = 15.sp,
                             color = dateColor,
                             maxLines = 2,

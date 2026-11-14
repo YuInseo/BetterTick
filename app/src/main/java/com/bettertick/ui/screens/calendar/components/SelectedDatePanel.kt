@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -220,7 +221,7 @@ fun SelectedDatePanel(
                             val pos = c.positionInRoot()
                             listBounds = Rect(pos.x, pos.y, pos.x + c.size.width, pos.y + c.size.height)
                         },
-                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                    verticalArrangement = Arrangement.spacedBy(0.dp),
                     contentPadding = listPadding
                 ) {
                     items(active, key = { it.id }) { task ->
@@ -233,10 +234,11 @@ fun SelectedDatePanel(
                             othersIdx == others.lastIndex && insertAt == others.size
                         val depth = depths[task.id] ?: 0
                         val nestedRow = depth > 0
-                        // Last child at its level: the branch line stops at this row (└).
                         val activeIdx = active.indexOfFirst { it.id == task.id }
-                        val lastChild = nestedRow &&
-                            ((active.getOrNull(activeIdx + 1)?.let { depths[it.id] ?: 0 } ?: 0) < depth)
+                        val firstNested = nestedRow &&
+                            (active.getOrNull(activeIdx - 1)?.let { depths[it.id] ?: 0 } ?: 0) == 0
+                        val lastNested = nestedRow &&
+                            (active.getOrNull(activeIdx + 1)?.let { depths[it.id] ?: 0 } ?: 0) == 0
                         val isNestTarget = nestTarget?.id == task.id
                         val accent = MaterialTheme.colorScheme.primary
                         Column(
@@ -247,35 +249,13 @@ fun SelectedDatePanel(
                                 }
                                 .alpha(if (dragged?.id == task.id) 0.35f else 1f)
                                 .then(
-                                    if (nestedRow) Modifier
-                                        .drawBehind {
-                                            // Tree lines from under the parent's checkbox:
-                                            // ancestors run straight down, this level bends
-                                            // into the row (├ / └).
-                                            val stroke = 1.5.dp.toPx()
-                                            val midY = minOf(size.height / 2f, 26.dp.toPx())
-                                            for (level in 0 until depth) {
-                                                val x = (SubtaskRootX + SubtaskIndent * level).dp.toPx()
-                                                val own = level == depth - 1
-                                                drawLine(
-                                                    SubtaskGuide,
-                                                    Offset(x, 0f),
-                                                    Offset(x, if (own && lastChild) midY else size.height),
-                                                    strokeWidth = stroke
-                                                )
-                                                if (own) {
-                                                    val childBoxLeft = (SubtaskRootX + SubtaskIndent * depth - 13).dp.toPx()
-                                                    drawLine(
-                                                        SubtaskGuide,
-                                                        Offset(x, midY),
-                                                        Offset(childBoxLeft, midY),
-                                                        strokeWidth = stroke
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        .padding(start = (SubtaskIndent * depth).dp)
-                                    else Modifier
+                                    if (nestedRow) Modifier.subtaskSurface(
+                                        depth = depth,
+                                        first = firstNested,
+                                        last = lastNested,
+                                        tint = accent,
+                                        surface = MaterialTheme.colorScheme.onSurface
+                                    ) else Modifier.padding(top = if (activeIdx > 0) 8.dp else 0.dp)
                                 )
                                 .then(
                                     if (isNestTarget) Modifier
@@ -418,7 +398,7 @@ fun SelectedDatePanel(
                     color = TextSecondary,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
                 )
-                done.forEach { task ->
+                done.forEachIndexed { index, task ->
                     val taskTags = remember(task.tagIds, tags) {
                         task.tagIds.mapNotNull { id -> tags.firstOrNull { it.id == id } }
                     }
@@ -426,21 +406,17 @@ fun SelectedDatePanel(
                     Box(
                         Modifier
                             .then(
-                                if (doneDepth > 0) Modifier
-                                    .drawBehind {
-                                        val midY = minOf(size.height / 2f, 26.dp.toPx())
-                                        for (level in 0 until doneDepth) {
-                                            val x = (SubtaskRootX + SubtaskIndent * level).dp.toPx()
-                                            drawLine(SubtaskGuide, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5.dp.toPx())
-                                            if (level == doneDepth - 1) {
-                                                val childBoxLeft = (SubtaskRootX + SubtaskIndent * doneDepth - 13).dp.toPx()
-                                                drawLine(SubtaskGuide, Offset(x, midY), Offset(childBoxLeft, midY), strokeWidth = 1.5.dp.toPx())
-                                            }
-                                        }
-                                    }
-                                    .padding(start = (SubtaskIndent * doneDepth).dp)
-                                else Modifier
+                                if (doneDepth > 0) Modifier.subtaskSurface(
+                                    depth = doneDepth,
+                                    first = (done.getOrNull(index - 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
+                                    last = (done.getOrNull(index + 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
+                                    tint = TextTertiary,
+                                    surface = MaterialTheme.colorScheme.onSurface
+                                ) else Modifier.padding(top = if (index > 0) 8.dp else 0.dp)
                             )
+                    ) {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.bettertick.ui.screens.tasks.components.LocalCompactTaskRow provides (doneDepth > 0)
                     ) {
                     TaskItem(
                         task = task,
@@ -457,6 +433,7 @@ fun SelectedDatePanel(
                         resolvedTags = taskTags,
                         onStatusAction = { action -> onStatusAction(task, action) }
                     )
+                    }
                     }
                 }
                 Spacer(Modifier.height(6.dp))
@@ -774,12 +751,39 @@ private fun EmptyState(modifier: Modifier = Modifier) {
     }
 }
 
-/** Thin line down the left of a parent's subtask rows. */
-private val SubtaskGuide = Color(0x807F7F7F)
-/** x (dp) of a top-level row's checkbox center — where the tree line starts. */
-private const val SubtaskRootX = 24
-/** Indent (dp) per subtask level. */
-private const val SubtaskIndent = 30
+/** A quiet inset surface replaces the old checkbox-to-checkbox elbow tree.
+ * Keep indentation bounded so deep descendants still have room for titles.
+ * Drawing is decorative; row hit targets and drag/drop coordinates stay intact.
+ */
+private fun Modifier.subtaskSurface(
+    depth: Int,
+    first: Boolean,
+    last: Boolean,
+    tint: Color,
+    surface: Color
+): Modifier {
+    val indent = (12 + 12 * (depth.coerceIn(1, 3) - 1)).dp
+    val shape = RoundedCornerShape(
+        topStart = if (first) 12.dp else 0.dp,
+        topEnd = if (first) 12.dp else 0.dp,
+        bottomStart = if (last) 12.dp else 0.dp,
+        bottomEnd = if (last) 12.dp else 0.dp
+    )
+    return padding(start = indent, end = 12.dp, top = if (first) 4.dp else 0.dp)
+        .clip(shape)
+        .background(surface.copy(alpha = 0.035f))
+        .drawBehind {
+            val x = 5.dp.toPx()
+            drawLine(
+                color = tint.copy(alpha = 0.22f),
+                start = Offset(x, if (first) 12.dp.toPx() else 0f),
+                end = Offset(x, (size.height - if (last) 12.dp.toPx() else 0f).coerceAtLeast(12.dp.toPx())),
+                strokeWidth = 1.5.dp.toPx(),
+                cap = StrokeCap.Round
+            )
+        }
+        .padding(start = 8.dp, top = if (first) 3.dp else 0.dp, bottom = if (last) 3.dp else 0.dp)
+}
 
 /**
  * Insertion marker shown between rows while dragging to reorder. Indented,

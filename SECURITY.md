@@ -1,5 +1,13 @@
 # Firebase 보안과 배포
 
+## 적용 기록 — 2026-11-14
+
+- BetterTick 운영 Firestore 콘솔에 `firestore.rules`를 게시했고, 게시 성공을 확인했습니다. 게시 직전 규칙은 [`security/backups/firestore-before-20261114.rules`](security/backups/firestore-before-20261114.rules)에 보관합니다.
+- 게시 전 규칙도 본인 UID로 접근을 제한하고 있었습니다. 이번 변경은 컬렉션 허용 목록과 쓰기 스키마 검증을 추가합니다.
+- 에뮬레이터 보안 테스트 17개와 Android 빌드·Lint·단위 테스트가 통과했습니다. 실제 Android 기기에서 게시 후 로그인·동기화 검증은 아직 수행하지 않았습니다.
+- Play Integrity 등록 화면에 현재 배포 인증서와 외부 배포 설정을 준비했습니다. **약관 동의 및 저장 전이므로 App Check 등록·강제 적용은 완료되지 않았습니다.**
+- API 키 제한 변경, 개발·운영 프로젝트 분리와 Release 서명 전환은 아직 수행하지 않았습니다.
+
 ## 현재 코드에 포함된 보호 장치
 
 - `firestore.rules`: 본인 UID의 명시된 컬렉션만 허용합니다. 다른 사용자·비로그인 접근, 전체 사용자 목록 조회, 알 수 없는 컬렉션과 중첩 경로는 거부합니다.
