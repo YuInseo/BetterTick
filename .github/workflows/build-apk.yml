@@ -44,8 +44,10 @@ jobs:
         run: |
           CODE=$(git rev-list --count HEAD)
           SHA=$(git rev-parse --short HEAD)
-          # build.gradle.kts의 versionName 그대로 가져와서 commit count 붙임
-          NAME="0.1.${CODE}"
+          # 표시용 이름: 마지막 자리는 두 자리(0~99)까지만 쓰고 넘치면 가운데로 올린다.
+          # versionCode(=CODE)는 그대로라 업데이트 비교에는 영향 없음.
+          # 예) 193 → 0.1.93, 200 → 0.2.0, 1234 → 0.12.34
+          NAME="0.$((CODE / 100)).$((CODE % 100))"
           echo "code=$CODE" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
           echo "sha=$SHA" >> $GITHUB_OUTPUT
