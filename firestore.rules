@@ -1,0 +1,266 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+    // Optional fields keep older clients compatible. Unknown fields are denied.
+    // Blank IDs are written by DataSeeder; nonblank IDs must match the path.
+    function documentId(d, id) {
+      return !('id' in d) || (d.id is string && (d.id == '' || d.id == id));
+    }
+    function validUser(d) {
+      return d.keys().hasOnly(['id', 'email', 'displayName', 'photoUrl', 'createdAt', 'settings'])
+        && d.keys().hasAll(['id', 'email', 'displayName'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('email' in d) || (d.email is string && d.email.size() <= 512))
+        && (!('displayName' in d) || (d.displayName is string && d.displayName.size() <= 512))
+        && (!('photoUrl' in d) || (d.photoUrl is string && d.photoUrl.size() <= 2048))
+        && (!('createdAt' in d) || (d.createdAt is timestamp))
+        && (!('settings' in d) || (d.settings is map && d.settings.size() <= 10000));
+    }
+
+    function validTask(d) {
+      return d.keys().hasOnly(['id', 'title', 'notes', 'listId', 'tagIds', 'dueDate', 'durationMinutes', 'isCompleted', 'completedAt', 'isAbandoned', 'abandonedAt', 'priority', 'repeatRule', 'repeatEnd', 'exceptions', 'notionUrl', 'createdAt', 'updatedAt', 'sortOrder', 'kanbanColumn', 'attachments', 'reminders', 'isPinned', 'leaves', 'dayShifts', 'parentId', 'completedDates', 'checkWholeSeries', 'dayNotes', 'memos', 'completed', 'abandoned', 'pinned'])
+        && d.keys().hasAll(['title'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('title' in d) || (d.title is string && d.title.size() <= 512))
+        && (!('notes' in d) || (d.notes is string && d.notes.size() <= 200000))
+        && (!('listId' in d) || (d.listId is string && d.listId.size() <= 512))
+        && (!('tagIds' in d) || (d.tagIds is list && d.tagIds.size() <= 100))
+        && (!('dueDate' in d) || (d.dueDate == null || (d.dueDate is timestamp)))
+        && (!('durationMinutes' in d) || (d.durationMinutes is int))
+        && (!('isCompleted' in d) || (d.isCompleted is bool))
+        && (!('completedAt' in d) || (d.completedAt == null || (d.completedAt is timestamp)))
+        && (!('isAbandoned' in d) || (d.isAbandoned is bool))
+        && (!('abandonedAt' in d) || (d.abandonedAt == null || (d.abandonedAt is timestamp)))
+        && (!('priority' in d) || (d.priority is int && d.priority >= 0 && d.priority <= 3))
+        && (!('repeatRule' in d) || (d.repeatRule == null || (d.repeatRule is string && d.repeatRule.size() <= 10000)))
+        && (!('repeatEnd' in d) || (d.repeatEnd == null || (d.repeatEnd is string && d.repeatEnd.size() <= 512)))
+        && (!('exceptions' in d) || (d.exceptions is list && d.exceptions.size() <= 10000))
+        && (!('notionUrl' in d) || (d.notionUrl is string && d.notionUrl.size() <= 2048))
+        && (!('createdAt' in d) || (d.createdAt is timestamp))
+        && (!('updatedAt' in d) || (d.updatedAt is timestamp))
+        && (!('sortOrder' in d) || (d.sortOrder is int))
+        && (!('kanbanColumn' in d) || (d.kanbanColumn is string && d.kanbanColumn.size() <= 512))
+        && (!('attachments' in d) || (d.attachments is list && d.attachments.size() <= 100))
+        && (!('reminders' in d) || (d.reminders is list && d.reminders.size() <= 100))
+        && (!('isPinned' in d) || (d.isPinned is bool))
+        && (!('leaves' in d) || (d.leaves is map && d.leaves.size() <= 10000))
+        && (!('dayShifts' in d) || (d.dayShifts is map && d.dayShifts.size() <= 10000))
+        && (!('parentId' in d) || (d.parentId is string && d.parentId.size() <= 512))
+        && (!('completedDates' in d) || (d.completedDates is list && d.completedDates.size() <= 10000))
+        && (!('checkWholeSeries' in d) || (d.checkWholeSeries is bool))
+        && (!('dayNotes' in d) || (d.dayNotes is map && d.dayNotes.size() <= 10000))
+        && (!('memos' in d) || (d.memos is list && d.memos.size() <= 1000))
+        && (!('completed' in d) || (d.completed is bool))
+        && (!('abandoned' in d) || (d.abandoned is bool))
+        && (!('pinned' in d) || (d.pinned is bool));
+    }
+
+    function validTaskList(d) {
+      return d.keys().hasOnly(['id', 'name', 'color', 'icon', 'isDefault', 'sortOrder', 'createdAt', 'viewType', 'isPinned', 'kanbanColumns', 'default', 'pinned'])
+        && d.keys().hasAll(['name'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('name' in d) || (d.name is string && d.name.size() <= 512))
+        && (!('color' in d) || (d.color is string && d.color.size() <= 512))
+        && (!('icon' in d) || (d.icon is string && d.icon.size() <= 512))
+        && (!('isDefault' in d) || (d.isDefault is bool))
+        && (!('sortOrder' in d) || (d.sortOrder is int))
+        && (!('createdAt' in d) || (d.createdAt is timestamp))
+        && (!('viewType' in d) || (d.viewType is string && d.viewType.size() <= 512))
+        && (!('isPinned' in d) || (d.isPinned is bool))
+        && (!('kanbanColumns' in d) || (d.kanbanColumns is list && d.kanbanColumns.size() <= 100))
+        && (!('default' in d) || (d.default is bool))
+        && (!('pinned' in d) || (d.pinned is bool));
+    }
+
+    function validTag(d) {
+      return d.keys().hasOnly(['id', 'name', 'color', 'parentTagId', 'createdAt'])
+        && d.keys().hasAll(['name'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('name' in d) || (d.name is string && d.name.size() <= 512))
+        && (!('color' in d) || (d.color is string && d.color.size() <= 512))
+        && (!('parentTagId' in d) || (d.parentTagId == null || (d.parentTagId is string && d.parentTagId.size() <= 512)))
+        && (!('createdAt' in d) || (d.createdAt is timestamp));
+    }
+
+    function validHabit(d) {
+      return d.keys().hasOnly(['id', 'name', 'description', 'icon', 'color', 'frequency', 'targetDays', 'weeklyCount', 'intervalDays', 'reminderTime', 'reminders', 'sortOrder', 'isArchived', 'createdAt', 'goalType', 'startDate', 'targetDayCount', 'group', 'autoShowLog', 'archived'])
+        && d.keys().hasAll(['name'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('name' in d) || (d.name is string && d.name.size() <= 512))
+        && (!('description' in d) || (d.description is string && d.description.size() <= 10000))
+        && (!('icon' in d) || (d.icon is string && d.icon.size() <= 512))
+        && (!('color' in d) || (d.color is string && d.color.size() <= 512))
+        && (!('frequency' in d) || (d.frequency is string && d.frequency.size() <= 512))
+        && (!('targetDays' in d) || (d.targetDays is list && d.targetDays.size() <= 100))
+        && (!('weeklyCount' in d) || (d.weeklyCount is int))
+        && (!('intervalDays' in d) || (d.intervalDays is int))
+        && (!('reminderTime' in d) || (d.reminderTime == null || (d.reminderTime is string && d.reminderTime.size() <= 512)))
+        && (!('reminders' in d) || (d.reminders is list && d.reminders.size() <= 100))
+        && (!('sortOrder' in d) || (d.sortOrder is int))
+        && (!('isArchived' in d) || (d.isArchived is bool))
+        && (!('createdAt' in d) || (d.createdAt is timestamp))
+        && (!('goalType' in d) || (d.goalType is string && d.goalType.size() <= 512))
+        && (!('startDate' in d) || (d.startDate is string && d.startDate.size() <= 512))
+        && (!('targetDayCount' in d) || (d.targetDayCount is int))
+        && (!('group' in d) || (d.group is string && d.group.size() <= 512))
+        && (!('autoShowLog' in d) || (d.autoShowLog is bool))
+        && (!('archived' in d) || (d.archived is bool));
+    }
+
+    function validHabitLog(d) {
+      return d.keys().hasOnly(['id', 'habitId', 'date', 'isCompleted', 'completedAt', 'mood', 'note', 'completed'])
+        && d.keys().hasAll(['habitId', 'date'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('habitId' in d) || (d.habitId is string && d.habitId.size() <= 512))
+        && (!('date' in d) || (d.date is string && d.date.size() <= 512))
+        && (!('isCompleted' in d) || (d.isCompleted is bool))
+        && (!('completedAt' in d) || (d.completedAt == null || (d.completedAt is timestamp)))
+        && (!('mood' in d) || (d.mood is int))
+        && (!('note' in d) || (d.note is string && d.note.size() <= 10000))
+        && (!('completed' in d) || (d.completed is bool));
+    }
+
+    function validFocusCategory(d) {
+      return d.keys().hasOnly(['id', 'name', 'icon', 'color', 'sortOrder', 'createdAt'])
+        && d.keys().hasAll(['name'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('name' in d) || (d.name is string && d.name.size() <= 512))
+        && (!('icon' in d) || (d.icon is string && d.icon.size() <= 512))
+        && (!('color' in d) || (d.color is string && d.color.size() <= 512))
+        && (!('sortOrder' in d) || (d.sortOrder is int))
+        && (!('createdAt' in d) || (d.createdAt is timestamp));
+    }
+
+    function validFocusSession(d) {
+      return d.keys().hasOnly(['id', 'activityName', 'activityIcon', 'activityColor', 'durationSeconds', 'startedAt', 'endedAt', 'isCompleted', 'completed'])
+        && d.keys().hasAll(['activityName'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('activityName' in d) || (d.activityName is string && d.activityName.size() <= 512))
+        && (!('activityIcon' in d) || (d.activityIcon is string && d.activityIcon.size() <= 512))
+        && (!('activityColor' in d) || (d.activityColor is string && d.activityColor.size() <= 512))
+        && (!('durationSeconds' in d) || (d.durationSeconds is int && d.durationSeconds >= 0))
+        && (!('startedAt' in d) || (d.startedAt is timestamp))
+        && (!('endedAt' in d) || (d.endedAt == null || (d.endedAt is timestamp)))
+        && (!('isCompleted' in d) || (d.isCompleted is bool))
+        && (!('completed' in d) || (d.completed is bool));
+    }
+
+    function validDiaryEntry(d) {
+      return d.keys().hasOnly(['id', 'dateStr', 'content', 'mood', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['dateStr', 'content'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('dateStr' in d) || (d.dateStr is string && d.dateStr.size() <= 512))
+        && (!('content' in d) || (d.content is string && d.content.size() <= 200000))
+        && (!('mood' in d) || (d.mood is int))
+        && (!('createdAt' in d) || (d.createdAt is timestamp))
+        && (!('updatedAt' in d) || (d.updatedAt is timestamp));
+    }
+
+    function validLocationRecord(d) {
+      return d.keys().hasOnly(['id', 'dateStr', 'timestamp', 'latitude', 'longitude', 'address', 'isPlace', 'placeName', 'place'])
+        && d.keys().hasAll(['latitude', 'longitude', 'dateStr'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('dateStr' in d) || (d.dateStr is string && d.dateStr.size() <= 512))
+        && (!('timestamp' in d) || (d.timestamp is timestamp))
+        && (!('latitude' in d) || (d.latitude is number && d.latitude >= -90 && d.latitude <= 90))
+        && (!('longitude' in d) || (d.longitude is number && d.longitude >= -180 && d.longitude <= 180))
+        && (!('address' in d) || (d.address is string && d.address.size() <= 512))
+        && (!('isPlace' in d) || (d.isPlace is bool))
+        && (!('placeName' in d) || (d.placeName is string && d.placeName.size() <= 512))
+        && (!('place' in d) || (d.place is bool));
+    }
+
+    function validFavoritePlace(d) {
+      return d.keys().hasOnly(['id', 'name', 'latitude', 'longitude'])
+        && d.keys().hasAll(['name', 'latitude', 'longitude'])
+        && (!('id' in d) || (d.id is string && d.id.size() <= 512))
+        && (!('name' in d) || (d.name is string && d.name.size() <= 512))
+        && (!('latitude' in d) || (d.latitude is number && d.latitude >= -90 && d.latitude <= 90))
+        && (!('longitude' in d) || (d.longitude is number && d.longitude >= -180 && d.longitude <= 180));
+    }
+
+    function validTabBarConfig(d) {
+      return d.keys().hasOnly(['enabledIds', 'maxTabs'])
+        && d.keys().hasAll(['enabledIds', 'maxTabs'])
+        && (!('enabledIds' in d) || (d.enabledIds is list && d.enabledIds.size() <= 100))
+        && (!('maxTabs' in d) || (d.maxTabs is int && d.maxTabs >= 1 && d.maxTabs <= 20));
+    }
+
+    function validMatrixConfig(d) {
+      return d.keys().hasOnly(['quadrants', 'hideCompleted', 'todayOnly'])
+        && d.keys().hasAll(['quadrants'])
+        && (!('quadrants' in d) || (d.quadrants is list && d.quadrants.size() <= 100 && d.quadrants.size() == 4))
+        && (!('hideCompleted' in d) || (d.hideCompleted is bool))
+        && (!('todayOnly' in d) || (d.todayOnly is bool));
+    }
+    match /users/{uid} {
+      allow get, delete: if owner(uid);
+      allow create, update: if owner(uid) && documentId(request.resource.data, uid)
+        && validUser(request.resource.data);
+      match /tasks/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validTask(request.resource.data);
+      }
+      match /lists/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validTaskList(request.resource.data);
+      }
+      match /tags/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validTag(request.resource.data);
+      }
+      match /habits/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validHabit(request.resource.data);
+      }
+      match /habitLogs/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validHabitLog(request.resource.data);
+      }
+      match /focusCategories/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validFocusCategory(request.resource.data);
+      }
+      match /focusSessions/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validFocusSession(request.resource.data);
+      }
+      match /diary/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validDiaryEntry(request.resource.data);
+      }
+      match /locationRecords/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validLocationRecord(request.resource.data);
+      }
+      match /favoritePlaces/{id} {
+        allow read, delete: if owner(uid);
+        allow create, update: if owner(uid) && documentId(request.resource.data, id)
+          && validFavoritePlace(request.resource.data);
+      }
+      match /settings/{name} {
+        allow read, delete: if owner(uid) && name in ['matrix', 'tabbar'];
+        allow create, update: if owner(uid) && (
+          (name == 'matrix' && validMatrixConfig(request.resource.data)) ||
+          (name == 'tabbar' && validTabBarConfig(request.resource.data))
+        );
+      }
+    }
+    // No recursive owner wildcard: new collections and nested paths stay denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
