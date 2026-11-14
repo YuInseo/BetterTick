@@ -398,14 +398,14 @@ class FloatingOverlayService : Service() {
         }
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
-                .setSmallIcon(android.R.drawable.ic_input_add)
+                .setSmallIcon(com.bettertick.R.drawable.ic_stat_bettertick)
                 .setContentTitle("BetterTick")
                 .setContentText("잠금화면 빠른 추가 활성화됨")
                 .build()
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setSmallIcon(android.R.drawable.ic_input_add)
+                .setSmallIcon(com.bettertick.R.drawable.ic_stat_bettertick)
                 .setContentTitle("BetterTick")
                 .build()
         }

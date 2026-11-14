@@ -74,7 +74,8 @@ class ReminderReceiver : BroadcastReceiver() {
         )
 
         val n = NotificationCompat.Builder(context, ReminderScheduler.channelId(context))
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(com.bettertick.R.drawable.ic_stat_bettertick)
+            .setColor(0xFF4772FA.toInt())
             .setContentTitle(title)
             .setContentText(body)
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -118,7 +119,8 @@ class ReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val n = NotificationCompat.Builder(context, HabitReminderScheduler.channelId(context))
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(com.bettertick.R.drawable.ic_stat_bettertick)
+            .setColor(0xFF4772FA.toInt())
             .setContentTitle(name)
             .setContentText("오늘의 습관을 체크인할 시간이에요")
             .setCategory(NotificationCompat.CATEGORY_REMINDER)
@@ -148,7 +150,8 @@ class ReminderReceiver : BroadcastReceiver() {
         val text = if (due.isEmpty()) "오늘 예정된 할일이 없습니다." else "오늘 할일 ${due.size}개"
         val style = NotificationCompat.InboxStyle().also { s -> due.take(6).forEach { s.addLine("• ${it.title}") } }
         val n = NotificationCompat.Builder(context, ReminderScheduler.channelId(context))
-            .setSmallIcon(android.R.drawable.ic_popup_reminder)
+            .setSmallIcon(com.bettertick.R.drawable.ic_stat_bettertick)
+            .setColor(0xFF4772FA.toInt())
             .setContentTitle("오늘의 할일")
             .setContentText(text)
             .setStyle(style)
