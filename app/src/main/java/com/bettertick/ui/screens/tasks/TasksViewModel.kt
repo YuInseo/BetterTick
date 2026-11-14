@@ -1,5 +1,8 @@
 package com.bettertick.ui.screens.tasks
 
+import com.bettertick.data.model.checksPerDay
+import com.bettertick.data.model.completedOn
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bettertick.data.model.Tag
@@ -143,7 +146,13 @@ class TasksViewModel @Inject constructor(
 
     fun toggleComplete(taskId: String, isCompleted: Boolean) {
         viewModelScope.launch {
-            taskRepository.toggleComplete(taskId, isCompleted)
+            // 날짜별 체크인 반복 할일은 오늘 것만 체크한다.
+            val task = allTasks.value.firstOrNull { it.id == taskId }
+            if (task != null && task.checksPerDay()) {
+                taskRepository.setOccurrenceComplete(taskId, LocalDate.now(), !task.completedOn(LocalDate.now()))
+            } else {
+                taskRepository.toggleComplete(taskId, isCompleted)
+            }
         }
     }
 

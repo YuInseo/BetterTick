@@ -53,5 +53,9 @@ data class Task(
     // A subtask follows its parent's start day, repeat rule, end and skipped
     // days (see TaskHierarchy.kt) but keeps its own time and length, so its
     // timetable block repeats together with the parent. Empty = standalone.
-    val parentId: String = ""
+    val parentId: String = "",
+    // 반복 할일의 날짜별 완료: "yyyy-MM-dd" of each occurrence checked off.
+    val completedDates: List<String> = emptyList(),
+    // true = 체크하면 반복 전체가 완료 (예전 방식); false = 날짜별로 체크.
+    val checkWholeSeries: Boolean = false
 )
