@@ -273,6 +273,64 @@ fun TaskDetailSheet(
                 .padding(horizontal = 20.dp)
                 .padding(top = 18.dp, bottom = 8.dp)
         ) {
+            // ── Date / time row — checkbox on the left, tappable chip ────
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val checkboxShape = RoundedCornerShape(6.dp)
+                val isShift = task.copy(title = title).isShiftTask()
+                if (!isShift) Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(checkboxShape)
+                        .then(
+                            if (task.isCompleted) {
+                                Modifier.background(MaterialTheme.colorScheme.primary)
+                            } else {
+                                Modifier.border(2.dp, TextSecondary, checkboxShape)
+                            }
+                        )
+                        .clickable { onToggleComplete() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (task.isCompleted) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "완료됨",
+                            tint = Color.White,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
+
+                if (!isShift) Spacer(Modifier.width(12.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .clickable { showDatePicker = true }
+                        .padding(vertical = 4.dp, horizontal = 2.dp)
+                ) {
+                    Text(
+                        text = formatDueLabel(dueTimestamp, duration),
+                        fontSize = 15.sp,
+                        color = DetailAccent,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Icon(
+                        Icons.Outlined.NotificationsActive,
+                        contentDescription = "알림",
+                        tint = DetailAccent,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(6.dp))
+
             // ── Header: list selector + flag + more ──────────────────────
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
@@ -423,6 +481,16 @@ fun TaskDetailSheet(
                                 context, if (notes.isBlank()) title else "$title\n\n$notes"
                             )
                         }
+                        // 하위 할일: 상위에서 분리 (예전 안내 칸 대신 메뉴에).
+                        if (onUnnest != null) {
+                            DetailMenuItem(
+                                "'${parentTitle ?: "상위"}'에서 분리",
+                                Icons.AutoMirrored.Outlined.DriveFileMove
+                            ) {
+                                moreMenuOpen = false
+                                onUnnest()
+                            }
+                        }
                         if (onDelete != null) {
                             DetailMenuItem("삭제", Icons.Outlined.Delete, tint = com.bettertick.ui.theme.OverdueRed) {
                                 moreMenuOpen = false; confirmDelete = true
@@ -433,90 +501,6 @@ fun TaskDetailSheet(
             }
 
             Spacer(Modifier.height(8.dp))
-
-            // ── Date / time row — checkbox on the left, tappable chip ────
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                val checkboxShape = RoundedCornerShape(6.dp)
-                val isShift = task.copy(title = title).isShiftTask()
-                if (!isShift) Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(checkboxShape)
-                        .then(
-                            if (task.isCompleted) {
-                                Modifier.background(MaterialTheme.colorScheme.primary)
-                            } else {
-                                Modifier.border(2.dp, TextSecondary, checkboxShape)
-                            }
-                        )
-                        .clickable { onToggleComplete() },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (task.isCompleted) {
-                        Icon(
-                            Icons.Default.Check,
-                            contentDescription = "완료됨",
-                            tint = Color.White,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-
-                if (!isShift) Spacer(Modifier.width(12.dp))
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .clickable { showDatePicker = true }
-                        .padding(vertical = 4.dp, horizontal = 2.dp)
-                ) {
-                    Text(
-                        text = formatDueLabel(dueTimestamp, duration),
-                        fontSize = 15.sp,
-                        color = DetailAccent,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Icon(
-                        Icons.Outlined.NotificationsActive,
-                        contentDescription = "알림",
-                        tint = DetailAccent,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-
-            if (parentTitle != null) {
-                // A subtask's day and repeat come from its parent; only its
-                // time and length are its own.
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(DetailAccent.copy(alpha = 0.10f))
-                        .padding(start = 12.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)
-                ) {
-                    Text(
-                        text = "'$parentTitle'의 하위 할일 · 날짜와 반복은 상위를 따릅니다",
-                        fontSize = 12.sp,
-                        color = TextSecondary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (onUnnest != null) {
-                        androidx.compose.material3.TextButton(onClick = onUnnest) {
-                            Text("분리", fontSize = 13.sp, color = DetailAccent, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(14.dp))
 
             // ── Title (editable) ─────────────────────────────────────────
             BasicTextField(
