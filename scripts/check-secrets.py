@@ -27,10 +27,10 @@ for raw in paths:
     if not path.is_file():
         continue
     # Never allow new signing keys or local env files to enter git.
-    if ((path.suffix.lower() in {'.jks', '.keystore', '.p12', '.pem'} and name != 'app/debug.keystore')
+    if ((path.suffix.lower() in {'.jks', '.keystore', '.p12', '.pem', '.apk', '.aab'} and name != 'app/debug.keystore')
             or (path.name.startswith('.env') and path.name != '.env.example')
             or path.name == 'keystore.properties'):
-        failures.append((name, 'private configuration or signing key'))
+        failures.append((name, 'private configuration, signing key or committed Android binary'))
     content = path.read_bytes()
     if b'\0' in content:
         continue
