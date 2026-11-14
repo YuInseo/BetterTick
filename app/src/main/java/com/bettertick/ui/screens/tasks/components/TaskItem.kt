@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -238,6 +239,18 @@ fun TaskItem(
             Spacer(Modifier.width(8.dp))
             Column(horizontalAlignment = Alignment.End) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 목록 이름은 아이콘·시간과 같은 줄, 그 왼쪽에.
+                    if (listName.isNotBlank()) {
+                        Text(
+                            text = listName,
+                            fontSize = 11.sp,
+                            color = TextTertiary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 72.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                    }
                     if (task.isPinned) {
                         Icon(
                             imageVector = Icons.Outlined.PushPin,
@@ -282,15 +295,6 @@ fun TaskItem(
                             maxLines = 1
                         )
                     }
-                }
-                if (listName.isNotBlank()) {
-                    Text(
-                        text = listName,
-                        fontSize = 11.sp,
-                        color = TextTertiary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
             }
         } else if (listName.isNotBlank()) {
