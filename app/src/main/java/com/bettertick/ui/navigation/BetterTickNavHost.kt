@@ -712,18 +712,20 @@ private fun MainContent(
                         .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     contentAlignment = Alignment.BottomEnd
                 ) {
+                    // 스케줄 보기: 왼쪽 아래, + 버튼과 떨어뜨려 둔다.
+                    if (currentRoute == BottomNavItem.Calendar.route &&
+                        com.bettertick.ui.screens.tasks.LeavePrefs.showScheduleButton
+                    ) {
+                        com.bettertick.ui.screens.calendar.components.LeaveBalanceMenu(
+                            tasks = allTasks,
+                            onSettings = { type -> navController.navigate("leave_settings/$type") },
+                            modifier = Modifier.align(Alignment.BottomStart)
+                        )
+                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (currentRoute == BottomNavItem.Calendar.route &&
-                            com.bettertick.ui.screens.tasks.LeavePrefs.showScheduleButton
-                        ) {
-                            com.bettertick.ui.screens.calendar.components.LeaveBalanceMenu(
-                                tasks = allTasks,
-                                onSettings = { type -> navController.navigate("leave_settings/$type") }
-                            )
-                        }
                         TickFab(
                             onClick = { showTaskInput = true },
                             size = 48.dp
