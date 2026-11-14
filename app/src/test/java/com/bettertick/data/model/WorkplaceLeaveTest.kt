@@ -8,6 +8,7 @@ import java.time.ZoneId
 import java.util.Date
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WorkplaceLeaveTest {
@@ -86,6 +87,35 @@ class WorkplaceLeaveTest {
             assertEquals(4, LeavePrefs.remaining("병가", day("2031-03-01")))
         } finally {
             LeavePrefs.deleteWorkplace(c.id)
+            before.forEach { LeavePrefs.updateWorkplaceDates(it.id, it.start, it.end) }
+            LeavePrefs.selectEditing(LeavePrefs.workplaces.first().id)
+            LeavePrefs.recount(emptyList())
+        }
+    }
+
+    @Test fun typedInTotalWorksForYearlyKindsToo() {
+        val before = LeavePrefs.workplaces.toList()
+        before.forEach { LeavePrefs.updateWorkplaceDates(it.id, it.start, day("2031-12-31")) }
+        val d = LeavePrefs.addWorkplace("D회사", day("2032-01-01"), null)
+        try {
+            LeavePrefs.selectEditing(d.id)
+            LeavePrefs.updatePeriod("병가", LeavePeriod.YEAR)
+            LeavePrefs.updateQuota("병가", 30)
+            LeavePrefs.recount(listOf(sickDay("2032-03-10"), sickDay("2032-08-01")))
+            assertEquals(28, LeavePrefs.remaining("병가", day("2032-05-01")))
+            assertTrue(LeavePrefs.allowsMonthTotal("병가", day("2032-05-01")))
+
+            // Typed in once for the year — every day of 2032 sees it, 2033 doesn't.
+            LeavePrefs.updateMonthTotal("병가", day("2032-05-01"), 10)
+            assertEquals(10, LeavePrefs.monthTotal("병가", day("2032-11-30")))
+            assertEquals(8, LeavePrefs.remaining("병가", day("2032-01-15")))
+            assertNull(LeavePrefs.monthTotal("병가", day("2033-01-01")))
+            assertEquals(30, LeavePrefs.remaining("병가", day("2033-01-01")))
+
+            LeavePrefs.updateMonthTotal("병가", day("2032-05-01"), null)
+            assertEquals(28, LeavePrefs.remaining("병가", day("2032-05-01")))
+        } finally {
+            LeavePrefs.deleteWorkplace(d.id)
             before.forEach { LeavePrefs.updateWorkplaceDates(it.id, it.start, it.end) }
             LeavePrefs.selectEditing(LeavePrefs.workplaces.first().id)
             LeavePrefs.recount(emptyList())
