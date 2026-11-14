@@ -130,12 +130,16 @@ fun TaskItem(
     }
     val metaIconTint = TextTertiary
 
-    Row(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 52.dp)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(start = 4.dp, end = 16.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = 4.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
+    ) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 40.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // 44dp touch target keeps the parent drag detector from stealing the
@@ -212,15 +216,6 @@ fun TaskItem(
                     onToggle = if (onToggleLeave != null && shiftDay != null) {
                         { type -> onToggleLeave(shiftDay, type) }
                     } else null
-                )
-            }
-            if (showDetails && task.notes.isNotBlank()) {
-                MarkdownText(
-                    text = task.notes,
-                    color = TextSecondary,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
             if (showDetails && resolvedTags.isNotEmpty()) {
@@ -307,6 +302,19 @@ fun TaskItem(
                 maxLines = 1
             )
         }
+    }
+    // 설명: below the row, lined up with the title and using the full width
+    // (not squeezed beside the date column), wrapping onto several lines.
+    if (showDetails && task.notes.isNotBlank()) {
+        MarkdownText(
+            text = task.notes.trim(),
+            color = TextSecondary,
+            fontSize = 13.sp,
+            maxLines = 8,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 44.dp, bottom = 4.dp)
+        )
+    }
     }
 }
 
