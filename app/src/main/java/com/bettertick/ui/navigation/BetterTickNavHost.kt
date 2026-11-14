@@ -394,7 +394,8 @@ private fun MainContent(
                     val currentDestination = navBackStackEntry?.destination
 
                     Surface(
-                        color = DarkSurface,
+                        // Same color as the page so the tab bar blends in.
+                        color = DarkBackground,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         // Hairline top divider instead of a drop shadow —
