@@ -152,6 +152,9 @@ object LeavePrefs {
     /** Count Saturdays as red days too (off by default). */
     var includeSaturday by mutableStateOf(false)
         private set
+    /** 캘린더 화면의 '스케줄 보기' 버튼을 보여줄지 (기본 켬). */
+    var showScheduleButton by mutableStateOf(true)
+        private set
     /** Days the user marked by hand: date → true (빨간날로) / false (빨간날 아님). */
     var redOverrides by mutableStateOf<Map<LocalDate, Boolean>>(emptyMap())
         private set
@@ -195,6 +198,7 @@ object LeavePrefs {
         shiftWeights = WEIGHT_KINDS.associateWith { p.getInt("weight_$it", DEFAULT_WEIGHTS[it] ?: 1) }
         includeSunday = p.getBoolean("red_sunday", true)
         includeSaturday = p.getBoolean("red_saturday", false)
+        showScheduleButton = p.getBoolean("show_schedule_button", true)
         shiftColors = COLOR_KINDS.filter { p.contains("shift_color_$it") }
             .associateWith { p.getInt("shift_color_$it", 0) }
         redOverrides = p.getString("red_overrides", null).orEmpty().split(',').mapNotNull { e ->
@@ -217,6 +221,11 @@ object LeavePrefs {
         includeSunday = on
         edit { putBoolean("red_sunday", on) }
         recount(lastTasks)
+    }
+
+    fun updateShowScheduleButton(on: Boolean) {
+        showScheduleButton = on
+        edit { putBoolean("show_schedule_button", on) }
     }
 
     fun updateIncludeSaturday(on: Boolean) {
