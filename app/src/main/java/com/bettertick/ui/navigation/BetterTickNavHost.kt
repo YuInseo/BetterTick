@@ -398,19 +398,10 @@ private fun MainContent(
                         color = DarkBackground,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        // Hairline top divider instead of a drop shadow —
-                        // TickTick's tab bar sits flat on the page.
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .height(0.5.dp)
-                                .background(DividerColor)
-                        )
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .windowInsetsPadding(WindowInsets.navigationBars)
-                                .padding(top = 0.5.dp)
                                 .height(52.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
