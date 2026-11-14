@@ -121,12 +121,12 @@ fun SelectedDatePanel(
     tags: List<Tag> = emptyList(),
     onCreateTag: suspend (String) -> String = { "" }
 ) {
-    val listPadding = remember { PaddingValues(vertical = 10.dp) }
+    val listPadding = remember { PaddingValues(vertical = 0.dp) }
     val shape = remember { RoundedCornerShape(18.dp) }
 
     // Subtasks sit right under their parent.
     // Whole families stay together: a group (a top task and everything under
-    // it) stays in the top card while any of it is unfinished — its finished
+    // it) keeps its own card while any of it is unfinished — its finished
     // subtasks show checked in place — and moves to 완료 & 포기 only when all
     // of it is finished, still nested.
     val families: List<List<Task>> = remember(tasks) {
@@ -198,21 +198,20 @@ fun SelectedDatePanel(
     val depths = remember(active) { active.subtaskDepths() }
 
     Column(modifier = modifier.fillMaxWidth()) {
-        // Active (top) card — rounded both ends, scrollable.
+        // Each root and its descendants form one card. Keep row-level lazy keys
+        // and drag bounds so crossing a card gap still supports reorder/nesting.
         Column(
             modifier = Modifier
                 .padding(horizontal = 8.dp)
                 .fillMaxWidth()
-                .clip(shape)
-                .background(DarkCard)
         ) {
             if (active.isEmpty() && done.isEmpty()) {
                 EmptyState(modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp))
-            } else if (active.isEmpty()) {
-                Spacer(Modifier.height(8.dp))
-            } else {
+                    .height(180.dp)
+                    .clip(shape)
+                    .background(DarkCard))
+            } else if (active.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -242,6 +241,11 @@ fun SelectedDatePanel(
                         val accent = MaterialTheme.colorScheme.primary
                         Column(
                             modifier = Modifier
+                                .familyCardSegment(
+                                    first = !nestedRow,
+                                    last = active.getOrNull(activeIdx + 1)?.let { (depths[it.id] ?: 0) == 0 } ?: true,
+                                    separated = !nestedRow && activeIdx > 0
+                                )
                                 .onGloballyPositioned { c ->
                                     val pos = c.positionInRoot()
                                     rowBounds[task.id] = Rect(pos.x, pos.y, pos.x + c.size.width, pos.y + c.size.height)
@@ -253,7 +257,7 @@ fun SelectedDatePanel(
                                         first = firstNested,
                                         last = lastNested,
                                         surface = MaterialTheme.colorScheme.onSurface
-                                    ) else Modifier.padding(top = if (activeIdx > 0) 8.dp else 0.dp)
+                                    ) else Modifier
                                 )
                                 .then(
                                     if (isNestTarget) Modifier
@@ -379,15 +383,13 @@ fun SelectedDatePanel(
             }
         }
 
-        // Completed / abandoned card — only if any
+        // Completed families use the same card boundaries under their section label.
         if (done.isNotEmpty()) {
             Spacer(Modifier.height(12.dp))
             Column(
                 modifier = Modifier
                     .padding(horizontal = 8.dp)
                     .fillMaxWidth()
-                    .clip(shape)
-                    .background(DarkCard)
             ) {
                 Text(
                     text = "완료 & 포기",
@@ -403,13 +405,18 @@ fun SelectedDatePanel(
                     val doneDepth = doneDepths[task.id] ?: 0
                     Box(
                         Modifier
+                            .familyCardSegment(
+                                first = doneDepth == 0,
+                                last = done.getOrNull(index + 1)?.let { (doneDepths[it.id] ?: 0) == 0 } ?: true,
+                                separated = doneDepth == 0 && index > 0
+                            )
                             .then(
                                 if (doneDepth > 0) Modifier.subtaskSurface(
                                     depth = doneDepth,
                                     first = (done.getOrNull(index - 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
                                     last = (done.getOrNull(index + 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
                                     surface = MaterialTheme.colorScheme.onSurface
-                                ) else Modifier.padding(top = if (index > 0) 8.dp else 0.dp)
+                                ) else Modifier
                             )
                     ) {
                     androidx.compose.runtime.CompositionLocalProvider(
@@ -747,6 +754,18 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         )
     }
 }
+
+/** Paint contiguous row segments as one card, with a real background gap between families. */
+private fun Modifier.familyCardSegment(first: Boolean, last: Boolean, separated: Boolean): Modifier =
+    padding(top = if (separated) 12.dp else 0.dp)
+        .clip(RoundedCornerShape(
+            topStart = if (first) 18.dp else 0.dp,
+            topEnd = if (first) 18.dp else 0.dp,
+            bottomStart = if (last) 18.dp else 0.dp,
+            bottomEnd = if (last) 18.dp else 0.dp
+        ))
+        .background(DarkCard)
+        .padding(top = if (first) 10.dp else 0.dp, bottom = if (last) 10.dp else 0.dp)
 
 /** A quiet inset surface replaces the old checkbox-to-checkbox elbow tree.
  * Keep indentation bounded so deep descendants still have room for titles.
