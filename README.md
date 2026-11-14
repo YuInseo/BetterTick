@@ -63,7 +63,6 @@
 | 습관 | 매일의 실천을 체크하고 기록과 통계 확인 |
 | 뽀모도로 | 집중 타이머·스톱워치와 집중 기록 |
 | 일기 | 날짜별로 하루의 기록 남기기 |
-| 동선 | 이동 기록을 카카오맵에서 확인 |
 | 아이젠하워 매트릭스 | 중요도와 긴급도에 따라 할 일 정리 |
 
 ### 📱 앱 밖에서도 빠르게
@@ -109,7 +108,6 @@
 | 앱 구조 | MVVM · Hilt · Coroutines / Flow |
 | 인증 · 데이터 | Firebase Authentication · Cloud Firestore · SharedPreferences |
 | 위젯 · 백그라운드 | Glance · WorkManager · AlarmManager |
-| 지도 | Kakao Map SDK · 카카오모빌리티 길찾기 API |
 | 빌드 | Gradle · AGP 8.5 · KSP · Version Catalog |
 
 ### 로컬 실행
@@ -132,7 +130,6 @@ cd BetterTick
 <details>
 <summary><strong>추가 설정과 빌드 옵션</strong></summary>
 
-- **카카오 길찾기:** `local.properties`에 `KAKAO_REST_API_KEY`를 설정합니다. 키가 없으면 길찾기 경로 대신 직선으로 표시하는 대체 동작을 사용합니다. [설정 예시](local.properties.example)를 참고하세요.
 - **별도 Firebase 프로젝트:** 저장소의 `app/google-services.json`은 기존 프로젝트용입니다. 자체 환경에서 운영하려면 해당 파일을 교체하고, 인증·Firestore 설정과 Google 로그인 클라이언트 ID 및 서명 지문도 맞춰야 합니다.
 - **축소 테스트 빌드:** `./gradlew assembleSmall`로 R8 최적화를 적용한 APK를 만듭니다. Debug와 같은 패키지·서명을 사용합니다.
 - **Release 서명:** [keystore.properties.example](keystore.properties.example)과 [RELEASE.md](RELEASE.md)를 참고하세요.
@@ -151,8 +148,7 @@ app/src/main/java/com/bettertick/
 ├── widget/        # 홈 화면 위젯과 갱신 작업
 ├── reminder/      # 알림 예약과 처리
 ├── update/        # 업데이트 확인, 다운로드, 설치
-├── overlay/       # 화면 위 빠른 추가
-└── location/      # 위치 기록
+└── overlay/       # 화면 위 빠른 추가
 ```
 
 단위 테스트는 `app/src/test/`에 있으며, 하위 할 일, 반복 완료, 휴가, 급여, 가계부 등의 계산 로직을 검증합니다.
