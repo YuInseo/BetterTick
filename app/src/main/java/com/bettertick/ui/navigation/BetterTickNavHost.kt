@@ -125,19 +125,12 @@ private fun BottomNavTab(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        // Icon only (no label) — the name stays for TalkBack.
         Icon(
             imageVector = icon,
-            contentDescription = null,
+            contentDescription = if (label == "아이젠하워 매트릭스") "매트릭스" else label,
             tint = tint,
             modifier = Modifier.size(26.dp)
-        )
-        Text(
-            text = if (label == "아이젠하워 매트릭스") "매트릭스" else label,
-            color = tint,
-            fontSize = 10.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp, start = 2.dp, end = 2.dp)
         )
     }
 }
@@ -417,7 +410,7 @@ private fun MainContent(
                                 .fillMaxWidth()
                                 .windowInsetsPadding(WindowInsets.navigationBars)
                                 .padding(top = 0.5.dp)
-                                .height(64.dp),
+                                .height(52.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             allNavItems.forEach { (id, tab, route) ->
