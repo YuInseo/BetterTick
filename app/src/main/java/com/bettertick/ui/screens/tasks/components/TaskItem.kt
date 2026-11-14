@@ -64,6 +64,9 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 
+/** True for a 하위 할일 row: slightly smaller and tighter, so it reads as a child. */
+val LocalCompactTaskRow = androidx.compose.runtime.compositionLocalOf { false }
+
 /**
  * TickTick-style list row:
  *
@@ -103,6 +106,7 @@ fun TaskItem(
     /** Checkbox long-press menu: 완료 / 취소됨 / 내일로 미루기. Null = no menu. */
     onStatusAction: ((com.bettertick.data.model.TaskStatusAction) -> Unit)? = null
 ) {
+    val compactRow = LocalCompactTaskRow.current
     val isShift = task.isShiftTask()
     val shiftDay = if (isShift) task.shiftDay(overrideDate) else null
     val leave = if (isShift) task.leaveOn(shiftDay) else null
@@ -136,7 +140,7 @@ fun TaskItem(
         modifier = modifier
             .fillMaxWidth()
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(start = 4.dp, end = 16.dp, top = 6.dp, bottom = 6.dp)
+            .padding(start = 4.dp, end = 16.dp, top = if (compactRow) 3.dp else 6.dp, bottom = if (compactRow) 3.dp else 6.dp)
     ) {
     Row(
         modifier = Modifier
@@ -206,7 +210,8 @@ fun TaskItem(
             MarkdownText(
                 text = if (isShift) task.shiftTitleOn(shiftDay) else task.title,
                 color = if (isDone) TextTertiary else TextPrimary,
-                fontSize = 15.sp,
+                // 하위 할일은 조금 작게 — 부모 아래 딸린 줄로 보이게.
+                fontSize = if (compactRow) 14.sp else 15.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
