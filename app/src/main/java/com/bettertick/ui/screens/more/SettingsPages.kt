@@ -329,7 +329,7 @@ fun GeneralSettingsScreen(
     }
     val tabs = listOf(
         "tasks" to "할일", "calendar" to "캘린더", "matrix" to "아이젠하워 매트릭스",
-        "focus" to "뽀모도로", "habits" to "습관"
+        "focus" to "뽀모도로", "habits" to "습관", "money" to "가계부"
     )
     OptionPage(title = "일반", onBack = onBack) {
         OptionCard {
