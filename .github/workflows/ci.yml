@@ -26,12 +26,12 @@ jobs:
       - name: Prepare Android build
         uses: ./.github/actions/android-build
 
-      # One task graph and one set of BuildConfig inputs: do not reconfigure
-      # and recompile with a different Kakao key between lint and assembly.
+      # Build, lint and unit tests share one Gradle task graph.
       - name: Build and lint debug APK
-        env:
-          KAKAO_REST_API_KEY: ${{ secrets.KAKAO_REST_API_KEY }}
         run: ./gradlew assembleDebug lintDebug testDebugUnitTest --build-cache --parallel --console=plain
+
+      - name: Verify APK has no location permissions or tracking service
+        run: python3 scripts/check-no-location.py
 
       - name: Upload Lint Report
         if: always()

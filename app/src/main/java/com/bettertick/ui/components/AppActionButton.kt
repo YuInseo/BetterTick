@@ -18,7 +18,7 @@ import androidx.compose.ui.semantics.Role
 import com.bettertick.ui.theme.DarkSurface
 
 /**
- * 앱 공통 액션 버튼 — 동선 지도 오버레이 버튼과 동일한 디자인.
+ * 앱 공통 액션 버튼.
  * 어두운 반투명 라운드 사각형 + primary(주황) 아이콘.
  *
  * 기존의 색색깔 원형 FAB들을 이 한 가지 스타일로 통일하는 데 사용한다.
