@@ -37,6 +37,10 @@ import java.util.Date
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val SYNC_PREFS = "sync_prefs"
+private const val FULL_SYNC_EVERY_MS = 24L * 60 * 60 * 1000
+private const val CLOCK_MARGIN_MS = 10L * 60 * 1000
+
 /**
  * Offline-first task repository.
  *
@@ -294,11 +298,40 @@ class TaskRepository @Inject constructor(
         refreshWidget()
     }
 
-    /** One server round-trip so the local cache (and every cache listener)
-     *  picks up edits made on other devices while the app was closed. */
+    /**
+     * Pull edits made on other devices into the local cache (every cache
+     * listener then repaints). Runs from the 15-minute widget worker, so it
+     * must stay cheap on Firestore reads:
+     *
+     * - Usually only tasks whose `updatedAt` changed since the last pull are
+     *   fetched (an unchanged collection costs a single read).
+     * - Once a day a full pull also drops tasks deleted elsewhere and picks up
+     *   old documents without `updatedAt`.
+     */
     suspend fun refreshFromServer() {
-        kotlinx.coroutines.withTimeoutOrNull(10_000) {
-            firestoreProvider.tasksCollection().get(Source.SERVER).await()
+        val prefs = appContext.getSharedPreferences(SYNC_PREFS, Context.MODE_PRIVATE)
+        val now = System.currentTimeMillis()
+        val lastFull = prefs.getLong("tasks_full_sync", 0L)
+        val lastPull = prefs.getLong("tasks_pull", 0L)
+        val full = now - lastFull > FULL_SYNC_EVERY_MS || lastPull == 0L
+        val ok = kotlinx.coroutines.withTimeoutOrNull(10_000) {
+            runCatching {
+                if (full) {
+                    firestoreProvider.tasksCollection().get(Source.SERVER).await()
+                } else {
+                    // Margin for other devices' clocks (updatedAt is set on the client).
+                    val since = Timestamp(Date(lastPull - CLOCK_MARGIN_MS))
+                    firestoreProvider.tasksCollection()
+                        .whereGreaterThan("updatedAt", since)
+                        .get(Source.SERVER).await()
+                }
+            }.isSuccess
+        } == true
+        if (ok) {
+            prefs.edit().apply {
+                putLong("tasks_pull", now)
+                if (full) putLong("tasks_full_sync", now)
+            }.apply()
         }
     }
 
