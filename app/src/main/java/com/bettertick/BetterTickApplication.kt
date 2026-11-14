@@ -1,6 +1,9 @@
 package com.bettertick
 
 import android.app.Application
+import com.google.firebase.FirebaseApp
+import com.google.firebase.appcheck.FirebaseAppCheck
+import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
 import androidx.glance.appwidget.updateAll
 import com.bettertick.data.repository.AuthRepository
 import com.bettertick.data.repository.FocusRepository
@@ -39,6 +42,13 @@ class BetterTickApplication : Application() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     override fun onCreate() {
+        // Hilt injects repositories in super.onCreate(), which can initialize Firestore.
+        // Register attestation first. Enforcement is enabled separately in the console
+        // after real-device metrics are healthy; never ship a debug bypass provider.
+        FirebaseApp.initializeApp(this)
+        FirebaseAppCheck.getInstance().installAppCheckProviderFactory(
+            PlayIntegrityAppCheckProviderFactory.getInstance()
+        )
         super.onCreate()
         // Restore the user's TickTick-style appearance (light/dark + accent)
         // before any Compose content reads the palette.

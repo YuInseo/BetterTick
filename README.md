@@ -167,6 +167,7 @@ app/src/main/java/com/bettertick/
 
 | 문서 | 내용 |
 | --- | --- |
+| [SECURITY.md](SECURITY.md) | Firebase 보안 규칙·App Check·비공개 서명 전환 |
 | [RELEASE.md](RELEASE.md) | 자동 배포와 Release 서명 안내 |
 | [FIRESTORE_SCHEMA.md](FIRESTORE_SCHEMA.md) | Firestore 컬렉션과 필드 구조 |
 | [CLAUDE.md](CLAUDE.md) | 브랜치, PR, CI와 머지 규칙 |

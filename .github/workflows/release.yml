@@ -11,6 +11,7 @@ jobs:
   release:
     name: Build & Release APK
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: write   # GitHub Release 생성 권한
 
@@ -21,10 +22,44 @@ jobs:
       - name: Prepare Android build
         uses: ./.github/actions/android-build
 
-      # GitHub Secret에서 키스토어 복원
-      - name: Decode Keystore
+      # Fail closed; never fall back to the public debug signing key.
+      - name: Restore and validate private release signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        shell: bash
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > app/bettertick.keystore
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 STORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing required release signing secret: $name"
+              exit 1
+            fi
+          done
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > app/bettertick.keystore
+          release_cert=$(keytool -exportcert -keystore app/bettertick.keystore \
+            -alias "$KEY_ALIAS" -storepass:env STORE_PASSWORD | sha256sum | cut -d ' ' -f 1)
+          debug_cert=$(keytool -exportcert -keystore app/debug.keystore \
+            -alias androiddebugkey -storepass android | sha256sum | cut -d ' ' -f 1)
+          if [ "$release_cert" = "$debug_cert" ]; then
+            echo "::error::Release must not use the public debug certificate"
+            exit 1
+          fi
+
+      # Android source-set config allows release/development Firebase isolation.
+      - name: Restore release Firebase config when configured
+        env:
+          FIREBASE_RELEASE_CONFIG_BASE64: ${{ secrets.FIREBASE_RELEASE_CONFIG_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -n "$FIREBASE_RELEASE_CONFIG_BASE64" ]; then
+            mkdir -p app/src/release
+            printf '%s' "$FIREBASE_RELEASE_CONFIG_BASE64" | base64 --decode > app/src/release/google-services.json
+          fi
 
       - name: Build Release APK
         env:
@@ -53,3 +88,7 @@ jobs:
           files: app/build/outputs/apk/release/BetterTick-${{ steps.version.outputs.name }}.apk
           generate_release_notes: true
           draft: false
+
+      - name: Remove restored signing material
+        if: always()
+        run: rm -f app/bettertick.keystore app/src/release/google-services.json
