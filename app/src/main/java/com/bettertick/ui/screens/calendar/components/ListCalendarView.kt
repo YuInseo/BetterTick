@@ -162,7 +162,7 @@ private fun ListTaskRow(task: Task, onClick: () -> Unit = {}) {
         ?.atZone(ZoneId.systemDefault())?.toLocalTime()
         ?.let { t ->
             if (t.hour == 0 && t.minute == 0) null
-            else if (com.bettertick.ui.theme.AppPrefs.is24h) "%d:%02d".format(t.hour, t.minute)
+            else if (com.bettertick.ui.theme.AppPrefs.is24h) com.bettertick.ui.theme.AppPrefs.formatTime(t)
             else {
                 val ampm = if (t.hour < 12) "오전" else "오후"
                 val h = when {

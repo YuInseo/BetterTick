@@ -129,6 +129,8 @@ fun ScrollableMonthCalendar(
     LazyColumn(
         state = listState,
         flingBehavior = rememberCalendarFlingBehavior(),
+        // Room under the last week so it can scroll clear of the floating buttons.
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 80.dp),
         modifier = modifier.padding(horizontal = 8.dp)
     ) {
         // Stable key = first day of the week. Keeps item identity across
