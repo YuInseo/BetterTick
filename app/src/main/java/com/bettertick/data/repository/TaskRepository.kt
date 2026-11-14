@@ -1,5 +1,8 @@
 package com.bettertick.data.repository
 
+import com.bettertick.data.model.checksPerDay
+import com.bettertick.data.model.completedOn
+
 import android.content.Context
 import androidx.glance.appwidget.updateAll
 import com.bettertick.data.firebase.FirestoreProvider
@@ -259,11 +262,13 @@ class TaskRepository @Inject constructor(
         when (action) {
             com.bettertick.data.model.TaskStatusAction.COMPLETE -> {
                 if (task.isAbandoned) setAbandoned(task.id, false)
-                toggleComplete(task.id, true)
+                if (shownDate != null && task.checksPerDay()) setOccurrenceComplete(task.id, shownDate, true)
+                else toggleComplete(task.id, true)
             }
             com.bettertick.data.model.TaskStatusAction.REOPEN -> {
                 if (task.isAbandoned) setAbandoned(task.id, false)
-                if (task.isCompleted) toggleComplete(task.id, false)
+                if (shownDate != null && task.checksPerDay()) setOccurrenceComplete(task.id, shownDate, false)
+                else if (task.isCompleted) toggleComplete(task.id, false)
             }
             com.bettertick.data.model.TaskStatusAction.CANCEL -> {
                 if (task.isCompleted) toggleComplete(task.id, false)
@@ -314,6 +319,35 @@ class TaskRepository @Inject constructor(
             android.util.Log.e("TaskRepository", "toggleComplete write failed $taskId", e)
         }
         refreshWidget()
+    }
+
+    /** 날짜별 체크: marks only the occurrence on [day] done / not done. */
+    suspend fun setOccurrenceComplete(taskId: String, day: LocalDate, done: Boolean) {
+        val key = day.toString()
+        runCatching {
+            firestoreProvider.tasksCollection().document(taskId).update(
+                mapOf(
+                    "completedDates" to if (done) com.google.firebase.firestore.FieldValue.arrayUnion(key)
+                        else com.google.firebase.firestore.FieldValue.arrayRemove(key),
+                    "updatedAt" to Timestamp.now()
+                )
+            )
+        }.onFailure { e ->
+            android.util.Log.e("TaskRepository", "setOccurrenceComplete failed $taskId", e)
+        }
+        refreshWidget()
+    }
+
+    /**
+     * Check / uncheck [task] as shown on [day]: a repeating task that checks
+     * per day only flips that occurrence, anything else flips the task.
+     */
+    suspend fun toggleCompleteOn(task: Task, day: LocalDate?) {
+        if (day != null && task.checksPerDay()) {
+            setOccurrenceComplete(task.id, day, !task.completedOn(day))
+        } else {
+            toggleComplete(task.id, !task.isCompleted)
+        }
     }
 
     suspend fun setAbandoned(taskId: String, isAbandoned: Boolean) {

@@ -54,6 +54,7 @@ import com.bettertick.data.model.TaskList
 import com.bettertick.widget.WidgetServiceLocator
 import com.bettertick.widget.theme.WidgetColors
 import com.bettertick.widget.theme.WidgetColorValues
+import com.bettertick.data.model.forDay
 import com.bettertick.data.model.occursOn
 import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.groupedUnderParents
@@ -183,7 +184,10 @@ class ReminderWidget : GlanceAppWidget() {
                         ?.takeIf { it != java.time.LocalTime.MIDNIGHT }?.toSecondOfDay() ?: Int.MAX_VALUE
                 }
             }
-            val dayTasks = (overdue + visible.filter { it.occursOn(selectedDate) })
+            val dayTasks = (overdue + visible.filter { it.occursOn(selectedDate) }
+                // 날짜별 체크: a repeat shows that day's done state.
+                .map { it.forDay(selectedDate) }
+                .filter { settings.showCompleted || !it.isCompleted })
                 .distinctBy { it.id }
                 // Finished tasks sink to the bottom.
                 .sortedWith(
@@ -646,7 +650,7 @@ class ReminderWidget : GlanceAppWidget() {
                         .size(28.dp)
                         .clickable(
                             actionStartActivityWithIntent(
-                                toggleTaskIntent(context, task.id, LocalWidgetId.current)
+                                toggleTaskIntent(context, task.id, LocalWidgetId.current, today)
                             )
                         ),
                     contentAlignment = Alignment.Center
@@ -783,10 +787,10 @@ class ReminderWidget : GlanceAppWidget() {
         }
 
     /** Checkbox tap: completes / reopens the task (체크박스 모드). */
-    private fun toggleTaskIntent(context: Context, taskId: String, widgetId: Int): Intent =
+    private fun toggleTaskIntent(context: Context, taskId: String, widgetId: Int, day: LocalDate): Intent =
         Intent(context, WidgetActionDispatcher::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION
-            data = Uri.parse("bettertick://widget/toggle/${Uri.encode(taskId)}?w=$widgetId")
+            data = Uri.parse("bettertick://widget/toggle/${Uri.encode(taskId)}/$day?w=$widgetId")
         }
 
     /**

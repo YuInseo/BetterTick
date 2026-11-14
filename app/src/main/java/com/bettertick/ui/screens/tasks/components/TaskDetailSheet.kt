@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DoNotDisturbOn
 import androidx.compose.material.icons.outlined.PushPin
+import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.filled.Add
@@ -176,6 +177,7 @@ fun TaskDetailSheet(
     var listId by remember(task.id) { mutableStateOf(task.listId) }
     var isPinned by remember(task.id) { mutableStateOf(task.isPinned) }
     var isAbandoned by remember(task.id) { mutableStateOf(task.isAbandoned) }
+    var checkWholeSeries by remember(task.id) { mutableStateOf(task.checkWholeSeries) }
     var moreMenuOpen by remember { mutableStateOf(false) }
     var showListPicker by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -214,6 +216,7 @@ fun TaskDetailSheet(
                 listId != task.listId ||
                 isPinned != task.isPinned ||
                 isAbandoned != task.isAbandoned ||
+                checkWholeSeries != task.checkWholeSeries ||
                 leaves != task.leaves ||
                 dayShifts != task.dayShifts ||
                 attachmentsList != task.attachments
@@ -236,6 +239,7 @@ fun TaskDetailSheet(
                     listId = listId,
                     isPinned = isPinned,
                     isAbandoned = isAbandoned,
+                    checkWholeSeries = checkWholeSeries,
                     abandonedAt = if (isAbandoned && !task.isAbandoned) com.google.firebase.Timestamp.now() else task.abandonedAt
                 )
             )
@@ -372,6 +376,21 @@ fun TaskDetailSheet(
                         }
                         DetailMenuItem(if (isAbandoned) "하지 않음 취소" else "하지 않음", Icons.Outlined.DoNotDisturbOn) {
                             isAbandoned = !isAbandoned; moreMenuOpen = false
+                        }
+                        // 반복 할일: 날짜별로 체크할지, 한 번에 반복 전체를 체크할지.
+                        if (!repeatRule.isNullOrBlank()) {
+                            DetailMenuItem(
+                                if (checkWholeSeries) "체크: 날짜별로 하기" else "체크: 반복 전체 한 번에",
+                                Icons.Outlined.Repeat
+                            ) {
+                                checkWholeSeries = !checkWholeSeries
+                                moreMenuOpen = false
+                                android.widget.Toast.makeText(
+                                    context,
+                                    if (checkWholeSeries) "체크하면 반복 전체가 완료됩니다" else "날짜마다 따로 체크합니다",
+                                    android.widget.Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         }
                         if (onDuplicate != null) {
                             DetailMenuItem("복제", Icons.Outlined.ContentCopy) {

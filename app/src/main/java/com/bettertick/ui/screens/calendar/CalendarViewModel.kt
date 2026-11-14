@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
 import com.bettertick.data.model.TaskList
+import com.bettertick.data.model.forDay
 import com.bettertick.data.model.occursOn
 import com.bettertick.data.repository.ListRepository
 import com.bettertick.data.repository.TagRepository
@@ -106,7 +107,8 @@ class CalendarViewModel @Inject constructor(
                 while (!day.isAfter(endDate)) {
                     recurring.forEach { task ->
                         if (task.occursOn(day)) {
-                            result.getOrPut(day) { mutableListOf() }.add(task)
+                            // 날짜별 체크: each day carries its own done state.
+                            result.getOrPut(day) { mutableListOf() }.add(task.forDay(day))
                         }
                     }
                     day = day.plusDays(1)
@@ -195,6 +197,11 @@ class CalendarViewModel @Inject constructor(
         viewModelScope.launch {
             taskRepository.toggleComplete(taskId, isCompleted)
         }
+    }
+
+    /** Checkbox on [day]: a per-day repeating task flips only that occurrence. */
+    fun toggleTaskCompleteOn(task: Task, day: LocalDate?) {
+        viewModelScope.launch { taskRepository.toggleCompleteOn(task, day) }
     }
 
     fun applyStatus(task: Task, action: com.bettertick.data.model.TaskStatusAction, shownDate: LocalDate?) {

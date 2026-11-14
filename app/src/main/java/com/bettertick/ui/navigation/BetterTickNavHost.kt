@@ -720,8 +720,7 @@ private fun MainContent(
                         }
                         TickFab(
                             onClick = { showTaskInput = true },
-                            // 캘린더는 옆에 버튼이 있어 조금 작게.
-                            size = if (currentRoute == BottomNavItem.Calendar.route) 48.dp else 56.dp
+                            size = 48.dp
                         )
                     }
                 }
