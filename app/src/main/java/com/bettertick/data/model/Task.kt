@@ -59,5 +59,21 @@ data class Task(
     // true = 체크하면 반복 전체가 완료 (예전 방식); false = 날짜별로 체크.
     val checkWholeSeries: Boolean = false,
     // 개별 메모: 반복 할일의 날짜별 메모 ("yyyy-MM-dd" → 메모). [notes]는 공통 메모.
-    val dayNotes: Map<String, String> = emptyMap()
+    val dayNotes: Map<String, String> = emptyMap(),
+    // 메모장: + 버튼으로 쌓는 메모들. 반복 할일은 메모마다 공통 / 그 날만.
+    val memos: List<TaskMemo> = emptyList()
 )
+
+/** 할일 메모 하나. [day] 비어 있으면 공통(모든 반복), "yyyy-MM-dd"면 그 날만. */
+data class TaskMemo(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val text: String = "",
+    val day: String = ""
+)
+
+/** Memos to show on [day]: the shared ones plus that day's (all when [day] is null). */
+fun Task.memosOn(day: java.time.LocalDate?): List<TaskMemo> {
+    val key = day?.toString()
+    val legacy = dayNotes.map { (d, t) -> TaskMemo(id = "day-$d", text = t, day = d) }
+    return (memos + legacy).filter { it.text.isNotBlank() && (it.day.isBlank() || key == null || it.day == key) }
+}

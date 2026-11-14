@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.memosOn
 import com.bettertick.data.model.LEAVE_TYPES
 import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.leaveOn
@@ -210,7 +211,8 @@ fun TaskItem(
                 overflow = TextOverflow.Ellipsis
             )
             // 목록 이름 + 작은 아이콘(고정·메모·반복·알림): 제목 바로 아래 한 줄.
-            val hasMetaIcons = task.isPinned || task.notes.isNotBlank() ||
+            val hasNotes = task.notes.isNotBlank() || task.memos.isNotEmpty() || task.dayNotes.isNotEmpty()
+            val hasMetaIcons = task.isPinned || hasNotes ||
                 !task.repeatRule.isNullOrBlank() || hasTime
             if (listName.isNotBlank() || hasMetaIcons) {
                 Row(
@@ -232,7 +234,7 @@ fun TaskItem(
                     if (task.isPinned) {
                         Icon(Icons.Outlined.PushPin, contentDescription = "고정됨", tint = accent, modifier = Modifier.size(11.dp))
                     }
-                    if (task.notes.isNotBlank()) {
+                    if (hasNotes) {
                         Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = "메모", tint = metaIconTint, modifier = Modifier.size(12.dp))
                     }
                     if (!task.repeatRule.isNullOrBlank()) {
@@ -302,17 +304,18 @@ fun TaskItem(
             modifier = Modifier.padding(start = 44.dp, bottom = 4.dp)
         )
     }
-    // 개별 메모: 반복 할일의 이 날짜에만 쓴 메모.
-    val dayNote = overrideDate?.let { task.dayNotes[it.toString()] }?.trim()
-    if (showDetails && !dayNote.isNullOrEmpty()) {
-        MarkdownText(
-            text = "· $dayNote",
-            color = accent,
-            fontSize = 13.sp,
-            maxLines = 4,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(start = 44.dp, bottom = 4.dp)
-        )
+    // 메모장 메모: 공통 메모와 이 날짜 메모 (그 날 메모는 강조색).
+    if (showDetails) {
+        task.memosOn(overrideDate).take(4).forEach { memo ->
+            MarkdownText(
+                text = "· " + memo.text.trim(),
+                color = if (memo.day.isBlank()) TextSecondary else accent,
+                fontSize = 13.sp,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 44.dp, bottom = 4.dp)
+            )
+        }
     }
     }
 }
