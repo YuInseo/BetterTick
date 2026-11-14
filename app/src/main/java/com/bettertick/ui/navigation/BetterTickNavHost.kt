@@ -117,8 +117,13 @@ private fun BottomNavTab(
     Column(
         modifier = modifier
             .fillMaxHeight()
+            // No ripple / pressed background — only the icon color changes.
             .selectable(
                 selected = selected,
+                interactionSource = androidx.compose.runtime.remember {
+                    androidx.compose.foundation.interaction.MutableInteractionSource()
+                },
+                indication = null,
                 role = Role.Tab,
                 onClick = onClick
             ),
