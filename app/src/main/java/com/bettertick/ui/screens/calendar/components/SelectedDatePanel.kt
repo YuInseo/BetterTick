@@ -233,6 +233,10 @@ fun SelectedDatePanel(
                             othersIdx == others.lastIndex && insertAt == others.size
                         val depth = depths[task.id] ?: 0
                         val nestedRow = depth > 0
+                        // Last child at its level: the branch line stops at this row (└).
+                        val activeIdx = active.indexOfFirst { it.id == task.id }
+                        val lastChild = nestedRow &&
+                            ((active.getOrNull(activeIdx + 1)?.let { depths[it.id] ?: 0 } ?: 0) < depth)
                         val isNestTarget = nestTarget?.id == task.id
                         val accent = MaterialTheme.colorScheme.primary
                         Column(
@@ -245,18 +249,32 @@ fun SelectedDatePanel(
                                 .then(
                                     if (nestedRow) Modifier
                                         .drawBehind {
-                                            // One guide line per level.
+                                            // Tree lines from under the parent's checkbox:
+                                            // ancestors run straight down, this level bends
+                                            // into the row (├ / └).
+                                            val stroke = 1.5.dp.toPx()
+                                            val midY = minOf(size.height / 2f, 26.dp.toPx())
                                             for (level in 0 until depth) {
-                                                val x = (14 + 22 * level).dp.toPx()
+                                                val x = (SubtaskRootX + SubtaskIndent * level).dp.toPx()
+                                                val own = level == depth - 1
                                                 drawLine(
                                                     SubtaskGuide,
                                                     Offset(x, 0f),
-                                                    Offset(x, size.height),
-                                                    strokeWidth = 1.5.dp.toPx()
+                                                    Offset(x, if (own && lastChild) midY else size.height),
+                                                    strokeWidth = stroke
                                                 )
+                                                if (own) {
+                                                    val childBoxLeft = (SubtaskRootX + SubtaskIndent * depth - 13).dp.toPx()
+                                                    drawLine(
+                                                        SubtaskGuide,
+                                                        Offset(x, midY),
+                                                        Offset(childBoxLeft, midY),
+                                                        strokeWidth = stroke
+                                                    )
+                                                }
                                             }
                                         }
-                                        .padding(start = (22 * depth).dp)
+                                        .padding(start = (SubtaskIndent * depth).dp)
                                     else Modifier
                                 )
                                 .then(
@@ -268,6 +286,9 @@ fun SelectedDatePanel(
                                 )
                         ) {
                         if (lineAbove) ReorderLine(nestUnder = dropParent?.title, indent = !nestedRow)
+                        androidx.compose.runtime.CompositionLocalProvider(
+                            com.bettertick.ui.screens.tasks.components.LocalCompactTaskRow provides nestedRow
+                        ) {
                         DraggableTaskRow(
                             task = task,
                             selectedDate = selectedDate,
@@ -323,6 +344,7 @@ fun SelectedDatePanel(
                             onToggleLeave = { day, type -> onUpdateTask(task.withLeaveToggled(day, type)) },
                             onStatusAction = { action -> onStatusAction(task, action) }
                         )
+                        }
                         if (isNestTarget) {
                             Text(
                                 text = "'${task.title}'의 하위 할일로 넣기",
@@ -406,12 +428,17 @@ fun SelectedDatePanel(
                             .then(
                                 if (doneDepth > 0) Modifier
                                     .drawBehind {
+                                        val midY = minOf(size.height / 2f, 26.dp.toPx())
                                         for (level in 0 until doneDepth) {
-                                            val x = (14 + 22 * level).dp.toPx()
+                                            val x = (SubtaskRootX + SubtaskIndent * level).dp.toPx()
                                             drawLine(SubtaskGuide, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.5.dp.toPx())
+                                            if (level == doneDepth - 1) {
+                                                val childBoxLeft = (SubtaskRootX + SubtaskIndent * doneDepth - 13).dp.toPx()
+                                                drawLine(SubtaskGuide, Offset(x, midY), Offset(childBoxLeft, midY), strokeWidth = 1.5.dp.toPx())
+                                            }
                                         }
                                     }
-                                    .padding(start = (22 * doneDepth).dp)
+                                    .padding(start = (SubtaskIndent * doneDepth).dp)
                                 else Modifier
                             )
                     ) {
@@ -748,7 +775,11 @@ private fun EmptyState(modifier: Modifier = Modifier) {
 }
 
 /** Thin line down the left of a parent's subtask rows. */
-private val SubtaskGuide = Color(0x667F7F7F)
+private val SubtaskGuide = Color(0x807F7F7F)
+/** x (dp) of a top-level row's checkbox center — where the tree line starts. */
+private const val SubtaskRootX = 24
+/** Indent (dp) per subtask level. */
+private const val SubtaskIndent = 30
 
 /**
  * Insertion marker shown between rows while dragging to reorder. Indented,
