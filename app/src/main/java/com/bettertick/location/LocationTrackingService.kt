@@ -208,14 +208,14 @@ class LocationTrackingService : Service() {
         }
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
-                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setSmallIcon(com.bettertick.R.drawable.ic_stat_bettertick)
                 .setContentTitle("BetterTick 위치 기록 중")
                 .setContentText("오늘 방문한 장소를 자동으로 기록합니다")
                 .build()
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
-                .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                .setSmallIcon(com.bettertick.R.drawable.ic_stat_bettertick)
                 .setContentTitle("BetterTick 위치 기록 중")
                 .build()
         }

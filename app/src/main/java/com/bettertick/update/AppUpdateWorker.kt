@@ -31,7 +31,8 @@ class AppUpdateWorker(
 
     private fun createDownloadForegroundInfo(version: String): ForegroundInfo {
         val notification = NotificationCompat.Builder(context, DOWNLOAD_CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_bettertick)
+            .setColor(0xFF4772FA.toInt())
             .setContentTitle("BetterTick 업데이트 다운로드 중")
             .setContentText("v$version 다운로드 중...")
             .setOngoing(true)
