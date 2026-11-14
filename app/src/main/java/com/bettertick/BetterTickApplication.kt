@@ -51,6 +51,7 @@ class BetterTickApplication : Application() {
         com.bettertick.ui.screens.focus.FocusPrefs.init(this)
         com.bettertick.ui.screens.habits.HabitPrefs.init(this)
         com.bettertick.ui.screens.tasks.LeavePrefs.init(this)
+        com.bettertick.ui.screens.tasks.SalaryPrefs.init(this)
         com.bettertick.reminder.ReminderScheduler.scheduleDailySummary(this)
         KakaoMapSdk.init(this, "36af0c02f9ab81fb67df8c9bbeefc7f1")
         // Initialize widget service locator for AppWidget access
