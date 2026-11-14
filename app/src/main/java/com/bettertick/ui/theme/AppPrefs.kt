@@ -10,8 +10,10 @@ import java.time.LocalTime
 /** 설정 > 날짜 & 시간 > 시간 형식. */
 enum class TimeFormat(val key: String, val label: String) {
     SYSTEM("system", "시스템 설정 따르기"),
-    H12("12h", "12시간"),
-    H24("24h", "24시간")
+    H12("12h", "12시간 (오전 8:00)"),
+    H24("24h", "24시간 (8:00)"),
+    /** 24시간, 시도 두 자리: 08:00. */
+    H24_PADDED("24h_padded", "24시간 두 자리 (08:00)")
 }
 
 /** 설정 > 일반 > 새 할일의 기본 날짜. */
@@ -117,14 +119,15 @@ object AppPrefs {
 
     val is24h: Boolean
         get() = when (timeFormat) {
-            TimeFormat.H24 -> true
+            TimeFormat.H24, TimeFormat.H24_PADDED -> true
             TimeFormat.H12 -> false
             TimeFormat.SYSTEM -> system24h
         }
 
-    /** "오후 3:05" or "15:05" following 시간 형식. */
+    /** "오후 3:05", "15:05" or "08:00" following 시간 형식. */
     fun formatTime(t: LocalTime): String =
-        if (is24h) "%d:%02d".format(t.hour, t.minute)
+        if (timeFormat == TimeFormat.H24_PADDED) "%02d:%02d".format(t.hour, t.minute)
+        else if (is24h) "%d:%02d".format(t.hour, t.minute)
         else {
             val ampm = if (t.hour < 12) "오전" else "오후"
             val h = when {
