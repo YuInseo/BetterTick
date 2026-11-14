@@ -77,7 +77,6 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
     var previewYear by remember { mutableStateOf(YearMonth.now().year) }
     var addRecurring by remember { mutableStateOf<Boolean?>(null) }
     var editRecurring by remember { mutableStateOf<com.bettertick.ui.screens.tasks.RecurringMoney?>(null) }
-    var askMilitary by remember { mutableStateOf(false) }
     var pickEnlist by remember { mutableStateOf(false) }
     var editRank by remember { mutableStateOf<Int?>(null) } // -1 = 새 계급
     val mil = rules.military
@@ -101,17 +100,40 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
 
         PaySectionLabel("군 복무 월급")
         OptionCard {
-            if (!mil.enabled) {
-                OptionNavRow(
-                    "군 월급 자동 계산",
-                    subtitle = "입대일만 넣으면 이병·일병·상병·병장 월급을 달마다 계산합니다."
-                ) { askMilitary = true }
-            } else {
-                OptionSwitchRow(
-                    title = "군 월급 자동 계산",
-                    subtitle = "끄면 계급 설정은 남고 월급 계산에서만 빠집니다.",
-                    checked = true,
-                    onCheckedChange = { on -> SalaryPrefs.updateMilitary(wpId) { it.copy(enabled = on) } }
+            OptionSwitchRow(
+                title = "군 복무 월급",
+                subtitle = if (mil.enabled) "끄면 계급 설정은 남고 월급 계산에서만 빠집니다."
+                else "군 복무·사회복무요원이면 켜세요. 입대일로 계급별 월급을 달마다 계산합니다.",
+                checked = mil.enabled,
+                onCheckedChange = { on ->
+                    // 입대일이 없으면 이 근무지의 시작일을 입대일로 쓴다.
+                    val enlist = mil.enlist ?: wp.start
+                    SalaryPrefs.updateMilitary(wpId) { it.copy(enabled = on, enlist = enlist) }
+                    if (on && enlist == null) pickEnlist = true
+                }
+            )
+            if (mil.enabled) {
+                val presets = listOf(
+                    "육군·해병대 18개월" to listOf(2, 6, 6, 4),
+                    "해군 20개월" to listOf(2, 6, 6, 6),
+                    "공군·사회복무요원 21개월" to listOf(2, 6, 6, 7)
+                )
+                val currentPreset = presets.firstOrNull { (_, months) ->
+                    mil.ranks.map { it.months } == months
+                }?.first ?: "직접 설정 (${mil.totalMonths}개월)"
+                OptionChoiceRow(
+                    title = "복무 형태",
+                    value = currentPreset,
+                    options = presets.map { it.first },
+                    label = { it },
+                    onPick = { name ->
+                        val months = presets.first { it.first == name }.second
+                        SalaryPrefs.updateMilitary(wpId) { m ->
+                            val base = if (m.ranks.size == months.size) m.ranks
+                            else com.bettertick.ui.screens.tasks.DefaultMilitaryRanks
+                            m.copy(ranks = base.mapIndexed { i, r -> r.copy(months = months[i]) })
+                        }
+                    }
                 )
                 OptionNavRow("입대일", value = mil.enlist?.toString() ?: "설정 안 함") { pickEnlist = true }
                 mil.discharge?.let { end ->
@@ -149,7 +171,7 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
             }
         }
         if (mil.enabled) {
-            PayHint("입대한 달이 이병 1개월째이고, 다음 계급은 그 개월 수를 채운 뒤 1일에 진급합니다. 기본값(이병 75만·일병 90만·상병 120만·병장 150만, 2·6·6·4개월)은 직접 고칠 수 있어요. 해군·공군·해병대나 진급 누락은 계급별 개월 수를 바꾸세요. 이 근무지 기간은 입대일~전역일로 맞춰집니다.")
+            PayHint("입대한 달이 이병 1개월째이고, 다음 계급은 그 개월 수를 채운 뒤 1일에 진급합니다. 기본값(이병 75만·일병 90만·상병 120만·병장 150만, 2·6·6·4개월)은 직접 고칠 수 있어요. 복무 형태를 고르거나, 진급 누락 등은 계급별 개월 수를 직접 바꾸세요. 이 근무지 기간은 입대일~전역일로 맞춰집니다.")
         }
 
         PaySectionLabel("항목 · 지급과 공제")
@@ -260,31 +282,6 @@ fun SalarySettingsScreen(onBack: () -> Unit) {
     }
     editRecurring?.let { r ->
         MoneyDialog(recurring = r, onDismiss = { editRecurring = null })
-    }
-    if (askMilitary) {
-        AlertDialog(
-            onDismissRequest = { askMilitary = false },
-            title = { Text("군 월급 자동 계산") },
-            text = {
-                Text("군 복무 기간을 근무지 하나로 둡니다. 그 근무지의 기간은 입대일~전역일로 맞춰져요. 지금 '${wp.name}'이(가) 다니는 회사라면 새 근무지를 만드세요.")
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    askMilitary = false
-                    val id = LeavePrefs.addWorkplace("군 복무", start = null, end = null).id
-                    wpId = id
-                    SalaryPrefs.updateMilitary(id) { it.copy(enabled = true) }
-                    pickEnlist = true
-                }) { Text("새 근무지 '군 복무' 만들기") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    askMilitary = false
-                    SalaryPrefs.updateMilitary(wpId) { it.copy(enabled = true) }
-                    pickEnlist = true
-                }) { Text("'${wp.name}'에서 켜기") }
-            }
-        )
     }
     if (pickEnlist) {
         WorkStartPickerDialog(
