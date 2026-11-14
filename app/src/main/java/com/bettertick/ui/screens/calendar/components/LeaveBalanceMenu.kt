@@ -65,18 +65,18 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
             expanded = true
         },
         modifier = modifier,
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(20.dp),
         color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        shadowElevation = 6.dp
+        shadowElevation = 4.dp
     ) {
         Row(
-            Modifier.heightIn(min = 56.dp).padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.heightIn(min = 40.dp).padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.size(20.dp))
-            Text("스케줄 보기", style = MaterialTheme.typography.labelLarge, maxLines = 1)
+            Icon(Icons.Outlined.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
+            Text("스케줄 보기", style = MaterialTheme.typography.labelMedium, maxLines = 1)
         }
     }
 
