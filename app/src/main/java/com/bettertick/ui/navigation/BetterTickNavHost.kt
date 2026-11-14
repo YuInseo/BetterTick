@@ -511,6 +511,9 @@ private fun MainContent(
                         onBack = { navController.popBackStack() }
                     )
                 }
+                composable("salary_settings") {
+                    com.bettertick.ui.screens.more.SalarySettingsScreen(onBack = { navController.popBackStack() })
+                }
                 composable("smartlists") {
                     com.bettertick.ui.screens.more.SmartListSettingsScreen(onBack = { navController.popBackStack() })
                 }
@@ -679,9 +682,17 @@ private fun MainContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(paddingValues)
-                        .padding(end = 16.dp, bottom = 16.dp),
+                        .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
                     contentAlignment = Alignment.BottomEnd
                 ) {
+                    if (currentRoute == BottomNavItem.Calendar.route &&
+                        com.bettertick.ui.screens.tasks.SalaryPrefs.showButton
+                    ) {
+                        com.bettertick.ui.screens.calendar.components.SalaryMenu(
+                            onSettings = { navController.navigate("salary_settings") },
+                            modifier = Modifier.align(Alignment.BottomStart)
+                        )
+                    }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
