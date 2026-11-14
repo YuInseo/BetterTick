@@ -686,7 +686,9 @@ private fun MainContent(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (currentRoute == BottomNavItem.Calendar.route) {
+                        if (currentRoute == BottomNavItem.Calendar.route &&
+                            com.bettertick.ui.screens.tasks.LeavePrefs.showScheduleButton
+                        ) {
                             com.bettertick.ui.screens.calendar.components.LeaveBalanceMenu(
                                 tasks = allTasks,
                                 onSettings = { type -> navController.navigate("leave_settings/$type") }
