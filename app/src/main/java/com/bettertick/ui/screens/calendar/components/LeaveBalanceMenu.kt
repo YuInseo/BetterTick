@@ -81,7 +81,8 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
     }
 
     // 월별 총 일수 직접 입력: (type, a day in that month).
-    var editMonthTotal by remember { mutableStateOf<Pair<String, LocalDate>?>(null) }
+    // 기간별 총 일수 직접 입력: (type, a day in that period, period name for the title).
+    var editMonthTotal by remember { mutableStateOf<Triple<String, LocalDate, String>?>(null) }
 
     if (expanded) {
         val month = YearMonth.parse(monthKey)
@@ -177,8 +178,8 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    if (manual != null) "${month.monthValue}월 총 ${manual}일 직접 입력함"
-                                    else "${month.monthValue}월 총 일수 직접 정하기",
+                                    if (manual != null) "$period 총 ${manual}일 직접 입력함"
+                                    else "$period 총 일수 자동 계산 · 직접 정할 수 있어요",
                                     fontSize = 12.sp, color = TextSecondary,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -187,7 +188,7 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
                                         Text("자동으로", color = TextSecondary, fontSize = 13.sp)
                                     }
                                 }
-                                TextButton(onClick = { editMonthTotal = type to day }) {
+                                TextButton(onClick = { editMonthTotal = Triple(type, day, period) }) {
                                     Text(if (manual != null) "수정" else "직접 입력", color = accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                                 }
                             }
@@ -243,16 +244,16 @@ fun LeaveBalanceMenu(tasks: List<Task>, onSettings: (String) -> Unit, modifier: 
         }
     }
 
-    editMonthTotal?.let { (type, d) ->
+    editMonthTotal?.let { (type, d, periodName) ->
         var text by remember(type, d) { mutableStateOf(LeavePrefs.monthTotal(type, d)?.toString() ?: "") }
         val value = text.toIntOrNull()
         AlertDialog(
             onDismissRequest = { editMonthTotal = null },
             containerColor = GroupedCard,
-            title = { Text("${d.year}년 ${d.monthValue}월 총 ${label(type)}", color = TextPrimary) },
+            title = { Text("$periodName 총 ${label(type)}", color = TextPrimary) },
             text = {
                 Column {
-                    Text("이 달은 자동 계산 대신 입력한 일수를 씁니다.", fontSize = 13.sp, color = TextSecondary)
+                    Text("이 기간은 자동 계산 대신 입력한 일수를 씁니다.", fontSize = 13.sp, color = TextSecondary)
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = text,

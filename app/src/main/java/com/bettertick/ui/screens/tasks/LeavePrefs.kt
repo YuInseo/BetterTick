@@ -47,8 +47,11 @@ data class Workplace(
     /** 근속연차별 일수: type → (service year → days). */
     val serviceQuotas: Map<String, Map<Int, Int>> = emptyMap(),
     /**
-     * 월별 총 일수 직접 입력: type → ("yyyy-MM" → days). For a 매달 kind it
-     * replaces everything else for that month (지휴 자동 계산 included).
+     * 기간별 총 일수 직접 입력: type → (period → days). The period key follows
+     * the kind's 주기: "yyyy-MM" (매달), "yyyy" (매년), "s<N>" (근속 N년차),
+     * "all" (리셋 없음). A typed-in total replaces everything else for that
+     * period (지휴 자동 계산 included). Stored as "monthTotals" for
+     * compatibility with the first, month-only version.
      */
     val monthTotals: Map<String, Map<String, Int>> = emptyMap()
 ) {
@@ -465,24 +468,30 @@ object LeavePrefs {
         "${range.start} ~ ${range.endInclusive}"
     }
 
-    // ── 월별 총 일수 직접 입력 ────────────────────────────────────────────────
+    // ── 기간별 총 일수 직접 입력 ────────────────────────────────────────────────
 
-    private fun monthKey(day: LocalDate) = "%04d-%02d".format(day.year, day.monthValue)
+    /** Key of the period [day] falls in for [type] at this workplace; null before 근속 1년차. */
+    private fun Workplace.totalKey(type: String, day: LocalDate): String? = when (periodOf(type)) {
+        LeavePeriod.MONTH -> "%04d-%02d".format(day.year, day.monthValue)
+        LeavePeriod.YEAR -> day.year.toString()
+        LeavePeriod.SERVICE_YEAR -> serviceYearOn(day).takeIf { it > 0 }?.let { "s$it" }
+        LeavePeriod.NONE -> "all"
+    }
 
     private fun Workplace.monthTotal(type: String, day: LocalDate): Int? =
-        if (periodOf(type) == LeavePeriod.MONTH) monthTotals[type]?.get(monthKey(day)) else null
+        totalKey(type, day)?.let { monthTotals[type]?.get(it) }
 
-    /** The total the user typed in for [day]'s month, if any (매달 kinds only). */
+    /** The total the user typed in for the period [day] falls in, if any (any 주기). */
     fun monthTotal(type: String, day: LocalDate): Int? = workplaceOn(day)?.monthTotal(type, day)
 
-    /** Can [type] take a typed-in total for [day]'s month (its period is 매달)? */
+    /** Can [type] take a typed-in total for [day]'s period? (Not before 근속 1년차 or between jobs.) */
     fun allowsMonthTotal(type: String, day: LocalDate): Boolean =
-        workplaceOn(day)?.periodOf(type) == LeavePeriod.MONTH
+        workplaceOn(day)?.totalKey(type, day) != null
 
-    /** Set (or with null, clear back to the rule) the total for [day]'s month. */
+    /** Set (or with null, clear back to the rule) the total for the period [day] falls in. */
     fun updateMonthTotal(type: String, day: LocalDate, days: Int?) {
         val wp = workplaceOn(day) ?: return
-        val key = monthKey(day)
+        val key = wp.totalKey(type, day) ?: return
         storeWorkplaces(workplaces.map { w ->
             if (w.id != wp.id) w else {
                 val cur = w.monthTotals[type].orEmpty()
