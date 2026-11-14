@@ -209,6 +209,18 @@ fun TaskItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            // 목록 이름: 제목 바로 아래 왼쪽, 작게.
+            if (listName.isNotBlank()) {
+                Text(
+                    text = listName,
+                    fontSize = 11.sp,
+                    lineHeight = 13.sp,
+                    color = TextTertiary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 1.dp)
+                )
+            }
             if (showLeaveChips && isShift && (onToggleLeave != null || leave != null)) {
                 Spacer(Modifier.height(4.dp))
                 LeaveChipRow(
@@ -237,20 +249,9 @@ fun TaskItem(
 
         if (shownDate != null || !task.repeatRule.isNullOrBlank() || task.isPinned) {
             Spacer(Modifier.width(8.dp))
-            Column(horizontalAlignment = Alignment.End) {
+            // At most about half the row, so a long date never squeezes the title away.
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f, fill = false)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 목록 이름은 아이콘·시간과 같은 줄, 그 왼쪽에.
-                    if (listName.isNotBlank()) {
-                        Text(
-                            text = listName,
-                            fontSize = 11.sp,
-                            color = TextTertiary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 72.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
                     if (task.isPinned) {
                         Icon(
                             imageVector = Icons.Outlined.PushPin,
@@ -291,20 +292,14 @@ fun TaskItem(
                         Text(
                             text = buildDateLabel(date, startTime, task.durationMinutes, hasTime),
                             fontSize = 12.sp,
+                            lineHeight = 15.sp,
                             color = dateColor,
-                            maxLines = 1
+                            maxLines = 2,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.End
                         )
                     }
                 }
             }
-        } else if (listName.isNotBlank()) {
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = listName,
-                fontSize = 11.sp,
-                color = TextTertiary,
-                maxLines = 1
-            )
         }
     }
     // 설명: below the row, lined up with the title and using the full width

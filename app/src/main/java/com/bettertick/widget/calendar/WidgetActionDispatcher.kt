@@ -1,5 +1,8 @@
 package com.bettertick.widget.calendar
 
+import com.bettertick.data.model.checksPerDay
+import com.bettertick.data.model.completedOn
+
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -69,6 +72,17 @@ class WidgetActionDispatcher : ComponentActivity() {
         if (kind == "toggle" && arg != null) {
             if (!com.bettertick.widget.WidgetServiceLocator.isInitialized) return
             val task = com.bettertick.widget.WidgetServiceLocator.tasksCache.value.firstOrNull { it.id == arg }
+            // The widget's day (날짜별 체크 for repeating tasks).
+            val day = segments.getOrNull(2)?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+            if (task != null && day != null && task.checksPerDay() && !task.isAbandoned) {
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    runCatching {
+                        com.bettertick.widget.WidgetServiceLocator.taskRepository
+                            .setOccurrenceComplete(arg, day, !task.completedOn(day))
+                    }.onFailure { Log.e(TAG, "toggle failed", it) }
+                }
+                return
+            }
             val complete = task?.let { !(it.isCompleted || it.isAbandoned) } ?: true
             Log.i(TAG, "TOGGLE task=$arg complete=$complete")
             CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {

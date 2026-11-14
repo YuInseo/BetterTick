@@ -289,6 +289,13 @@ fun CalendarScreen(
                 }
             }
     ) {
+        // 오늘로 이동: 오른쪽 위 버튼과 왼쪽 위 년·월 제목이 같이 쓴다.
+        val goToday = {
+            val today = java.time.LocalDate.now()
+            viewModel.onVisibleMonthChanged(java.time.YearMonth.from(today))
+            if (viewMode == CalendarViewMode.YEAR) viewMode = CalendarViewMode.MONTH
+            if (selectedDate != today) viewModel.selectDate(today)
+        }
         TopAppBar(
             title = {
                 if (viewMode == CalendarViewMode.YEAR) {
@@ -296,7 +303,8 @@ fun CalendarScreen(
                         text = "${selectedMonth.year}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.clickable(onClickLabel = "오늘로 이동") { goToday() }
                     )
                 } else {
                     // Timeline / list views follow the shown date, not the
@@ -307,17 +315,13 @@ fun CalendarScreen(
                         text = "${titleMonth.year}년 ${titleMonth.format(monthFormatter)}",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.clickable(onClickLabel = "오늘로 이동") { goToday() }
                     )
                 }
             },
             actions = {
-                IconButton(onClick = {
-                    val today = java.time.LocalDate.now()
-                    viewModel.onVisibleMonthChanged(java.time.YearMonth.from(today))
-                    if (viewMode == CalendarViewMode.YEAR) viewMode = CalendarViewMode.MONTH
-                    if (selectedDate != today) viewModel.selectDate(today)
-                }) {
+                IconButton(onClick = goToday) {
                     Icon(
                         androidx.compose.ui.res.painterResource(com.bettertick.R.drawable.ic_cal_today),
                         contentDescription = "오늘로 이동",
@@ -584,7 +588,7 @@ fun CalendarScreen(
                                 tasks = lookup.tasksOn(currentDate),
                                 selectedDate = currentDate,
                                 onToggleComplete = { task ->
-                                    viewModel.toggleTaskComplete(task.id, !task.isCompleted)
+                                    viewModel.toggleTaskCompleteOn(task, currentDate)
                                 },
                                 onTaskClick = {},
                                 detailListName = { task -> viewModel.listNameFor(task.listId) },
@@ -710,7 +714,7 @@ fun CalendarScreen(
             listName = viewModel.listNameFor(task.listId),
             onDismiss = { selectedTask = null },
             onUpdateTask = { updated -> viewModel.updateTask(updated); selectedTask = null },
-            onToggleComplete = { viewModel.toggleTaskComplete(task.id, !task.isCompleted) },
+            onToggleComplete = { viewModel.toggleTaskCompleteOn(task, selectedDate) },
             tags = tags,
             onCreateTag = { name -> viewModel.createTag(name) },
             lists = calLists,
