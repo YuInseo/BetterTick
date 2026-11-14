@@ -89,7 +89,6 @@ import com.bettertick.ui.screens.matrix.MatrixQuickAddSheet
 import com.bettertick.ui.screens.matrix.MatrixScreen
 import com.bettertick.ui.screens.matrix.QuadrantEditScreen
 import com.bettertick.ui.screens.more.MoreScreen
-import com.bettertick.ui.screens.location.LocationHistoryScreen
 import com.bettertick.ui.screens.tags.AddTagScreen
 import com.bettertick.ui.screens.tags.TagManagementScreen
 import com.bettertick.ui.screens.more.TabBarScreen
@@ -151,7 +150,6 @@ internal fun tabRouteFor(tabId: String): String? = when (tabId) {
     "habits" -> BottomNavItem.Habits.route
     "diary" -> BottomNavItem.Diary.route
     "money" -> BottomNavItem.Money.route
-    "location" -> "location"
     "more" -> BottomNavItem.More.route
     else -> null
 }
@@ -270,7 +268,7 @@ private fun MainContent(
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val isTabRoute = currentRoute == null || currentRoute == "location" ||
+    val isTabRoute = currentRoute == null ||
             BottomNavItem.items.any { it.route == currentRoute }
 
     ModalNavigationDrawer(
@@ -675,15 +673,22 @@ private fun MainContent(
                         onEditTag = { id -> navController.navigate("edittag/$id") }
                     )
                 }
+                // Compatibility only: restore an old saved back stack safely.
+                // No location UI, permissions, service or repository remains.
                 composable("location") {
-                    LocationHistoryScreen()
+                    LaunchedEffect(Unit) {
+                        navController.navigate(BottomNavItem.Tasks.route) {
+                            popUpTo("location") { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
                 }
             }
 
-            // 설정(more)·동선(location) 화면에선 할일 추가 + 버튼을 띄우지 않는다.
+            // 설정(more) 화면에선 할일 추가 + 버튼을 띄우지 않는다.
             // 습관 탭은 자체 '습관 추가' 플로팅 버튼이 같은 자리에 있어 제외.
             // 오른쪽 아래, 하단 네비게이션 바 바로 위에 떠 있는 플로팅 버튼.
-            if (isTabRoute && currentRoute != "location" && currentRoute != "more" &&
+            if (isTabRoute && currentRoute != "more" &&
                 currentRoute != BottomNavItem.Habits.route &&
                 currentRoute != BottomNavItem.Money.route &&
                 !com.bettertick.ui.screens.calendar.CalendarPrefs.arrangePanelOpen &&
