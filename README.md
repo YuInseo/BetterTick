@@ -1,210 +1,236 @@
+<div align="center">
+
 # BetterTick
 
-교대 근무하는 사람을 위한 할일 · 달력 · 가계부 앱.
+### 근무에 맞춰, 일상을 더 편하게.
 
-주간, 야간, 비번, 휴무가 돌아가는 근무표를 먼저 깔아 두고, 그 위에 할일이랑 수면 · 운동 같은 루틴, 휴가, 월급까지 한 앱에서 챙길 수 있게 만들었다. 인터넷이 없어도 바로 열리고, 연결되면 Firebase로 알아서 맞춰진다.
+교대 근무부터 할 일, 휴가, 가계부까지.<br>
+바뀌는 근무 일정에 맞춰 하루를 계획하는 Android 앱입니다.
 
-**APK 받기** (로그인 필요 없음)
-https://github.com/YuInseo/BetterTick/releases/download/latest-debug/BetterTick.apk
+<br>
 
-한 번 깔아 두면 새 버전이 나올 때마다 앱이 알아서 업데이트한다.
+![Android](https://img.shields.io/badge/Android_9%2B-3DDC84?style=flat-square&logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=flat-square&logo=kotlin&logoColor=white)
+![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white)
+[![CI](https://github.com/YuInseo/BetterTick/actions/workflows/ci.yml/badge.svg)](https://github.com/YuInseo/BetterTick/actions/workflows/ci.yml)
 
----
+<br>
 
-## 목차
+**[APK 다운로드](https://github.com/YuInseo/BetterTick/releases/download/latest-debug/BetterTick.apk)** &nbsp; · &nbsp;
+[릴리즈 보기](https://github.com/YuInseo/BetterTick/releases/tag/latest-debug) &nbsp; · &nbsp;
+[버그 신고 · 기능 제안](https://github.com/YuInseo/BetterTick/issues)
 
-- [기능](#기능)
-- [탭 구성](#탭-구성)
-- [데이터는 어떻게 저장되나](#데이터는-어떻게-저장되나)
-- [기술 스택](#기술-스택)
-- [폴더 구조](#폴더-구조)
-- [빌드하기](#빌드하기)
-- [배포 · 자동 업데이트](#배포--자동-업데이트)
-- [작업 규칙](#작업-규칙)
-- [다른 문서](#다른-문서)
+</div>
 
----
+<br>
 
-## 기능
+## 나의 근무표에서 시작하는 하루
 
-### 근무 · 휴가
+주간 근무가 있는 날과 야간 근무가 있는 날은 하루의 모습도 다릅니다. BetterTick은 근무표를 중심으로 일정과 생활을 함께 관리할 수 있도록 만들었습니다.
 
-- **근무 블록**: 주간 · 야간 · 비번 · 휴무 · 당직 · 일근을 색깔 블록으로 보여 준다. 그날만 다른 근무로 바꿀 수 있고, 근무 블록은 항상 그날 목록 맨 위에 붙는다.
-- **근무 패턴 반복**: 며칠치 근무만 넣으면 패턴을 찾아서 뒤로 쭉 채워 준다.
-- **블록 색**: 근무마다 색을 바꿀 수 있다. 컬러 피커로 만든 색은 앱 안 모든 색 목록에 같이 뜬다.
-- **휴가 (지휴 · 특휴 · 연차 · 병가)**
-  - 휴가마다 언제 다시 채워지는지(매달 · 매년 · 입사일 기준 · 안 채워짐)랑 일수를 정한다. 해마다, 근속 연차마다 일수를 다르게 줄 수도 있다.
-  - 지휴는 빨간날(공휴일 · 대체공휴일, 원하면 일요일 · 토요일까지)에 일한 만큼 자동으로 쌓인다. 야간은 2일처럼 근무별로 몇 일씩 쳐 줄지도 정할 수 있다.
-  - 자동 계산이 안 맞으면 그 기간 총 일수를 직접 적으면 된다.
-  - 근무 블록에서 바로 지휴 · 병가를 찍고, 남은 일수도 거기서 보인다.
-- **회사(근무지)별 규칙**: 회사마다 휴가 규칙과 다닌 기간을 따로 둔다. 날짜가 어느 회사 기간에 들어가는지 보고 그 회사 규칙으로 계산하고, 회사별로 휴가 쓴 기록도 남는다.
+반복되는 근무 패턴을 등록하고, 근무에 맞는 수면이나 운동을 연결해 보세요. 남은 휴가와 이번 달 수입·지출도 같은 앱에서 확인할 수 있습니다.
 
-### 할일
+| 근무와 휴가 | 할 일과 일정 | 생활과 기록 |
+| :--- | :--- | :--- |
+| 근무 패턴 반복 · 날짜별 변경 | 반복 할 일 · 하위 할 일 · 메모 | 회사별 월급 · 수입·지출 |
+| 회사별 휴가 규칙 · 잔여 일수 | 월·주·일 달력 · 알림 · 위젯 | 습관 · 집중 타이머 · 일기 |
 
-- 목록, 태그, 우선순위, 고정, 알림, 반복(매일 · 매주 · 매달 · 매년 · 직접 설정 · 근무 패턴).
-- **하위 할일**: 할일을 다른 할일 위에 끌어다 놓으면 그 밑으로 들어간다. 몇 단계든 넣을 수 있다. 하위 할일은 날짜 · 반복 · 건너뛴 날을 부모 따라가고 시간이랑 길이는 자기 걸 쓴다. 그래서 "주간" 근무 밑에 수면 · 운동을 넣어 두면 근무 돌 때마다 같이 돈다. 밖으로 끌어내거나 메뉴에서 분리하면 빠진다.
-- **반복 할일은 날짜마다 따로 체크**: 오늘 거 체크하면 오늘 것만 끝난다. 할일마다 "한 번 체크로 반복 전체 끝내기"로 바꿀 수도 있다.
-- **메모장**: 설명 밑에 + 버튼으로 메모를 계속 쌓는다. 반복 할일이면 메모마다 "모든 반복에 보이기" / "그날만"을 고른다.
-- 완료, 하지 않음, 내일로 미루기. 지운 직후엔 실행 취소. CSV로 가져오기 · 내보내기.
+## 다운로드
 
-### 달력
+[**최신 APK 받기 →**](https://github.com/YuInseo/BetterTick/releases/download/latest-debug/BetterTick.apk)
 
-- 월 · 주 · 일 · 목록 · 연도 보기. 월 보기는 위아래로 이어서 넘어가고, 날짜를 누르면 그 주랑 그날 할일이 밑에 펼쳐진다.
-- 할일을 다른 날짜로 끌어서 옮기고, 타임라인에서 쭉 끌어서 새 일정을 만든다.
-- 한국 공휴일 · 대체공휴일 표시. 빨간날은 직접 고칠 수 있다.
-- 왼쪽 위 "2026년 11월"을 누르면 오늘로 돌아온다.
+GitHub 로그인 없이 다운로드할 수 있습니다. 현재 배포 파일은 **Android 9 이상, ARM64 기기용 개발 빌드(Debug)**입니다.
 
-### 가계부
+1. Android 기기에서 APK를 다운로드합니다.
+2. 파일을 열고, 필요한 경우 해당 브라우저나 파일 앱의 **알 수 없는 앱 설치**를 허용합니다.
+3. 설치 후 앱을 실행합니다.
 
-- **월급 (회사별)**: 월급날, 받는 돈 · 떼는 돈 항목을 넣는다. 항목마다 매달(기간 지정 가능) · 분기마다 · 매년 정한 달 · 한 번만 중에 고르고, 실제로 받은 돈이 다르면 그 달만 직접 적는다. 분기 · 1년 합계도 미리 볼 수 있다.
-- **군 복무 월급 (필요할 때만 켜기)**: 입대일만 넣으면 그달 계급에 맞춰 월급을 계산한다. 육군 18 · 해군 20 · 공군 / 사회복무요원 21개월 중에 고르고, 계급별 기간이랑 월급은 다 손으로 고칠 수 있다. 입대한 달, 전역한 달은 날수만큼만 친다.
-- **수입 · 지출**: 용돈, 부수입, 식비 같은 걸 한 번짜리나 매달 반복으로 빠르게 적는다. 달마다 "월급 + 추가 수입 − 지출 = 남은 돈", 어디에 많이 썼는지 막대, 내역이 나온다.
+앱에 업데이트 확인 기능이 포함되어 있습니다. 설정에서 직접 확인할 수도 있으며, 기기 환경과 권한에 따라 설치 확인 화면이 나타날 수 있습니다.
 
-### 다른 탭
+## 주요 기능
 
-- **습관**: 매일 체크, 잔디 같은 기록 그래프랑 통계.
-- **뽀모도로**: 포모 타이머 · 스톱워치, 집중한 기록.
-- **일기**: 날짜별 일기.
-- **동선**: 하루 동안 다닌 곳 기록, 카카오맵으로 보기.
-- **아이젠하워 매트릭스**: 중요 · 긴급 4칸 정리.
+### 🗓️ 근무표와 휴가를 함께
 
-### 위젯 · 알림 · 그 밖에
+- **근무 유형** — 주간·야간·비번·휴무·당직·일근을 색상으로 구분합니다. 특정 날짜의 근무만 따로 변경할 수도 있습니다.
+- **패턴 반복** — 등록한 근무를 바탕으로 반복 패턴을 적용해 이후 일정을 채웁니다.
+- **근무별 루틴** — 근무 아래에 수면이나 운동을 하위 할 일로 연결하면 근무 패턴에 맞춰 함께 반복됩니다.
+- **휴가 잔여량** — 지휴·특휴·연차·병가의 부여 일수와 사용 내역을 관리합니다.
+- **유연한 부여 기준** — 매월·매년·입사일 기준·초기화 없음 중에서 선택하고, 연도나 근속 연차에 따라 부여 일수를 다르게 설정할 수 있습니다.
+- **지휴 자동 계산** — 공휴일 근무와 근무 유형별 인정 일수를 기준으로 계산합니다. 토요일·일요일 포함 여부를 정하거나 총 일수를 직접 보정할 수도 있습니다.
+- **회사별 관리** — 근무지와 근무 기간마다 휴가 규칙을 따로 적용하고 사용 기록을 확인합니다.
 
-- **위젯**: 일정 · 할일 위젯(이번 주 날짜, 체크박스, 하위 할일 들여쓰기), 주간 달력, 빠른 추가, 일기, 집중 분포.
-- **알림**: 할일 · 습관 알림, 하루 요약. 알림에서 바로 완료하거나 10분 뒤로 미룰 수 있다.
-- 잠금화면에서 바로 입력, 화면 위에 떠 있는 빠른 추가.
-- 시간 표시(오전 8:00 / 8:00 / 08:00), 주 시작 요일, 테마 · 강조색, 하단 탭 구성(가계부 포함)도 설정에서 바꾼다.
+### ✅ 작은 할 일부터 반복되는 루틴까지
 
----
+목록·태그·우선순위·고정으로 할 일을 정리하고, 필요한 시간에 알림을 받을 수 있습니다.
 
-## 탭 구성
+- 매일·매주·매월·매년 반복, 사용자 지정 반복, 근무 패턴 반복
+- 드래그로 구성하는 여러 단계의 하위 할 일
+- 날짜마다 따로 체크하는 반복 할 일과 반복 전체 완료 옵션
+- 모든 반복에 남기는 메모와 특정 날짜에만 남기는 메모
+- 완료·하지 않음·내일로 미루기, 삭제 직후 실행 취소
+- CSV 가져오기·내보내기
 
-하단 탭은 아이콘만 보이고, 설정 › 탭바에서 순서랑 개수를 바꾼다.
+### 📆 원하는 방식으로 보는 달력
 
-| 탭 | 들어 있는 것 |
-| --- | --- |
-| 할 일 | 목록 · 필터 · 스마트 목록, 오늘 · 기한 지남 |
-| 달력 | 월 · 주 · 일 · 목록 · 연도 보기, 날짜 패널, 스케줄 보기(남은 휴가) |
-| 가계부 | 월급 · 군 월급 · 수입 · 지출 · 남은 돈 |
-| 설정 | 일반 · 회사 · 휴가 · 월급 · 날짜와 시간 · 알림 · 테마 · 탭바 · 계정 |
-| (넣고 싶으면) | 습관 · 뽀모도로 · 일기 · 동선 · 매트릭스 |
+월·주·일·목록·연도 보기로 일정을 살펴볼 수 있습니다. 날짜를 선택해 그날의 할 일을 확인하고, 할 일을 다른 날짜로 끌어 옮기거나 타임라인을 드래그해 새 일정을 만듭니다.
 
----
+한국 공휴일과 대체공휴일을 표시하며, 휴일 정보는 직접 수정할 수도 있습니다.
 
-## 데이터는 어떻게 저장되나
+### 💰 월급부터 생활비까지
 
-폰 안에 있는 데이터를 먼저 쓰고, 서버는 뒤에서 맞춘다.
+| 기능 | 할 수 있는 일 |
+| :--- | :--- |
+| 회사별 월급 | 월급날, 지급·공제 항목, 적용 기간 설정 |
+| 정기 지급 항목 | 매월·분기·연간·일회성 항목과 월별 실제 수령액 관리 |
+| 수입·지출 | 일회성·매월 반복 내역 기록, 월별 잔액과 지출 분포 확인 |
+| 군 복무 월급 | 필요할 때 활성화하고 입대일·복무 유형에 맞춰 계산 |
 
-- **보여 줄 때**: 화면은 Firestore가 폰에 저장해 둔 캐시만 읽는다(`ListenSource.CACHE`). 그래서 화면 넘길 때 서버 비용이 안 들고, 인터넷이 끊겨도 바로 열린다.
-- **고칠 때**: 폰 캐시에 먼저 써서 화면이 바로 바뀌고, 인터넷이 되면 Firestore가 서버로 올린다.
-- **다른 기기에서 고친 걸 받아올 때**: 15분마다 도는 백그라운드 작업이 한다(`WidgetUpdateWorker` → `TaskRepository.refreshFromServer`). 평소엔 `updatedAt`이 바뀐 할일만 받아 오고, 전체는 하루에 한 번만 다시 읽어서 다른 기기에서 지운 걸 정리한다. 기기마다 시계가 조금씩 달라서 10분 정도 여유를 둔다.
-- **폰에만 있는 설정**: 휴가 규칙, 회사, 월급, 가계부, 화면 설정 같은 건 SharedPreferences에 저장한다.
+군 복무 월급은 계급별 기간과 금액을 직접 수정할 수 있으며, 입대·전역한 달은 일할 계산을 지원합니다.
 
-Firestore 구조는 [`FIRESTORE_SCHEMA.md`](FIRESTORE_SCHEMA.md)에 정리돼 있다. 할일은 `users/{uid}/tasks/{taskId}`에 있고, 최근에 생긴 필드는 이렇다.
+### 🌱 일상을 채우는 도구
 
-| 필드 | 뜻 |
-| --- | --- |
-| `parentId` | 하위 할일이면 부모 할일 id |
-| `completedDates` | 반복 할일을 끝낸 날짜들 (`yyyy-MM-dd`) |
-| `checkWholeSeries` | 체크 한 번에 반복 전체를 끝낼지 |
-| `memos` | 메모장 메모 (`text`, `day`가 비어 있으면 모든 반복에 보임) |
-| `leaves` / `dayShifts` | 근무 할일에서 날짜별로 쓴 휴가 · 바꾼 근무 |
+- **습관** — 매일 체크하고 기록 그래프와 통계로 돌아보기
+- **집중** — 뽀모도로 타이머·스톱워치와 집중 기록
+- **일기** — 날짜별로 하루의 기록 남기기
+- **동선** — 하루 동안 방문한 장소를 기록하고 카카오맵으로 확인
+- **아이젠하워 매트릭스** — 중요도와 긴급도에 따라 할 일 분류
 
----
+### 🎨 나에게 맞는 화면
 
-## 기술 스택
+하단 탭의 순서와 개수를 바꾸고, 테마·강조색·근무 색상을 설정할 수 있습니다. 시간 표시 형식과 한 주의 시작 요일도 선택할 수 있습니다.
 
-| 쪽 | 쓴 것 |
-| --- | --- |
-| 언어 · UI | Kotlin 2.0, Jetpack Compose (Material 3) |
-| 구조 | MVVM, Hilt, Coroutines / Flow |
-| 데이터 | Firebase Auth · Firestore(캐시 용량 무제한), SharedPreferences + org.json |
-| 위젯 · 백그라운드 | Glance, WorkManager, AlarmManager |
-| 지도 | Kakao Map SDK, 카카오모빌리티 길찾기 API(없어도 됨) |
-| 빌드 | AGP 8.5, Version Catalog, KSP |
-| 지원 버전 | Android 9 이상 (minSdk 28), targetSdk 34 |
+홈 화면에서는 일정·할 일·주간 달력·빠른 추가·일기·집중 분포 위젯을 사용할 수 있습니다. 할 일 알림에서는 바로 완료하거나 10분 뒤로 미루는 동작을 지원합니다.
 
----
+## 데이터 저장과 동기화
 
-## 폴더 구조
+BetterTick은 기기에 저장된 데이터를 먼저 보여 주는 방식으로 동작합니다. 캐시된 할 일은 오프라인에서도 확인할 수 있고, 변경 사항은 연결이 복구되면 서버에 반영됩니다.
 
-```
-app/src/main/java/com/bettertick/
-├── data/
-│   ├── model/          # Task, 반복 · 하위 할일 · 근무 · 공휴일 계산 (TaskHierarchy, ShiftRotation, KoreanHolidays …)
-│   ├── repository/     # Firestore 저장소 (캐시 먼저 읽고, 쓰면 바로 반영)
-│   └── firebase/       # FirestoreProvider, 처음 만드는 데이터
-├── ui/
-│   ├── navigation/     # 하단 탭, 화면 이동, 떠 있는 버튼
-│   ├── screens/
-│   │   ├── tasks/      # 할일 목록 · 상세 · 입력, 휴가 · 월급 · 가계부 저장 (LeavePrefs · SalaryPrefs · MoneyPrefs)
-│   │   ├── calendar/   # 월 · 주 · 일 보기, 날짜 패널, 스케줄 보기
-│   │   ├── money/      # 가계부 탭
-│   │   ├── more/       # 설정 화면 (회사 · 휴가 · 월급 · 탭바 …)
-│   │   └── habits/ focus/ diary/ location/ matrix/ …
-│   └── theme/          # 색 · 글꼴 · 앱 설정 (AppPrefs, UserColors)
-├── widget/             # 위젯, 위젯 갱신 작업
-├── reminder/           # 알림 예약 · 받기
-├── update/             # 앱 자동 업데이트
-└── overlay/ location/  # 떠 있는 빠른 추가, 위치 기록
-```
+| 데이터 | 저장 방식 |
+| :--- | :--- |
+| 할 일 | Firestore 로컬 캐시 우선 사용, 서버 동기화 지원 |
+| 휴가 규칙·회사·월급·가계부·화면 설정 | 기기의 SharedPreferences에 저장 |
 
-단위 테스트는 `app/src/test/`에 있다. 하위 할일 트리, 휴가 계산, 월급 · 군 월급, 가계부, 날짜별 체크, 메모를 확인한다.
+**기기에만 저장되는 항목은 Firestore를 통한 기기 간 동기화 대상에 포함되지 않습니다.**
 
----
+<details>
+<summary><strong>동기화 구조 자세히 보기</strong></summary>
 
-## 빌드하기
+화면의 할 일 조회에는 `ListenSource.CACHE`를 사용합니다. 다른 기기의 변경 사항은 `WidgetUpdateWorker`가 `TaskRepository.refreshFromServer()`를 호출해 받아옵니다.
 
-필요한 것: Android Studio(JDK 17), Android SDK 34.
+- 백그라운드 작업은 15분 주기로 예약되며, 실제 실행 시점은 Android의 배터리·백그라운드 제한에 따라 달라집니다.
+- 평소에는 `updatedAt` 기준으로 변경된 할 일을 조회합니다.
+- 하루에 한 번 전체 데이터를 다시 조회해 다른 기기에서 삭제된 항목을 정리합니다.
+- 기기 간 시간 차이를 고려해 변경 조회 구간에 10분의 여유를 둡니다.
+
+컬렉션과 필드 구성은 [Firestore 스키마](FIRESTORE_SCHEMA.md)를 참고하세요.
+
+</details>
+
+## 개발 환경
+
+| 구분 | 기술 |
+| :--- | :--- |
+| 언어·UI | Kotlin 2.0 · Jetpack Compose · Material 3 |
+| 앱 구조 | MVVM · Hilt · Coroutines · Flow |
+| 인증·데이터 | Firebase Auth · Cloud Firestore · SharedPreferences |
+| 위젯·백그라운드 | Glance · WorkManager · AlarmManager |
+| 지도 | Kakao Map SDK · 카카오모빌리티 길찾기 API |
+| 빌드 | Gradle · AGP 8.5 · KSP · Version Catalog |
+| Android | minSdk 28 · compileSdk / targetSdk 34 · JDK 17 |
+
+### 로컬 실행
+
+Android Studio와 JDK 17, Android SDK 34가 필요합니다.
 
 ```bash
 git clone https://github.com/YuInseo/BetterTick.git
 cd BetterTick
-./gradlew assembleDebug          # 결과: app/build/outputs/apk/debug/app-debug.apk
-./gradlew testDebugUnitTest      # 단위 테스트
 ```
 
-Android Studio로 열어서 `app`을 실행해도 된다.
+Android Studio에서 프로젝트를 열고 Gradle 동기화를 마친 뒤 `app`을 실행합니다. 터미널에서는 다음 명령을 사용할 수 있습니다.
 
-있으면 좋은 것:
+```bash
+# Debug APK 빌드
+./gradlew assembleDebug
 
-- **카카오 길찾기 키**: `local.properties`에 `KAKAO_REST_API_KEY=...` ([`local.properties.example`](local.properties.example) 참고). 없어도 앱은 잘 돌고, 동선에서 지하철 구간만 직선으로 그려진다.
-- **정식 서명 빌드**: [`keystore.properties.example`](keystore.properties.example) 보고 `keystore.properties`를 만든다. 자세한 건 [`RELEASE.md`](RELEASE.md).
-- **용량 작은 테스트 APK**: `./gradlew assembleSmall`. R8로 줄인 빌드고, debug랑 서명이 같아서 그 위에 바로 깔린다.
+# 단위 테스트
+./gradlew testDebugUnitTest
+
+# Android Lint
+./gradlew lintDebug
+```
+
+APK 생성 경로: `app/build/outputs/apk/debug/app-debug.apk`
+
+Windows에서는 `./gradlew` 대신 `gradlew.bat`을 사용합니다. Firebase 프로젝트를 별도로 사용할 경우 `app/google-services.json`과 인증 설정도 해당 프로젝트에 맞게 구성해야 합니다.
+
+<details>
+<summary><strong>선택 설정과 추가 빌드</strong></summary>
+
+**카카오 길찾기 API**
+
+[local.properties.example](local.properties.example)을 참고해 `local.properties`에 키를 추가합니다.
+
+```properties
+KAKAO_REST_API_KEY=your_rest_api_key
+```
+
+키가 없으면 동선의 지하철 구간을 직선으로 표시합니다.
+
+**용량을 줄인 테스트 APK**
+
+```bash
+./gradlew assembleSmall
+```
+
+R8을 적용한 테스트 빌드입니다. Debug와 같은 패키지·서명을 사용하며, 현재 자동 업데이트용 APK와는 별도로 배포됩니다.
+
+**서명된 Release 빌드**
+
+[keystore.properties.example](keystore.properties.example)과 [릴리즈 안내](RELEASE.md)를 참고하세요.
+
+</details>
+
+### 소스 구성
+
+기본 경로는 `app/src/main/java/com/bettertick/`입니다.
+
+| 경로 | 역할 |
+| :--- | :--- |
+| `data/model/` | 할 일·반복·근무·공휴일 등 데이터 모델과 계산 |
+| `data/repository/` | 데이터 조회·저장과 서버 동기화 |
+| `ui/navigation/` | 탭과 화면 이동 |
+| `ui/screens/` | 할 일·달력·가계부·설정 등 기능별 화면 |
+| `ui/theme/` | 테마·색상·화면 설정 |
+| `widget/` · `reminder/` | 홈 화면 위젯과 알림 |
+| `update/` | 앱 업데이트 |
+| `overlay/` · `location/` | 빠른 추가 오버레이와 위치 기록 |
+
+단위 테스트는 `app/src/test/`에 있습니다. 하위 할 일, 날짜별 완료, 메모, 휴가, 월급·군 복무 월급, 가계부 등의 계산을 검증합니다.
+
+### CI와 배포
+
+- **Pull Request** — [CI](.github/workflows/ci.yml)에서 Debug 빌드·Lint·단위 테스트를 실행합니다.
+- **main 반영** — [APK 배포 워크플로](.github/workflows/build-apk.yml)가 최신 Debug APK를 `latest-debug` 릴리즈에 게시합니다. Markdown 문서만 변경한 경우에는 APK 배포를 실행하지 않습니다.
+- **업데이트 배포** — APK 업로드가 끝난 뒤 `version.json`을 게시해 앱에서 새 버전을 확인할 수 있게 합니다.
+- **버전 관리** — CI의 `versionCode`는 커밋 수를 사용하고, 표시 버전은 `0.<커밋 수 / 100의 몫>.<나머지>` 형식입니다.
+
+## 함께 개선하기
+
+사용 중 발견한 문제나 필요한 기능은 [Issues](https://github.com/YuInseo/BetterTick/issues)에 남겨 주세요. 버그를 제보할 때 앱 버전, 기기·Android 버전, 재현 방법을 함께 적어 주시면 도움이 됩니다.
+
+코드 변경은 작업 브랜치에서 진행하고 PR로 올립니다. 현재 PR 커밋의 CI가 통과하고 충돌이 없는지 확인한 뒤 병합합니다. 자세한 작업 규칙은 [CLAUDE.md](CLAUDE.md)에 정리되어 있습니다.
+
+## 관련 문서
+
+[릴리즈 안내](RELEASE.md) &nbsp; · &nbsp;
+[Firestore 스키마](FIRESTORE_SCHEMA.md) &nbsp; · &nbsp;
+[작업 규칙](CLAUDE.md) &nbsp; · &nbsp;
+[개발 기록](history/)
 
 ---
 
-## 배포 · 자동 업데이트
-
-```
-PR ──▶ CI (빌드 · lint · 단위 테스트)
-          │ 통과
-          ▼
-main에 머지 ──▶ build-apk.yml ──▶ latest-debug 릴리즈 (BetterTick.apk + version.json)
-                                          │
-                                          ▼
-                       앱이 version.json 버전 번호를 보고 새 버전이면 업데이트
-```
-
-- **CI** (`.github/workflows/ci.yml`): PR마다 `assembleDebug` · `lintDebug` · `testDebugUnitTest`를 돌린다. 새 커밋이 올라오면 돌던 건 취소된다.
-- **배포** (`.github/workflows/build-apk.yml`): `main`에 들어가면 APK를 빌드해서 `latest-debug` 릴리즈를 새로 만든다. APK가 다 올라간 다음에 `version.json`을 올리기 때문에, 앱이 아직 다운로드 안 되는 버전을 보는 일은 없다. 빌드가 깨지면 로그를 붙인 이슈가 자동으로 생긴다.
-- **버전 번호**: `versionCode`는 커밋 개수. 화면에 보이는 이름은 `0.<커밋 수 ÷ 100>.<나머지>`라서, 커밋이 203개면 0.2.3이다.
-
----
-
-## 작업 규칙
-
-Claude Code랑 같이 작업하는 저장소라서 규칙을 [`CLAUDE.md`](CLAUDE.md)에 적어 뒀다. 짧게 줄이면:
-
-1. 작업 브랜치에 커밋하고 `main`으로 PR을 연다.
-2. PR CI가 **지금 head 커밋에서** 통과하고 충돌이 없을 때만 squash 머지한다. 깨지면 고쳐서 다시 돌린다.
-3. CI가 도는 PR에 새 작업을 얹지 않는다. 앞 PR이 머지되면 새 PR로 올린다.
-
----
-
-## 다른 문서
-
-- [`RELEASE.md`](RELEASE.md): 자동 debug 배포, 서명한 release 배포 방법
-- [`FIRESTORE_SCHEMA.md`](FIRESTORE_SCHEMA.md): Firestore 컬렉션 구조
-- [`CLAUDE.md`](CLAUDE.md): 작업 · 머지 규칙
-- [`history/`](history): 기능별로 만든 기록
+<div align="center">
+매일 다른 근무에도, 나의 일상은 이어지도록.<br>
+<strong>BetterTick</strong>
+</div>
