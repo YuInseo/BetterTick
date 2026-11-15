@@ -781,14 +781,14 @@ private fun Modifier.subtaskSurface(
     val indent = (20 + 12 * (depth.coerceIn(1, 3) - 1)).dp
     return padding(start = indent, end = 8.dp, top = if (first) 6.dp else 0.dp)
         .drawBehind {
-            if (!first) drawLine(
-                color = surface.copy(alpha = 0.06f),
+            drawLine(
+                color = surface.copy(alpha = 0.14f),
                 start = Offset(48.dp.toPx(), 0f),
                 end = Offset(size.width - 8.dp.toPx(), 0f),
                 strokeWidth = 1.dp.toPx()
             )
         }
-        .padding(bottom = if (last) 4.dp else 0.dp)
+        .padding(top = 6.dp, bottom = if (last) 4.dp else 0.dp)
 
 }
 
