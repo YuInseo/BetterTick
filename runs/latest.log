@@ -37,9 +37,9 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets UP-TO-DATE
 > Task :app:compressDebugAssets UP-TO-DATE
-> Task :app:processDebugManifestForPackage
 > Task :app:desugarDebugFileDependencies UP-TO-DATE
 > Task :app:checkDebugDuplicateClasses UP-TO-DATE
+> Task :app:processDebugManifestForPackage
 > Task :app:mergeDebugStartupProfile UP-TO-DATE
 > Task :app:mergeExtDexDebug UP-TO-DATE
 > Task :app:mergeLibDexDebug UP-TO-DATE
@@ -51,11 +51,7 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
 > Task :app:processDebugResources
 > Task :app:kspDebugKotlin
-
 > Task :app:compileDebugKotlin
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/calendar/components/SelectedDatePanel.kt:308:62 Condition is always 'true'.
-w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/tasks/components/NoteKeyboardBar.kt:150:61 '@property:Deprecated(...) val Icons.Outlined.ArrowRight: ImageVector' is deprecated. Use the AutoMirrored version at Icons.AutoMirrored.Outlined.ArrowRight.
-
 > Task :app:compileDebugJavaWithJavac
 > Task :app:hiltAggregateDepsDebug UP-TO-DATE
 > Task :app:hiltJavaCompileDebug UP-TO-DATE
@@ -69,5 +65,5 @@ w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/betterti
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 1m
+BUILD SUCCESSFUL in 32s
 41 actionable tasks: 14 executed, 27 up-to-date
