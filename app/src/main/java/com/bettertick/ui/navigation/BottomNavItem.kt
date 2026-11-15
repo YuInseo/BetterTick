@@ -6,7 +6,7 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckBox
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.MoreHoriz
-import androidx.compose.material.icons.outlined.Payments
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -22,7 +22,7 @@ sealed class BottomNavItem(
     data object Focus : BottomNavItem("focus", "Focus", Icons.Outlined.RadioButtonUnchecked)
     data object Habits : BottomNavItem("habits", "Habits", Icons.Outlined.Schedule)
     data object Diary : BottomNavItem("diary", "일기", Icons.Outlined.Book)
-    data object Money : BottomNavItem("money", "가계부", Icons.Outlined.Payments)
+    data object Money : BottomNavItem("money", "가계부", Icons.Outlined.AccountBalanceWallet)
     data object More : BottomNavItem("more", "More", Icons.Outlined.MoreHoriz)
 
     companion object {
