@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -166,13 +167,14 @@ class QuickAddActivity : ComponentActivity() {
                             .imePadding(),
                         contentAlignment = Alignment.BottomCenter
                     ) {
+                        // Full width, right on the keyboard (no gap showing the home screen).
                         Surface(
-                            shape = RoundedCornerShape(20.dp),
+                            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
                             color = DarkSurface,
                             shadowElevation = 12.dp,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 16.dp)
+                                .navigationBarsPadding()
                         ) {
                             Column {
                                 QuickAddTabRow(
