@@ -44,7 +44,15 @@ import kotlin.math.roundToInt
 
 /** One window and one editor composition for the entire drawer ↔ page transition. */
 @Composable
-internal fun ExpandableTaskDetail(onClose: () -> Unit, actions: @Composable RowScope.() -> Unit = {}, content: @Composable () -> Unit) {
+internal fun ExpandableTaskDetail(
+    onClose: () -> Unit,
+    actions: @Composable RowScope.() -> Unit = {},
+    /** Page mode: shown in the pinned top bar once the big title has scrolled away (Notion style). */
+    pageTitle: String = "",
+    pageSubtitle: String = "",
+    titleScrolledAway: Boolean = false,
+    content: @Composable () -> Unit
+) {
     var position by remember { mutableStateOf(DetailDragPosition()) }
     var settleJob by remember { mutableStateOf<Job?>(null) }
     val latestClose by rememberUpdatedState(onClose)
@@ -122,16 +130,27 @@ internal fun ExpandableTaskDetail(onClose: () -> Unit, actions: @Composable RowS
                                 modifier = Modifier.alpha(expansion)) {
                                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, "저장하고 뒤로", tint = TextPrimary)
                             }
-                            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                            val titleAlpha by androidx.compose.animation.core.animateFloatAsState(
+                                if (titleScrolledAway) 1f else 0f, label = "pageTitle")
+                            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                                 Box(Modifier.size(width = 32.dp, height = 4.dp).alpha(1f - expansion)
                                     .clip(RoundedCornerShape(2.dp)).background(TextTertiary.copy(alpha = 0.5f)))
-                                Text("페이지", fontSize = 14.sp, color = TextSecondary, modifier = Modifier.alpha(expansion))
+                                // Pinned page bar: the title appears here once it scrolls out of view.
+                                if (pageTitle.isNotBlank()) Column(Modifier.fillMaxWidth().alpha(expansion * titleAlpha)) {
+                                    Text(pageTitle, fontSize = 16.sp, color = TextPrimary, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                    if (pageSubtitle.isNotBlank()) Text(pageSubtitle, fontSize = 12.sp, color = TextSecondary, maxLines = 1,
+                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                }
                             }
                             actions()
                             // No expand button: drag the handle up for the full page.
                             // Keeps the handle centred against the back button.
                             Spacer(Modifier.size(48.dp))
                         }
+                        // Hairline under the pinned bar while the page is scrolled.
+                        Box(Modifier.fillMaxWidth().height(1.dp)
+                            .alpha(if (titleScrolledAway) expansion else 0f).background(TextTertiary.copy(alpha = 0.18f)))
                         Box(Modifier.weight(1f).fillMaxWidth()) { content() }
                     }
                 }

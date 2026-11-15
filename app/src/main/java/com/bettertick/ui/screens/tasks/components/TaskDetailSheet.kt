@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
 import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -348,7 +350,13 @@ fun TaskDetailSheet(
         onDismiss()
     }
 
-    ExpandableTaskDetail(onClose = { commitAndClose() }) {
+    // Where the big title ends inside the scrolling content (px), for the pinned page bar.
+    var titleBottomPx by remember { mutableIntStateOf(0) }
+    // derivedStateOf: scrolling only recomposes when the answer flips, not every frame.
+    val titleScrolledAway by remember { androidx.compose.runtime.derivedStateOf { titleBottomPx > 0 && contentScroll.value > titleBottomPx } }
+    ExpandableTaskDetail(onClose = { commitAndClose() },
+        pageTitle = title.ifBlank { "제목 없음" }, pageSubtitle = shownListName,
+        titleScrolledAway = titleScrolledAway) {
         val scrollbarColor = TextSecondary.copy(alpha = 0.45f)
         Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 8.dp)) {
         Column(
@@ -602,7 +610,9 @@ fun TaskDetailSheet(
             Spacer(Modifier.height(4.dp))
 
             // 제목만 — 완료는 목록의 체크박스나 ⋯ 메뉴에서.
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.onGloballyPositioned {
+                titleBottomPx = (it.positionInParent().y + it.size.height).toInt()
+            }) {
                 BasicTextField(
                     value = title,
                     onValueChange = { title = it },
