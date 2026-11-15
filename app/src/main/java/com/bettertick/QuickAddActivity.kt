@@ -13,6 +13,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,8 +53,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -154,12 +153,13 @@ class QuickAddActivity : ComponentActivity() {
                 val diaryVm: QuickAddDiaryViewModel = hiltViewModel()
                 var selectedTab by remember { mutableStateOf(0) }
 
-                Dialog(
-                    onDismissRequest = { finish() },
-                    properties = DialogProperties(
-                        usePlatformDefaultWidth = false,
-                        decorFitsSystemWindows = false
-                    )
+                // Full-screen dim, also behind the status and navigation bars (a dialog
+                // window left undimmed strips there) — tap outside to close.
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.45f))
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { finish() }
                 ) {
                     Box(
                         modifier = Modifier
@@ -174,9 +174,11 @@ class QuickAddActivity : ComponentActivity() {
                             shadowElevation = 12.dp,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .navigationBarsPadding()
+                                // Taps on the sheet don't close it.
+                                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
                         ) {
-                            Column {
+                            // The sheet runs to the screen bottom; its content stays above the nav bar.
+                            Column(Modifier.navigationBarsPadding()) {
                                 QuickAddTabRow(
                                     selectedTab = selectedTab,
                                     onTabSelected = { selectedTab = it }

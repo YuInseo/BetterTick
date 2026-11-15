@@ -40,6 +40,7 @@
         <activity
             android:name=".QuickAddActivity"
             android:exported="true"
+            android:windowSoftInputMode="adjustResize|stateVisible"
             android:launchMode="singleInstance"
             android:excludeFromRecents="true"
             android:showWhenLocked="true"
@@ -68,7 +69,7 @@
             android:name=".widget.calendar.WidgetTaskMenuActivity"
             android:exported="false"
             android:excludeFromRecents="true"
-            android:noHistory="true"
+            android:windowSoftInputMode="adjustResize"
             android:taskAffinity=""
             android:theme="@style/Theme.BetterTick.Invisible" />
 
