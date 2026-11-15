@@ -32,8 +32,8 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:processDebugMainManifest
 > Task :app:processDebugManifest
 > Task :app:javaPreCompileDebug UP-TO-DATE
-> Task :app:processDebugManifestForPackage
 > Task :app:mergeDebugShaders UP-TO-DATE
+> Task :app:processDebugManifestForPackage
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets UP-TO-DATE
@@ -55,8 +55,8 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:compileDebugJavaWithJavac
 > Task :app:hiltAggregateDepsDebug UP-TO-DATE
 > Task :app:hiltJavaCompileDebug UP-TO-DATE
-> Task :app:processDebugJavaRes UP-TO-DATE
-> Task :app:mergeDebugJavaResource UP-TO-DATE
+> Task :app:processDebugJavaRes
+> Task :app:mergeDebugJavaResource
 > Task :app:transformDebugClassesWithAsm
 > Task :app:dexBuilderDebug
 > Task :app:mergeDebugGlobalSynthetics UP-TO-DATE
@@ -66,4 +66,4 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:assembleDebug
 
 BUILD SUCCESSFUL in 57s
-41 actionable tasks: 14 executed, 27 up-to-date
+41 actionable tasks: 16 executed, 25 up-to-date
