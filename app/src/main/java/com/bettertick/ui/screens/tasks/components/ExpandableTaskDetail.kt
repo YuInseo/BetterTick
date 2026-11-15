@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -109,6 +110,41 @@ internal fun ExpandableTaskDetail(
                     }
                 }
 
+                // Drag anywhere on the sheet, not only the top handle: once the
+                // content is scrolled to its top, pulling down moves the sheet
+                // (page → drawer → close), and pushing up first expands it.
+                val sheetDrag = remember(heightPx, expandRange) {
+                    object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                        var moved = false
+                        override fun onPreScroll(available: Offset,
+                                                 source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                            if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag) return Offset.Zero
+                            // Sheet not fully up yet (or pulled down): the finger moves the sheet first.
+                            if (available.y < 0f && (position.dismissOffset > 0f || (moved && position.expansion < 1f))) {
+                                settleJob?.cancel()
+                                position = dragTaskDetail(position, available.y, expandRange)
+                                moved = true
+                                return Offset(0f, available.y)
+                            }
+                            return Offset.Zero
+                        }
+                        override fun onPostScroll(consumed: Offset, available: Offset,
+                                                  source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
+                            if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag || available.y <= 0f) return Offset.Zero
+                            settleJob?.cancel()
+                            position = dragTaskDetail(position, available.y, expandRange)
+                            moved = true
+                            return Offset(0f, available.y)
+                        }
+                        override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                            if (!moved) return androidx.compose.ui.unit.Velocity.Zero
+                            moved = false
+                            settle(taskDetailSnap(position, available.y, density.density), available.y)
+                            return available
+                        }
+                    }
+                }
+
                 Surface(color = DarkSurface, tonalElevation = 0.dp,
                     shape = RoundedCornerShape(topStart = 24.dp * (1f - expansion), topEnd = 24.dp * (1f - expansion)),
                     modifier = Modifier.testTag("task-detail-surface").align(Alignment.BottomCenter).fillMaxWidth().height(sheetHeight)
@@ -162,7 +198,7 @@ internal fun ExpandableTaskDetail(
                         // Hairline under the pinned bar while the page is scrolled.
                         Box(Modifier.fillMaxWidth().height(1.dp)
                             .alpha(if (titleScrolledAway) expansion else 0f).background(TextTertiary.copy(alpha = 0.18f)))
-                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                        Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(sheetDrag)) {
                             CompositionLocalProvider(LocalDetailExpansion provides expansion) { content() }
                         }
                     }
