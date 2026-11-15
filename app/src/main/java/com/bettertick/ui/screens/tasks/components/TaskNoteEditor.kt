@@ -503,12 +503,13 @@ private fun NoteMediaBlock(block: TaskMemo) {
     var preview by remember { mutableStateOf(false) }
     var failed by remember(uri) { mutableStateOf(false) }
     if (block.kind == NoteBlockKind.IMAGE) {
-        Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            if (!failed) AsyncImage(model = uri, contentDescription = name, contentScale = ContentScale.Fit,
-                onError = { failed = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 240.dp)
-                    .clip(RoundedCornerShape(10.dp)).clickable { preview = true })
+        // Notion style: the picture spans the full width, its height follows
+        // the image's own proportions (very tall shots are capped).
+        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+            if (!failed) AsyncImage(model = uri, contentDescription = name, contentScale = ContentScale.FillWidth,
+                onError = { failed = true }, modifier = Modifier.fillMaxWidth().heightIn(max = 560.dp)
+                    .clip(RoundedCornerShape(6.dp)).clickable { preview = true })
             else Text("이 기기에서 이미지를 열 수 없어요", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(12.dp))
-            Text(name, fontSize = 10.sp, color = TextTertiary, modifier = Modifier.padding(top = 4.dp))
         }
     } else {
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(DarkSurfaceVariant.copy(alpha = 0.4f))

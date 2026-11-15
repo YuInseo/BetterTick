@@ -116,9 +116,15 @@ class EditorImeRegressionTest {
         assertTrue("no calendar-sized gap above keyboard: ${ime.top - footerBottom}", ime.top - footerBottom <= 24f * density)
         val flag = compose.onNodeWithContentDescription("우선순위").fetchSemanticsNode().boundsInRoot
         val more = compose.onNodeWithContentDescription("더 보기").fetchSemanticsNode().boundsInRoot
-        // 우선순위 · 더보기는 헤더가 아니라 그 아래 날짜 줄에 나란히 있다.
-        assertTrue("flag sits below the header", flag.top >= header.bottom - 2)
-        assertTrue("more sits below the header", more.top >= header.bottom - 2)
+        if (page) {
+            // 전체 페이지: 날짜 줄이 뒤로가기 옆 고정 바로 올라간다.
+            assertTrue("flag sits in the pinned bar", flag.top >= header.top - 2 && flag.bottom <= header.bottom + 2)
+            assertTrue("more sits in the pinned bar", more.top >= header.top - 2 && more.bottom <= header.bottom + 2)
+        } else {
+            // 우선순위 · 더보기는 헤더가 아니라 그 아래 날짜 줄에 나란히 있다.
+            assertTrue("flag sits below the header", flag.top >= header.bottom - 2)
+            assertTrue("more sits below the header", more.top >= header.bottom - 2)
+        }
         assertTrue("flag and more share the date row",
             abs((flag.top + flag.bottom) / 2 - (more.top + more.bottom) / 2) <= 2f * density)
         compose.onNodeWithTag("note-block-third").performTextInput(" edited")

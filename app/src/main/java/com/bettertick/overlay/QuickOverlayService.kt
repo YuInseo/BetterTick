@@ -137,10 +137,10 @@ class QuickOverlayService : Service() {
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 16.dp)
+                            // Sits right on the keyboard, full width: no gap where the home screen peeks through.
                             // consume touches so they don't reach the dim layer
                             .pointerInput(Unit) { detectTapGestures { } },
-                        shape = RoundedCornerShape(20.dp),
+                        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
                         color = DarkSurface,
                         shadowElevation = 12.dp
                     ) {

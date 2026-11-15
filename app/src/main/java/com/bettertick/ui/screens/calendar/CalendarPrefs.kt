@@ -54,6 +54,9 @@ object CalendarPrefs {
         private set
     var showFocusRecords by mutableStateOf(false)
         private set
+    /** 접힌 상위 할일 — its subtasks are hidden in the day list. */
+    var collapsedParents by mutableStateOf<Set<String>>(emptySet())
+        private set
     var secondaryTzEnabled by mutableStateOf(false)
         private set
     /** Extra zone ids added in 시간대 설정; the first one is drawn as the
@@ -102,6 +105,7 @@ object CalendarPrefs {
         secondaryZones = p.getString("secondary_zones", "").orEmpty().split(",").filter { it.isNotBlank() }
         hiddenListIds = p.getStringSet("hidden_lists", emptySet()).orEmpty().map { if (it == INBOX_KEY) "" else it }.toSet()
         tagFilter = p.getStringSet("tag_filter", emptySet()).orEmpty().toSet()
+        collapsedParents = p.getStringSet("collapsed_parents", emptySet()).orEmpty().toSet()
         inboxColor = if (p.contains("inbox_color")) p.getInt("inbox_color", 0) else null
         noTagColor = if (p.contains("no_tag_color")) p.getInt("no_tag_color", 0) else null
         priorityColors = (0..3).mapNotNull { lvl ->
@@ -152,6 +156,12 @@ object CalendarPrefs {
 
     private fun edit(block: android.content.SharedPreferences.Editor.() -> Unit) {
         appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()?.apply(block)?.apply()
+    }
+
+    fun toggleCollapsed(parentId: String) {
+        collapsedParents = if (parentId in collapsedParents) collapsedParents - parentId else collapsedParents + parentId
+        val v = collapsedParents
+        edit { putStringSet("collapsed_parents", v) }
     }
 
     fun updateColorBy(v: CalendarColorBy) { colorBy = v; edit { putString("color_by", v.key) } }

@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.LinkOff
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -197,6 +199,29 @@ fun SelectedDatePanel(
         target?.takeIf { d.parentId == it.id || d.canNestUnder(it, tasks) }
     }
     val depths = remember(active) { active.subtaskDepths() }
+    // 하위 할일 접기: subtasks of a collapsed parent are hidden (shown again
+    // while dragging, so reorder / nest still sees the whole family).
+    val collapsed = com.bettertick.ui.screens.calendar.CalendarPrefs.collapsedParents
+    val byId = remember(active) { active.associateBy { it.id } }
+    fun hiddenByCollapse(t: Task): Boolean {
+        var parent = byId[t.parentId]
+        var guard = 0
+        while (parent != null && guard++ < 16) {
+            if (parent.id in collapsed) return true
+            parent = byId[parent.parentId]
+        }
+        return false
+    }
+    val shown = if (localDrag != null || collapsed.isEmpty()) active else active.filterNot { hiddenByCollapse(it) }
+    /** Every task below [parent] in its family (children, grandchildren …). */
+    fun descendantCount(parent: Task): Int {
+        val at = active.indexOfFirst { it.id == parent.id }
+        if (at < 0) return 0
+        val base = depths[parent.id] ?: 0
+        var n = 0
+        for (i in at + 1 until active.size) { if ((depths[active[i].id] ?: 0) > base) n++ else break }
+        return n
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Each root and its descendants form one card. Keep row-level lazy keys
@@ -225,7 +250,7 @@ fun SelectedDatePanel(
                     verticalArrangement = Arrangement.spacedBy(0.dp),
                     contentPadding = listPadding
                 ) {
-                    items(active, key = { it.id }) { task ->
+                    items(shown, key = { it.id }) { task ->
                         val taskTags = remember(task.tagIds, tags) {
                             task.tagIds.mapNotNull { id -> tags.firstOrNull { it.id == id } }
                         }
@@ -235,18 +260,18 @@ fun SelectedDatePanel(
                             othersIdx == others.lastIndex && insertAt == others.size
                         val depth = depths[task.id] ?: 0
                         val nestedRow = depth > 0
-                        val activeIdx = active.indexOfFirst { it.id == task.id }
+                        val activeIdx = shown.indexOfFirst { it.id == task.id }
                         val firstNested = nestedRow &&
-                            (active.getOrNull(activeIdx - 1)?.let { depths[it.id] ?: 0 } ?: 0) == 0
+                            (shown.getOrNull(activeIdx - 1)?.let { depths[it.id] ?: 0 } ?: 0) == 0
                         val lastNested = nestedRow &&
-                            (active.getOrNull(activeIdx + 1)?.let { depths[it.id] ?: 0 } ?: 0) == 0
+                            (shown.getOrNull(activeIdx + 1)?.let { depths[it.id] ?: 0 } ?: 0) == 0
                         val isNestTarget = nestTarget?.id == task.id
                         val accent = MaterialTheme.colorScheme.primary
                         Column(
                             modifier = Modifier
                                 .familyCardSegment(
                                     first = !nestedRow,
-                                    last = active.getOrNull(activeIdx + 1)?.let { (depths[it.id] ?: 0) == 0 } ?: true,
+                                    last = shown.getOrNull(activeIdx + 1)?.let { (depths[it.id] ?: 0) == 0 } ?: true,
                                     separated = !nestedRow && activeIdx > 0
                                 )
                                 .onGloballyPositioned { c ->
@@ -329,6 +354,31 @@ fun SelectedDatePanel(
                             onToggleLeave = { day, type -> onUpdateTask(task.withLeaveToggled(day, type)) },
                             onStatusAction = { action -> onStatusAction(task, action) }
                         )
+                        }
+                        // 하위 할일 접기 / 펼치기 under a parent row.
+                        val familySize = descendantCount(task)
+                        if (familySize > 0 && localDrag == null) {
+                            val isCollapsed = task.id in collapsed
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { com.bettertick.ui.screens.calendar.CalendarPrefs.toggleCollapsed(task.id) }
+                                    .padding(start = 48.dp, top = 2.dp, bottom = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    Icons.Outlined.ExpandMore,
+                                    contentDescription = null,
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = if (isCollapsed) -90f else 0f }
+                                )
+                                Spacer(Modifier.size(4.dp))
+                                Text(
+                                    text = if (isCollapsed) "하위 할일 ${familySize}개" else "하위 할일 접기",
+                                    fontSize = 12.sp,
+                                    color = TextSecondary
+                                )
+                            }
                         }
                         if (isNestTarget) {
                             Text(
