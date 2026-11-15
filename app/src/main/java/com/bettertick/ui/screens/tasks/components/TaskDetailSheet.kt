@@ -28,6 +28,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -657,8 +660,8 @@ fun TaskDetailSheet(
             // other way round), so the bar never jumps.
             val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
             val density = androidx.compose.ui.platform.LocalDensity.current
-            val imeInsets = androidx.compose.foundation.layout.WindowInsets.ime
-            val navInsets = androidx.compose.foundation.layout.WindowInsets.navigationBars
+            val imeInsets = WindowInsets.ime
+            val navInsets = WindowInsets.navigationBars
             val imePx = (imeInsets.getBottom(density) - navInsets.getBottom(density)).coerceAtLeast(0)
             var keyboardPx by remember { mutableIntStateOf(0) }
             if (imePx > keyboardPx) keyboardPx = imePx
