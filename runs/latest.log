@@ -35,11 +35,11 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:mergeDebugShaders UP-TO-DATE
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
+> Task :app:processDebugManifestForPackage
 > Task :app:mergeDebugAssets UP-TO-DATE
 > Task :app:compressDebugAssets UP-TO-DATE
 > Task :app:desugarDebugFileDependencies UP-TO-DATE
 > Task :app:checkDebugDuplicateClasses UP-TO-DATE
-> Task :app:processDebugManifestForPackage
 > Task :app:mergeDebugStartupProfile UP-TO-DATE
 > Task :app:mergeExtDexDebug UP-TO-DATE
 > Task :app:mergeLibDexDebug UP-TO-DATE
@@ -51,7 +51,16 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
 > Task :app:processDebugResources
 > Task :app:kspDebugKotlin
+
 > Task :app:compileDebugKotlin
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:209:44 '@Deprecated(...) static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:386:20 '@Deprecated(...) @UiThread() static fun setImportantForAccessibility(@NonNull() p0: View, p1: Int): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/FloatingOverlayService.kt:386:66 '@Deprecated(...) static field IMPORTANT_FOR_ACCESSIBILITY_YES: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/QuickOverlayService.kt:111:44 '@Deprecated(...) static field SOFT_INPUT_ADJUST_RESIZE: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/QuickOverlayService.kt:120:20 '@Deprecated(...) @UiThread() static fun setImportantForAccessibility(@NonNull() p0: View, p1: Int): Unit' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/overlay/QuickOverlayService.kt:120:66 '@Deprecated(...) static field IMPORTANT_FOR_ACCESSIBILITY_YES: Int' is deprecated. Deprecated in Java.
+w: file:///home/runner/work/BetterTick/BetterTick/app/src/main/java/com/bettertick/ui/screens/calendar/components/SelectedDatePanel.kt:333:62 Condition is always 'true'.
+
 > Task :app:compileDebugJavaWithJavac
 > Task :app:hiltAggregateDepsDebug UP-TO-DATE
 > Task :app:hiltJavaCompileDebug UP-TO-DATE
@@ -65,5 +74,5 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 32s
+BUILD SUCCESSFUL in 54s
 41 actionable tasks: 14 executed, 27 up-to-date
