@@ -64,6 +64,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Tag
+import com.bettertick.data.model.commonNoteText
+import com.bettertick.data.model.savedNoteBlocks
 import com.bettertick.data.model.TaskList
 import com.bettertick.ui.components.MarkdownInlineTransformation
 import com.bettertick.ui.screens.tasks.QuickAddDraft
@@ -105,8 +107,9 @@ fun TaskInputSheet(
     var smartRecognition by remember { mutableStateOf(prefs.getBoolean("smart_recognition", true)) }
 
     var text by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var checklistMode by remember { mutableStateOf(false) }
+    // 설명 = 노트 블록 (same editor as the task page: /, - , [] , # …).
+    val noteBlocks = remember { androidx.compose.runtime.mutableStateListOf<com.bettertick.data.model.TaskMemo>() }
+    var noteFocus by remember { mutableStateOf<String?>(null) }
 
     // Manual picks; a manual pick always wins over smart recognition.
     var dateTouched by remember { mutableStateOf(false) }
@@ -152,14 +155,13 @@ fun TaskInputSheet(
     fun submit() {
         val title = (parsed?.title ?: text).trim()
         if (title.isBlank()) return
-        val notes = if (checklistMode) {
-            description.lines().map { it.trim() }.filter { it.isNotEmpty() }
-                .joinToString("\n") { "- [ ] ${it.removePrefix("- [ ] ")}" }
-        } else description
+        val memos = noteBlocks.toList().savedNoteBlocks()
+        val notes = memos.commonNoteText()
         onAddTask(
             QuickAddDraft(
                 title = title,
                 notes = notes,
+                memos = memos,
                 date = effDate,
                 time = effTime,
                 durationMinutes = duration,
@@ -206,21 +208,21 @@ fun TaskInputSheet(
                 .focusRequester(focusRequester)
         )
 
-        TextField(
-            value = description,
-            onValueChange = { description = it },
-            placeholder = {
-                Text(
-                    if (checklistMode) "체크리스트 항목 (한 줄에 하나씩)" else "설명",
-                    color = TextTertiary
-                )
+        TaskNoteEditor(
+            blocks = noteBlocks,
+            day = null,
+            focusId = noteFocus,
+            onAdd = { kind, _ ->
+                if (noteBlocks.size < 1000) {
+                    val block = com.bettertick.data.model.TaskMemo(kind = kind,
+                        checked = com.bettertick.data.model.NoteBlockKind.isToggle(kind))
+                    noteBlocks.add(block)
+                    noteFocus = block.id
+                }
             },
-            leadingIcon = if (checklistMode) {
-                { Icon(Icons.Outlined.Checklist, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(18.dp)) }
-            } else null,
-            colors = sheetFieldColors(),
-            visualTransformation = markdownTransformation,
-            modifier = Modifier.fillMaxWidth()
+            // Pictures and files are added from the task page after saving.
+            onAttach = {},
+            onFocusBlock = { noteFocus = it }
         )
 
         // Recognized tokens + picked tags/list, TickTick-style pills.
@@ -361,9 +363,12 @@ fun TaskInputSheet(
                     modifier = Modifier.background(DarkSurface)
                 ) {
                     DropdownMenuItem(
-                        text = { Text(if (checklistMode) "텍스트로 전환" else "체크리스트로 전환", color = TextPrimary) },
+                        text = { Text("체크리스트 추가", color = TextPrimary) },
                         leadingIcon = { Icon(Icons.Outlined.Checklist, null, tint = TextSecondary) },
-                        onClick = { checklistMode = !checklistMode; moreMenu = false }
+                        onClick = {
+                            val block = com.bettertick.data.model.TaskMemo(kind = com.bettertick.data.model.NoteBlockKind.TODO)
+                            noteBlocks.add(block); noteFocus = block.id; moreMenu = false
+                        }
                     )
                     DropdownMenuItem(
                         text = { Text("스마트 인식", color = TextPrimary) },

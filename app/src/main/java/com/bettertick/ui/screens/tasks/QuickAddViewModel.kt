@@ -41,8 +41,35 @@ data class QuickAddDraft(
     /** Tag names typed as #tag that may not exist yet. */
     val newTagNames: List<String> = emptyList(),
     /** null = use the screen's context list. */
-    val listId: String? = null
+    val listId: String? = null,
+    /** 노트 블록 typed in the quick-add sheet (stored like the task page's blocks). */
+    val memos: List<com.bettertick.data.model.TaskMemo> = emptyList()
 )
+
+/** The task a quick-add draft becomes (shared by the app sheet and the widget overlay). */
+fun QuickAddDraft.toTask(tagIds: List<String>, contextListId: String = "", kanbanColumn: String = ""): Task {
+    // A date without a time is an all-day task (midnight), like TickTick.
+    val dueTimestamp = date?.let { d ->
+        Timestamp(Date.from(d.atTime(time ?: LocalTime.MIDNIGHT).atZone(ZoneId.systemDefault()).toInstant()))
+    }
+    return Task(
+        title = title.trim(),
+        notes = notes.trim(),
+        memos = memos,
+        dueDate = dueTimestamp,
+        durationMinutes = durationMinutes,
+        repeatRule = repeatRule,
+        repeatEnd = repeatEnd,
+        reminders = reminders,
+        priority = priority,
+        tagIds = tagIds.distinct(),
+        listId = listId ?: contextListId,
+        kanbanColumn = kanbanColumn,
+        // 설정 > 일반 > 새 할일을 맨 위에 추가
+        sortOrder = if (com.bettertick.ui.theme.AppPrefs.newTaskOnTop) -System.currentTimeMillis()
+            else System.currentTimeMillis()
+    )
+}
 
 @HiltViewModel
 class QuickAddViewModel @Inject constructor(
@@ -96,28 +123,8 @@ class QuickAddViewModel @Inject constructor(
     ) {
         if (draft.title.isBlank()) return
         viewModelScope.launch {
-            // A date without a time is an all-day task (midnight), like
-            // TickTick; a picked time keeps that exact time.
-            val dueTimestamp = draft.date?.let { d ->
-                Timestamp(Date.from(d.atTime(draft.time ?: LocalTime.MIDNIGHT).atZone(ZoneId.systemDefault()).toInstant()))
-            }
             val createdTagIds = draft.newTagNames.map { createTag(it) }.filter { it.isNotBlank() }
-            val task = Task(
-                title = draft.title.trim(),
-                notes = draft.notes.trim(),
-                dueDate = dueTimestamp,
-                durationMinutes = draft.durationMinutes,
-                repeatRule = draft.repeatRule,
-                repeatEnd = draft.repeatEnd,
-                reminders = draft.reminders,
-                priority = draft.priority,
-                tagIds = (draft.tagIds + createdTagIds).distinct(),
-                listId = draft.listId ?: contextListId,
-                kanbanColumn = kanbanColumn,
-                // 설정 > 일반 > 새 할일을 맨 위에 추가
-                sortOrder = if (com.bettertick.ui.theme.AppPrefs.newTaskOnTop) -System.currentTimeMillis()
-                    else System.currentTimeMillis()
-            )
+            val task = draft.toTask(draft.tagIds + createdTagIds, contextListId, kanbanColumn)
             taskRepository.addTask(task)
             runCatching { ReminderWidget().updateAll(context) }
         }

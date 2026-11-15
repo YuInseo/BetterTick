@@ -20,9 +20,7 @@ import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
-import androidx.glance.appwidget.action.actionSendBroadcast
 import androidx.glance.appwidget.action.actionStartActivity as actionStartActivityWithIntent
-import com.bettertick.overlay.QuickOverlayReceiver
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.cornerRadius
@@ -388,8 +386,11 @@ class ReminderWidget : GlanceAppWidget() {
         val context = LocalContext.current
         val prevWeek = selectedDate.minusWeeks(1)
         val nextWeek = selectedDate.plusWeeks(1)
-        val addIntent = Intent(QuickOverlayReceiver.ACTION_QUICK_ADD).apply {
-            setClass(context, QuickOverlayReceiver::class.java)
+        // + opens the app's quick-add sheet (date, tags, list, priority, note
+        // blocks) — an Activity, so its pickers and dialogs work.
+        val addIntent = Intent(context, com.bettertick.QuickAddActivity::class.java).apply {
+            action = "com.bettertick.QUICK_ADD"
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val menuToggleIntent = dispatcherIntent(
             context,
@@ -449,7 +450,7 @@ class ReminderWidget : GlanceAppWidget() {
                     Box(
                         modifier = GlanceModifier
                             .size(32.dp)
-                            .clickable(actionSendBroadcast(addIntent)),
+                            .clickable(actionStartActivityWithIntent(addIntent)),
                         contentAlignment = Alignment.Center
                     ) {
                         com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_add, pal.text, (20 * fs).dp)
