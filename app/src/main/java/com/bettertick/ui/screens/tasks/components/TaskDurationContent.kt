@@ -595,7 +595,7 @@ private fun WheelDateTimeRow(
 // ───────────────────────── Timeline bottom sheet ─────────────────────────
 
 /**
- * Scrollable 27-hour timeline (오전 12 → next day 오전 3) matching Samsung's
+ * Scrollable 33-hour timeline (오전 12 → next day 오전 9) matching Samsung's
  * duration picker. Each hour is [HOUR_HEIGHT_DP] tall so only a handful of
  * rows are visible at once — the user scrolls through a long column rather
  * than seeing the whole day compressed. The selected range is a blue block
@@ -605,7 +605,7 @@ private fun WheelDateTimeRow(
  *  - Body: drag to move the whole range.
  * All drags quantise to 15-minute increments so the touch target stays
  * forgiving. The current time is marked with a red line when today falls
- * inside the visible 27-hour window.
+ * inside the visible 33-hour window.
  */
 private const val HOUR_HEIGHT_DP = 72
 
@@ -619,7 +619,7 @@ private fun DurationTimelineSheet(
 ) {
     val density = LocalDensity.current
     val baseDate = remember(startDateTime) { startDateTime.toLocalDate() }
-    val totalHours = 27  // 오전 12 → next day 오전 3
+    val totalHours = 33  // 오전 12 → next day 오전 9 (야간 근무가 아침까지 이어지도록)
     val totalMinutes = totalHours * 60
 
     val hourHeight = HOUR_HEIGHT_DP.dp
