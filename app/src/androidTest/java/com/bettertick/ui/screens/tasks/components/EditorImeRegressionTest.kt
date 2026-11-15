@@ -109,7 +109,14 @@ class EditorImeRegressionTest {
         assertTrue("flag and more share the date row",
             abs((flag.top + flag.bottom) / 2 - (more.top + more.bottom) / 2) <= 2f * density)
         compose.onNodeWithTag("note-block-third").performTextInput(" edited")
-        compose.onNodeWithText("저장", useUnmergedTree = true).performClick()
+        // No 저장 button any more: closing the sheet saves. Back first hides the
+        // keyboard, the next one dismisses the editor.
+        repeat(3) {
+            if (saved == null) {
+                instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+                compose.waitForIdle()
+            }
+        }
         compose.runOnIdle { assertTrue(saved?.memos?.any { it.id == "third" && it.text.contains("edited") } == true) }
     }
 

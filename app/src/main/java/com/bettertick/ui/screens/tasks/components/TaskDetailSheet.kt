@@ -482,6 +482,17 @@ fun TaskDetailSheet(
                     )
                 }
 
+                // 태그 (예전 하단 버튼): 목록 바로 옆에 작게.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        .clickable { showTagPicker = true }
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = "태그", tint = TextSecondary, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("태그", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextSecondary)
+                }
                 if (!parentTitle.isNullOrBlank()) {
                     Text(" / ", fontSize = 11.sp, color = TextTertiary)
                     Text(parentTitle, color = TextSecondary, fontSize = 11.sp,
@@ -548,10 +559,9 @@ fun TaskDetailSheet(
                 onFocusBlock = { focusBlockId = it },
                 onAttach = { day -> attachmentDay = day; requestAttachment = true })
         }
-            DetailDivider()
-            Spacer(Modifier.height(4.dp))
-
-            // ── Bottom toolbar ───────────────────────────────────────────
+            // ── No visible bottom toolbar: closing the sheet saves, 태그 sits by
+            // the list, check/attach live in 블록 추가. This keeps only the
+            // attachment pickers (opened from 블록 추가 › 이미지·파일).
             BottomToolbar(
                 onTagClick = { showTagPicker = true },
                 onDone = { commitAndClose() },
@@ -832,19 +842,7 @@ private fun BottomToolbar(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().testTag("task-detail-actions")
     ) {
-        TextButton(onClick = onTagClick, contentPadding = PaddingValues(horizontal = 8.dp)) {
-            Icon(Icons.AutoMirrored.Outlined.Label, null, tint = TextSecondary, modifier = Modifier.size(17.dp))
-            Spacer(Modifier.width(4.dp)); Text("태그", fontSize = 12.sp, color = TextSecondary)
-        }
-        TextButton(onClick = onListClick, contentPadding = PaddingValues(horizontal = 8.dp)) {
-            Icon(Icons.AutoMirrored.Outlined.ViewList, null, tint = TextSecondary, modifier = Modifier.size(17.dp))
-            Spacer(Modifier.width(4.dp)); Text("체크", fontSize = 12.sp, color = TextSecondary)
-        }
         Box {
-            TextButton(onClick = { attachMenuOpen = true }, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                Icon(Icons.Outlined.AttachFile, null, tint = TextSecondary, modifier = Modifier.size(17.dp))
-                Spacer(Modifier.width(4.dp)); Text("첨부", fontSize = 12.sp, color = TextSecondary)
-            }
             com.bettertick.ui.components.DropdownMenu(
                 expanded = attachMenuOpen,
                 onDismissRequest = { attachMenuOpen = false },
@@ -886,10 +884,6 @@ private fun BottomToolbar(
                     }
                 }
             }
-        }
-        Spacer(Modifier.weight(1f))
-        TextButton(onClick = onDone, contentPadding = PaddingValues(horizontal = 8.dp)) {
-            Text("저장", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
