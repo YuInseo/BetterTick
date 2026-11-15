@@ -38,6 +38,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -171,6 +173,8 @@ fun TaskDetailSheet(
     occurrenceDate: java.time.LocalDate? = null,
     /** 하위 할일: the parent's title, shown with a 분리 button. */
     parentTitle: String? = null,
+    /** 하위 페이지: titles of the pages above this one, top first (shown under the date). */
+    breadcrumb: List<String> = emptyList(),
     onUnnest: (() -> Unit)? = null
 ) {
     // Local edit state — keyed by task.id so re-opening a different task
@@ -584,6 +588,22 @@ fun TaskDetailSheet(
             // In page mode this row moves up beside the back button (pinned bar).
             val pageExpansion = LocalDetailExpansion.current
             if (pageExpansion < 0.5f) dateRow(Modifier.fillMaxWidth().padding(vertical = 4.dp).alpha(1f - pageExpansion * 2f))
+            // 페이지 안의 페이지: the pages above it, in a row (비 › 저녁 › …).
+            if (breadcrumb.isNotEmpty()) {
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(start = 2.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    breadcrumb.forEachIndexed { i, crumb ->
+                        if (i > 0) Text("›", color = TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                        Icon(Icons.Outlined.Description, null, tint = TextTertiary,
+                            modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(3.dp))
+                        Text(crumb.ifBlank { "제목 없음" }, color = TextSecondary, fontSize = 13.sp, maxLines = 1)
+                    }
+                    Text("›", color = TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 6.dp))
+                }
+            }
             // ── Compact list / parent context directly below the date ──────────────────────
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Row(
@@ -851,7 +871,8 @@ fun TaskDetailSheet(
             tags = tags,
             onCreateTag = onCreateTag,
             lists = lists,
-            parentTitle = title
+            // Shown as the page path under the date instead of "/ 부모".
+            breadcrumb = breadcrumb + title
         )
     }
 
