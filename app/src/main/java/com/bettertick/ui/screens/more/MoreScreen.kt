@@ -29,7 +29,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.AccessTime
-import androidx.compose.material.icons.outlined.GridView
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.ViewWeek
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Palette
@@ -172,8 +173,8 @@ fun MoreScreen(
             SettingsSectionLabel("화면과 목록")
             SettingsCard {
                 SettingsItem(Icons.Outlined.Palette, "외관", onNavigateToAppearance, showDivider = false)
-                SettingsItem(Icons.Outlined.GridView, "탭 바", onNavigateToTabBar)
-                SettingsItem(Icons.Outlined.GridView, "스마트 목록", onNavigateToSmartLists)
+                SettingsItem(Icons.Outlined.ViewWeek, "탭 바", onNavigateToTabBar)
+                SettingsItem(Icons.Outlined.AutoAwesome, "스마트 목록", onNavigateToSmartLists)
             }
             SettingsSectionLabel("일정과 알림")
             SettingsCard {
