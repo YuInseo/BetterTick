@@ -175,6 +175,8 @@ fun TaskDetailSheet(
     parentTitle: String? = null,
     /** 하위 페이지: titles of the pages above this one, top first (shown under the date). */
     breadcrumb: List<String> = emptyList(),
+    /** Sub-page swiped down: close the pages above it too (the whole stack). */
+    onSwipeDismiss: (() -> Unit)? = null,
     onUnnest: (() -> Unit)? = null
 ) {
     // Local edit state — keyed by task.id so re-opening a different task
@@ -391,6 +393,20 @@ fun TaskDetailSheet(
         }
         onDismiss()
     }
+    // A sub-page above was swiped closed: slide this page away too.
+    var swipeCloseTick by remember { mutableIntStateOf(0) }
+    /** Swipe-close: save, then let the pages above close as well. */
+    fun swipeCloseAll() {
+        commitAndClose()
+        onSwipeDismiss?.invoke()
+    }
+    // 하위 페이지 유지 (설정): reopen the sub-page that was left open last time.
+    LaunchedEffect(task.id) {
+        if (com.bettertick.ui.theme.AppPrefs.reopenLastSubPage) {
+            val last = com.bettertick.ui.theme.AppPrefs.lastSubPage(task.id)
+            if (last.isNotBlank()) openPageById(last)
+        }
+    }
 
     // Where the big title ends inside the scrolling content (px), for the pinned page bar.
     var titleBottomPx by remember { mutableIntStateOf(0) }
@@ -570,6 +586,8 @@ fun TaskDetailSheet(
             }
     }
     ExpandableTaskDetail(onClose = { commitAndClose() },
+        onSwipeClose = if (onSwipeDismiss != null) ({ swipeCloseAll() }) else null,
+        swipeCloseTick = swipeCloseTick,
         pageTitle = title.ifBlank { "제목 없음" }, pageSubtitle = shownListName,
         titleScrolledAway = titleScrolledAway,
         pageBar = { dateRow(Modifier.fillMaxWidth()) }) {
@@ -860,7 +878,16 @@ fun TaskDetailSheet(
         TaskDetailSheet(
             task = page,
             listName = listName,
-            onDismiss = { openPage = null },
+            // Back / ← from the sub-page: back to this page, nothing to remember.
+            onDismiss = {
+                openPage = null
+                com.bettertick.ui.theme.AppPrefs.setLastSubPage(task.id, "")
+            },
+            // Swiped down in the sub-page: remember it, and close this page too.
+            onSwipeDismiss = {
+                com.bettertick.ui.theme.AppPrefs.setLastSubPage(task.id, page.id)
+                swipeCloseTick++
+            },
             onUpdateTask = { updated ->
                 pageScope.launch { runCatching { subPages.value.update(updated) } }
                 for (i in blocks.indices) if (blocks[i].pageId == updated.id && blocks[i].text != updated.title) {

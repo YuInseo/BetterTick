@@ -38,6 +38,9 @@ object AppPrefs {
         private set
     var newTaskOnTop by mutableStateOf(false)
         private set
+    /** 하위 페이지: reopening a task shows the sub-page left open last time (else the task itself). */
+    var reopenLastSubPage by mutableStateOf(false)
+        private set
     var completionSound by mutableStateOf(true)
         private set
     var completionVibrate by mutableStateOf(true)
@@ -76,6 +79,7 @@ object AppPrefs {
         timeFormat = TimeFormat.entries.firstOrNull { it.key == p.getString("time_format", null) } ?: TimeFormat.SYSTEM
         defaultDueDate = DefaultDueDate.entries.firstOrNull { it.key == p.getString("default_due", null) } ?: DefaultDueDate.TODAY
         newTaskOnTop = p.getBoolean("new_on_top", false)
+        reopenLastSubPage = p.getBoolean("reopen_last_subpage", false)
         completionSound = p.getBoolean("completion_sound", true)
         completionVibrate = p.getBoolean("completion_vibrate", true)
         // Older installations could launch directly into the removed location tab.
@@ -101,6 +105,16 @@ object AppPrefs {
     fun updateTimeFormat(v: TimeFormat) { timeFormat = v; edit { putString("time_format", v.key) } }
     fun updateDefaultDueDate(v: DefaultDueDate) { defaultDueDate = v; edit { putString("default_due", v.key) } }
     fun updateNewTaskOnTop(v: Boolean) { newTaskOnTop = v; edit { putBoolean("new_on_top", v) } }
+    fun updateReopenLastSubPage(v: Boolean) { reopenLastSubPage = v; edit { putBoolean("reopen_last_subpage", v) } }
+
+    /** The sub-page left open in [taskId]'s page when it was swiped closed ("" = none). */
+    fun lastSubPage(taskId: String): String =
+        appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.getString("last_subpage_$taskId", "").orEmpty()
+
+    fun setLastSubPage(taskId: String, pageId: String) {
+        if (taskId.isBlank()) return
+        edit { if (pageId.isBlank()) remove("last_subpage_$taskId") else putString("last_subpage_$taskId", pageId) }
+    }
     fun updateCompletionSound(v: Boolean) { completionSound = v; edit { putBoolean("completion_sound", v) } }
     fun updateCompletionVibrate(v: Boolean) { completionVibrate = v; edit { putBoolean("completion_vibrate", v) } }
     fun updateStartTab(v: String) { startTab = v; edit { putString("start_tab", v) } }

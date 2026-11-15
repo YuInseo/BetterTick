@@ -59,11 +59,16 @@ internal fun ExpandableTaskDetail(
     titleScrolledAway: Boolean = false,
     /** Page mode only: shown beside the back button (the sheet's date row moves up here). */
     pageBar: (@Composable () -> Unit)? = null,
+    /** Swiped down to close (vs back / ←): a sub-page uses it to close the whole stack. */
+    onSwipeClose: (() -> Unit)? = null,
+    /** Bump to slide the sheet away as if swiped (a sub-page above was swiped closed). */
+    swipeCloseTick: Int = 0,
     content: @Composable () -> Unit
 ) {
     var position by remember { mutableStateOf(DetailDragPosition()) }
     var settleJob by remember { mutableStateOf<Job?>(null) }
     val latestClose by rememberUpdatedState(onClose)
+    val latestSwipeClose by rememberUpdatedState(onSwipeClose)
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
 
@@ -121,7 +126,7 @@ internal fun ExpandableTaskDetail(
                 val expandRange = with(density) { (maxHeight - collapsedHeight).toPx() }.coerceAtLeast(1f)
                 val sheetHeight = collapsedHeight + (maxHeight - collapsedHeight) * expansion
 
-                fun settle(target: DetailSnapTarget, velocity: Float = 0f) {
+                fun settle(target: DetailSnapTarget, velocity: Float = 0f, swiped: Boolean = false) {
                     settleJob?.cancel()
                     settleJob = scope.launch {
                         if (target == DetailSnapTarget.CLOSED) {
@@ -135,7 +140,8 @@ internal fun ExpandableTaskDetail(
                                 // Keep the page / drawer size while it slides away.
                                 position = position.copy(dismissOffset = value.coerceAtLeast(0f))
                             }
-                            latestClose()
+                            val swipeClose = latestSwipeClose
+                            if (swiped && swipeClose != null) swipeClose() else latestClose()
                         } else {
                             val top = (1f - position.expansion) * expandRange + position.dismissOffset
                             val targetTop = if (target == DetailSnapTarget.PAGE) 0f else expandRange
@@ -145,6 +151,9 @@ internal fun ExpandableTaskDetail(
                             }
                         }
                     }
+                }
+                LaunchedEffect(swipeCloseTick) {
+                    if (swipeCloseTick > 0) settle(DetailSnapTarget.CLOSED, swiped = true)
                 }
                 LaunchedEffect(closeRequested) {
                     // Reset at once so a later back press works again if a drag interrupted it.
@@ -183,7 +192,7 @@ internal fun ExpandableTaskDetail(
                         override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
                             if (!moved) return androidx.compose.ui.unit.Velocity.Zero
                             moved = false
-                            settle(taskDetailSnap(position, available.y, density.density), available.y)
+                            settle(taskDetailSnap(position, available.y, density.density), available.y, swiped = true)
                             return available
                         }
                     }
@@ -202,7 +211,7 @@ internal fun ExpandableTaskDetail(
                                     onDragStart = { settleJob?.cancel(); tracker.resetTracking(); distance = 0f },
                                     onDragCancel = { settle(if (position.expansion >= 0.5f) DetailSnapTarget.PAGE else DetailSnapTarget.DRAWER) },
                                     onDragEnd = { val velocity = tracker.calculateVelocity().y
-                                        settle(taskDetailSnap(position, velocity, density.density), velocity) },
+                                        settle(taskDetailSnap(position, velocity, density.density), velocity, swiped = true) },
                                     onVerticalDrag = { change, delta ->
                                         change.consume()
                                         distance += delta
