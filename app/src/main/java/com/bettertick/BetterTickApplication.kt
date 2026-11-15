@@ -63,6 +63,8 @@ class BetterTickApplication : Application() {
         com.bettertick.ui.screens.tasks.SalaryPrefs.init(this)
         com.bettertick.ui.screens.tasks.MoneyPrefs.init(this)
         com.bettertick.ui.screens.custom.CustomTabsPrefs.init(this)
+        // 정해진 시각 매크로 alarms (also re-armed here after a reboot).
+        runCatching { com.bettertick.ui.screens.custom.MacroEngine.syncAlarms(this) }
         com.bettertick.reminder.ReminderScheduler.scheduleDailySummary(this)
         // Initialize widget service locator for AppWidget access
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
@@ -77,6 +79,11 @@ class BetterTickApplication : Application() {
             private var started = 0
             override fun onActivityStarted(activity: android.app.Activity) {
                 started++
+                // 매크로 이벤트: 앱을 열 때 (coming to the foreground, not every screen change).
+                if (started == 1 && activity is MainActivity) {
+                    runCatching { com.bettertick.ui.screens.custom.MacroEngine.onOpen(this@BetterTickApplication,
+                        com.bettertick.ui.screens.custom.TriggerType.APP_OPEN) }
+                }
                 com.bettertick.update.AppUpdater.isForeground = true
             }
             override fun onActivityStopped(activity: android.app.Activity) {
@@ -123,6 +130,8 @@ class BetterTickApplication : Application() {
                 runCatching { com.bettertick.ui.screens.tasks.LeavePrefs.recount(tasks) }
                 // Keep task reminder alarms in step with every task change.
                 runCatching { com.bettertick.reminder.ReminderScheduler.syncAll(this@BetterTickApplication, tasks) }
+                // 매크로 이벤트: 할 일을 다 끝냈을 때 · 변수 조건.
+                runCatching { com.bettertick.ui.screens.custom.MacroEngine.onDataChanged(this@BetterTickApplication) }
                 runCatching { ReminderWidget().updateAll(this@BetterTickApplication) }
                 runCatching { WeeklyCalendarWidget().updateAll(this@BetterTickApplication) }
             }
@@ -136,6 +145,15 @@ class BetterTickApplication : Application() {
                 runCatching { com.bettertick.reminder.HabitReminderScheduler.syncAll(this@BetterTickApplication, habits) }
             }
             .catch { android.util.Log.w("BetterTickApp", "habit reminder sync stopped", it) }
+            .launchIn(appScope)
+        // 매크로 이벤트: 오늘 습관을 다 체크했을 때 (habit check-ins of today).
+        authRepository.observeAuthState()
+            .flatMapLatest { user ->
+                val today = java.time.LocalDate.now().toString()
+                if (user == null) emptyFlow() else habitRepository.observeHabitLogs(today, today)
+            }
+            .onEach { runCatching { com.bettertick.ui.screens.custom.MacroEngine.onDataChanged(this@BetterTickApplication) } }
+            .catch { android.util.Log.w("BetterTickApp", "macro habit watch stopped", it) }
             .launchIn(appScope)
         authRepository.observeAuthState()
             .flatMapLatest { user ->

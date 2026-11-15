@@ -217,8 +217,13 @@ internal fun MacroBlockView(block: DashBlock, fill: Boolean, onRun: (MacroConfig
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(cfg.label, color = color, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val auto = cfg.triggers.filter { it.enabled }.joinToString(", ") { t ->
+                if (t.type == TriggerType.TIME) "매일".takeIf { t.days.isBlank() }.orEmpty().let { d ->
+                    (if (t.days.isBlank()) d else t.days.map { c -> "월화수목금토일"[c - '1'] }.joinToString("")) + " " + t.time
+                } else TriggerType.label(t.type).removeSuffix(" 때").removeSuffix("에")
+            }
             Text(if (cfg.steps.isEmpty()) "편집 › 블록 설정에서 단계를 추가하세요"
-                else cfg.steps.joinToString(" → ") { MacroType.label(it.type) },
+                else (if (auto.isNotEmpty()) "자동: $auto · " else "") + cfg.steps.joinToString(" → ") { MacroType.label(it.type) },
                 color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -459,6 +464,8 @@ internal fun MacroSettings(tabId: String, block: DashBlock, ctx: DashContext) {
         Switch(checked = cfg.confirm, onCheckedChange = { save(cfg.copy(confirm = it)) })
     }
 
+    MacroTriggerSettings(tabId, block, ctx, cfg, { latest() }, { save(it) })
+
     Label("단계 · 위에서부터 차례로 실행 (문구에 {변수} 사용 가능)")
     cfg.steps.forEachIndexed { i, step ->
         Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(12.dp))
@@ -557,6 +564,161 @@ internal fun MacroSettings(tabId: String, block: DashBlock, ctx: DashContext) {
                         }.padding(horizontal = 20.dp, vertical = 14.dp))
                 }
             }
+        }
+    }
+}
+
+private val WeekdayNames = listOf("1" to "월", "2" to "화", "3" to "수", "4" to "목", "5" to "금", "6" to "토", "7" to "일")
+
+/** "언제 실행할까요" (events) and "실행 조건" of a macro, plus its last run. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MacroTriggerSettings(
+    tabId: String,
+    block: DashBlock,
+    ctx: DashContext,
+    cfg: MacroConfig,
+    latest: () -> MacroConfig,
+    save: (MacroConfig) -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    fun saveTrigger(id: String, change: (MacroTrigger) -> MacroTrigger) {
+        val c = latest(); save(c.copy(triggers = c.triggers.map { if (it.id == id) change(it) else it }))
+    }
+    fun saveCondition(id: String, change: (MacroCondition) -> MacroCondition) {
+        val c = latest(); save(c.copy(conditions = c.conditions.map { if (it.id == id) change(it) else it }))
+    }
+    var addingTrigger by remember { mutableStateOf(false) }
+    var pickVarFor by remember { mutableStateOf<String?>(null) } // "t:<id>" | "c:<id>"
+
+    Label("언제 실행할까요 · 버튼은 항상 동작해요")
+    if (cfg.triggers.isEmpty()) Text("이벤트 없음 — 버튼을 눌러야만 실행돼요", color = TextSecondary, fontSize = 12.sp)
+    cfg.triggers.forEach { t ->
+        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(12.dp))
+            .background(DarkSurfaceVariant.copy(alpha = 0.5f)).padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(TriggerType.label(t.type), color = MaterialTheme.colorScheme.onBackground,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Switch(checked = t.enabled, onCheckedChange = { on -> saveTrigger(t.id) { it.copy(enabled = on) } })
+                Spacer(Modifier.width(4.dp))
+                Icon(Icons.Outlined.Close, "이벤트 삭제", tint = OverdueRed, modifier = Modifier.size(24.dp).clickable {
+                    val c = latest(); save(c.copy(triggers = c.triggers.filterNot { it.id == t.id }))
+                })
+            }
+            when (t.type) {
+                TriggerType.TIME -> {
+                    Label("시각 (HH:mm)")
+                    DashField(t.time, "09:00", "tt${t.id}") { v -> saveTrigger(t.id) { it.copy(time = v.trim()) } }
+                    Label("요일 · 아무것도 안 고르면 매일")
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        WeekdayNames.forEach { (d, name) ->
+                            val on = d in t.days
+                            Box(Modifier.size(34.dp).clip(CircleShape)
+                                .background(if (on) MaterialTheme.colorScheme.primary else DarkSurfaceVariant)
+                                .clickable {
+                                    saveTrigger(t.id) {
+                                        val set = it.days.toSet().let { s -> if (on) s - d[0] else s + d[0] }
+                                        it.copy(days = set.sorted().joinToString(""))
+                                    }
+                                }, contentAlignment = Alignment.Center) {
+                                Text(name, fontSize = 12.sp, color = if (on) Color.White else MaterialTheme.colorScheme.onBackground)
+                            }
+                        }
+                    }
+                    Label("근무 · 그 근무인 날에만")
+                    Chips(listOf("" to "상관없음", "주" to "주간", "야" to "야간", "비" to "비번", "휴" to "휴무", "당직" to "당직", "일근" to "일근"),
+                        t.shift) { v -> saveTrigger(t.id) { it.copy(shift = v) } }
+                    Text("앱이 꺼져 있어도 그 시각에 실행돼요 (화면 이동 단계는 건너뜀)", color = TextSecondary, fontSize = 11.sp,
+                        modifier = Modifier.padding(top = 6.dp))
+                }
+                TriggerType.APP_OPEN, TriggerType.TAB_OPEN -> Row(Modifier.fillMaxWidth().padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("하루에 한 번만", color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.weight(1f))
+                    Switch(checked = t.oncePerDay, onCheckedChange = { on -> saveTrigger(t.id) { it.copy(oncePerDay = on) } })
+                }
+                TriggerType.VALUE -> {
+                    Label("변수")
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(DarkSurfaceVariant)
+                        .clickable { pickVarFor = "t:${t.id}" }.padding(12.dp)) {
+                        Text(DashVars.find(t.variable, ctx.lists)?.label ?: t.variable, color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.weight(1f))
+                        Text("지금 " + DashVars.value(t.variable, ctx).text, color = MaterialTheme.colorScheme.primary, fontSize = 13.sp)
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Chips(CompareOps, t.op) { v -> saveTrigger(t.id) { it.copy(op = v) } }
+                    Spacer(Modifier.height(6.dp))
+                    DashField(t.value, "비교할 값 (숫자나 글자)", "tv${t.id}") { v -> saveTrigger(t.id) { it.copy(value = v) } }
+                    Text("조건이 맞게 되면 하루 한 번 실행돼요", color = TextSecondary, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
+                }
+                else -> Text("하루 한 번 실행돼요", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            }
+        }
+    }
+    Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { addingTrigger = true }.padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Outlined.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(4.dp))
+        Text("이벤트 추가", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+    }
+
+    Label("실행 조건 · 모두 맞을 때만 실행")
+    if (cfg.conditions.isEmpty()) Text("조건 없음 — 항상 실행", color = TextSecondary, fontSize = 12.sp)
+    cfg.conditions.forEach { c ->
+        Column(Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(12.dp))
+            .background(DarkSurfaceVariant.copy(alpha = 0.5f)).padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(DarkSurfaceVariant)
+                    .clickable { pickVarFor = "c:${c.id}" }.padding(10.dp)) {
+                    Text(DashVars.find(c.variable, ctx.lists)?.label ?: c.variable, color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(DashVars.value(c.variable, ctx).text, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, maxLines = 1)
+                }
+                Spacer(Modifier.width(8.dp))
+                Icon(Icons.Outlined.Close, "조건 삭제", tint = OverdueRed, modifier = Modifier.size(24.dp).clickable {
+                    val m = latest(); save(m.copy(conditions = m.conditions.filterNot { it.id == c.id }))
+                })
+            }
+            Spacer(Modifier.height(6.dp))
+            Chips(CompareOps, c.op) { v -> saveCondition(c.id) { it.copy(op = v) } }
+            Spacer(Modifier.height(6.dp))
+            DashField(c.value, "비교할 값 (예: 주간, 0, 50000)", "cv${c.id}") { v -> saveCondition(c.id) { it.copy(value = v) } }
+            val ok = compareValue(DashVars.value(c.variable, ctx), c.op, c.value)
+            Text(if (ok) "지금은 맞아요" else "지금은 안 맞아요", fontSize = 11.sp,
+                color = if (ok) Color(0xFF35B36A) else TextSecondary, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+    Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+        val m = latest(); save(m.copy(conditions = m.conditions + MacroCondition()))
+    }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Outlined.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(4.dp))
+        Text("조건 추가", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium)
+    }
+    MacroEngine.lastRun(context, block.id)?.let {
+        Text("최근 실행: $it", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+    }
+
+    if (addingTrigger) {
+        ModalBottomSheet(onDismissRequest = { addingTrigger = false }, containerColor = DarkSurface) {
+            Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 12.dp)) {
+                Text("언제 실행할까요?", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+                TriggerType.all.forEach { (type, label) ->
+                    Text(label, color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            addingTrigger = false
+                            val m = latest(); save(m.copy(triggers = m.triggers + MacroTrigger(type)))
+                        }.padding(horizontal = 20.dp, vertical = 14.dp))
+                }
+            }
+        }
+    }
+    pickVarFor?.let { target ->
+        VariablePickerSheet(ctx, onDismiss = { pickVarFor = null }) { v ->
+            pickVarFor = null
+            val id = target.substringAfter(':')
+            if (target.startsWith("t:")) saveTrigger(id) { it.copy(variable = v.key) }
+            else saveCondition(id) { it.copy(variable = v.key) }
         }
     }
 }

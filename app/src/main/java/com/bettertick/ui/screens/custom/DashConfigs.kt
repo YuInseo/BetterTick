@@ -122,12 +122,80 @@ object MacroType {
     fun label(type: String) = all.firstOrNull { it.first == type }?.second ?: type
 }
 
-/** 매크로 버튼: a label and the steps it runs in order. */
+/** When a macro runs by itself ("이벤트"). Fields used depend on [type]. */
+data class MacroTrigger(
+    val type: String,
+    val id: String = java.util.UUID.randomUUID().toString().take(8),
+    /** TIME: "HH:mm". */
+    val time: String = "09:00",
+    /** TIME: weekdays 1(월)..7(일) as digits, "" = every day. */
+    val days: String = "",
+    /** TIME: only on days whose shift is this (주/야/비/휴/당직/일근), "" = any day. */
+    val shift: String = "",
+    /** APP_OPEN / TAB_OPEN: at most once a day. */
+    val oncePerDay: Boolean = true,
+    /** VALUE: variable, operator and value to compare with. */
+    val variable: String = "today.left",
+    val op: String = "==",
+    val value: String = "0",
+    val enabled: Boolean = true
+)
+
+object TriggerType {
+    const val TIME = "time"
+    const val APP_OPEN = "app_open"
+    const val TAB_OPEN = "tab_open"
+    const val TASKS_DONE = "tasks_done"
+    const val HABITS_DONE = "habits_done"
+    const val VALUE = "value"
+
+    val all = listOf(
+        TIME to "정해진 시각에",
+        APP_OPEN to "앱을 열 때",
+        TAB_OPEN to "이 탭을 열 때",
+        TASKS_DONE to "오늘 할 일을 다 끝냈을 때",
+        HABITS_DONE to "오늘 습관을 다 체크했을 때",
+        VALUE to "변수 값이 조건에 맞을 때"
+    )
+
+    fun label(type: String) = all.firstOrNull { it.first == type }?.second ?: type
+}
+
+/** "실행 조건": the macro only runs while every condition holds. */
+data class MacroCondition(
+    val id: String = java.util.UUID.randomUUID().toString().take(8),
+    val variable: String = "shift.today",
+    val op: String = "==",
+    val value: String = ""
+)
+
+/** Compares a variable's value with [value]: as numbers when both are, else as text. */
+fun compareValue(v: DashValue, op: String, value: String): Boolean {
+    val right = value.trim().replace(",", "").toDoubleOrNull()
+    val left = v.number
+    if (left != null && right != null) return when (op) {
+        ">=" -> left >= right; "<=" -> left <= right; ">" -> left > right; "<" -> left < right
+        "!=" -> left != right; else -> left == right
+    }
+    val a = v.text.trim()
+    val b = value.trim()
+    return when (op) {
+        "!=" -> a != b
+        "contains" -> b.isNotEmpty() && a.contains(b)
+        else -> a == b
+    }
+}
+
+val CompareOps = listOf("==" to "같음", "!=" to "다름", ">=" to "이상", "<=" to "이하", ">" to "초과", "<" to "미만", "contains" to "포함")
+
+/** 매크로 버튼: a label, the steps it runs in order, and what starts it. */
 data class MacroConfig(
     val label: String = "매크로 실행",
     val color: String = "accent",
     val confirm: Boolean = false,
-    val steps: List<MacroStep> = emptyList()
+    val steps: List<MacroStep> = emptyList(),
+    val triggers: List<MacroTrigger> = emptyList(),
+    val conditions: List<MacroCondition> = emptyList()
 ) {
     fun encode(): String = JSONObject().apply {
         put("label", label); put("color", color); put("confirm", confirm)
@@ -139,13 +207,43 @@ data class MacroConfig(
                 })
             }
         })
+        put("triggers", JSONArray().apply {
+            triggers.forEach { t ->
+                put(JSONObject().apply {
+                    put("type", t.type); put("id", t.id); put("time", t.time); put("days", t.days)
+                    put("shift", t.shift); put("oncePerDay", t.oncePerDay); put("variable", t.variable)
+                    put("op", t.op); put("value", t.value); put("enabled", t.enabled)
+                })
+            }
+        })
+        put("conditions", JSONArray().apply {
+            conditions.forEach { c ->
+                put(JSONObject().apply { put("id", c.id); put("variable", c.variable); put("op", c.op); put("value", c.value) })
+            }
+        })
     }.toString()
 
     companion object {
         fun decode(raw: String): MacroConfig = runCatching {
             val o = JSONObject(raw)
             val steps = o.optJSONArray("steps") ?: JSONArray()
+            val triggers = o.optJSONArray("triggers") ?: JSONArray()
+            val conditions = o.optJSONArray("conditions") ?: JSONArray()
             MacroConfig(
+                triggers = (0 until triggers.length()).map { i ->
+                    val t = triggers.getJSONObject(i)
+                    MacroTrigger(
+                        type = t.optString("type"), id = t.optString("id").ifBlank { "t$i" },
+                        time = t.optString("time", "09:00"), days = t.optString("days"), shift = t.optString("shift"),
+                        oncePerDay = t.optBoolean("oncePerDay", true), variable = t.optString("variable", "today.left"),
+                        op = t.optString("op", "=="), value = t.optString("value", "0"), enabled = t.optBoolean("enabled", true)
+                    )
+                },
+                conditions = (0 until conditions.length()).map { i ->
+                    val c = conditions.getJSONObject(i)
+                    MacroCondition(c.optString("id").ifBlank { "c$i" }, c.optString("variable", "shift.today"),
+                        c.optString("op", "=="), c.optString("value"))
+                },
                 label = o.optString("label", "매크로 실행"),
                 color = o.optString("color", "accent"),
                 confirm = o.optBoolean("confirm"),
