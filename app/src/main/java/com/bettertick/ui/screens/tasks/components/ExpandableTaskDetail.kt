@@ -67,7 +67,11 @@ internal fun ExpandableTaskDetail(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    Dialog(onDismissRequest = { latestClose() },
+    // Every close (back, ←, tap outside) slides the sheet away and fades the dim
+    // first; the window itself then goes without an animation of its own — its
+    // exit fade over a still-dark dim was the black flash after closing.
+    var closeRequested by remember { mutableStateOf(false) }
+    Dialog(onDismissRequest = { closeRequested = true },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val view = LocalView.current
         // Draw our own scrim so it fades continuously with the sheet instead of swapping windows.
@@ -76,12 +80,27 @@ internal fun ExpandableTaskDetail(
             val oldDim = window?.attributes?.dimAmount ?: 0f
             val oldInputMode = window?.attributes?.softInputMode ?: 0
             window?.setDimAmount(0f)
+            window?.setWindowAnimations(0)
             // A full-height edge-to-edge window must not be panned/resized by the WM as well as Compose.
             window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
             window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+            // The dialog window has its own (black) status / navigation bar colour,
+            // which showed as a black strip at the top over the home screen or the
+            // calendar. Clear them so our dim and sheet show right to the edges.
+            window?.let { w ->
+                w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+                @Suppress("DEPRECATION")
+                w.statusBarColor = android.graphics.Color.TRANSPARENT
+                @Suppress("DEPRECATION")
+                w.navigationBarColor = android.graphics.Color.TRANSPARENT
+                // (The dialog is already edge-to-edge via decorFitsSystemWindows = false;
+                // re-applying it here stopped the keyboard from attaching.)
+            }
             onDispose { window?.setDimAmount(oldDim); window?.setSoftInputMode(oldInputMode) }
         }
         val expansion = position.expansion.coerceIn(0f, 1f)
+        // How far the drawer travels to leave the screen (set from the layout below).
+        var sheetTravel by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
         // Pulling the sheet down (to close it) puts the keyboard away right away.
         val keyboardCtl = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
         val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -90,10 +109,14 @@ internal fun ExpandableTaskDetail(
             if (pullingDown) { keyboardCtl?.hide(); focusManager.clearFocus() }
         }
         Box(Modifier.fillMaxSize()) {
-            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.42f * (1f - expansion)))
-                .clickable(enabled = expansion < 0.99f) { latestClose() })
+            // The dim fades out as the sheet is pulled away, so closing doesn't end on
+            // a dark screen that then vanishes at once.
+            val closeFade = (1f - position.dismissOffset / sheetTravel.coerceAtLeast(1f)).coerceIn(0f, 1f)
+            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.42f * (1f - expansion) * closeFade))
+                .clickable(enabled = expansion < 0.99f) { closeRequested = true })
             BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 val heightPx = with(density) { maxHeight.toPx() }
+                sheetTravel = heightPx * 0.78f
                 val collapsedHeight = maxHeight * 0.78f
                 val expandRange = with(density) { (maxHeight - collapsedHeight).toPx() }.coerceAtLeast(1f)
                 val sheetHeight = collapsedHeight + (maxHeight - collapsedHeight) * expansion
@@ -102,10 +125,15 @@ internal fun ExpandableTaskDetail(
                     settleJob?.cancel()
                     settleJob = scope.launch {
                         if (target == DetailSnapTarget.CLOSED) {
+                            // A short eased slide (not a spring, whose slow tail made the
+                            // sheet hang near the bottom before closing).
+                            val remaining = (heightPx - position.dismissOffset).coerceAtLeast(0f)
+                            val ms = (180 + 140 * remaining / heightPx.coerceAtLeast(1f)).toInt()
                             animate(initialValue = position.dismissOffset, targetValue = heightPx,
-                                initialVelocity = velocity.coerceAtLeast(0f),
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 500f)) { value, _ ->
-                                position = DetailDragPosition(dismissOffset = value.coerceAtLeast(0f))
+                                animationSpec = androidx.compose.animation.core.tween(ms,
+                                    easing = androidx.compose.animation.core.FastOutLinearInEasing)) { value, _ ->
+                                // Keep the page / drawer size while it slides away.
+                                position = position.copy(dismissOffset = value.coerceAtLeast(0f))
                             }
                             latestClose()
                         } else {
@@ -117,6 +145,10 @@ internal fun ExpandableTaskDetail(
                             }
                         }
                     }
+                }
+                LaunchedEffect(closeRequested) {
+                    // Reset at once so a later back press works again if a drag interrupted it.
+                    if (closeRequested) { closeRequested = false; settle(DetailSnapTarget.CLOSED) }
                 }
 
                 // Drag anywhere on the sheet, not only the top handle: once the
@@ -179,7 +211,7 @@ internal fun ExpandableTaskDetail(
                                     }
                                 )
                             }, verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { latestClose() }, enabled = expansion > 0.5f,
+                            IconButton(onClick = { closeRequested = true }, enabled = expansion > 0.5f,
                                 modifier = Modifier.alpha(expansion)) {
                                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, "저장하고 뒤로", tint = TextPrimary)
                             }
