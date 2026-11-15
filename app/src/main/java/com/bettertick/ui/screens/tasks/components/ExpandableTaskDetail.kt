@@ -82,6 +82,8 @@ internal fun ExpandableTaskDetail(
             onDispose { window?.setDimAmount(oldDim); window?.setSoftInputMode(oldInputMode) }
         }
         val expansion = position.expansion.coerceIn(0f, 1f)
+        // How far the drawer travels to leave the screen (set from the layout below).
+        var sheetTravel by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
         // Pulling the sheet down (to close it) puts the keyboard away right away.
         val keyboardCtl = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
         val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -90,10 +92,14 @@ internal fun ExpandableTaskDetail(
             if (pullingDown) { keyboardCtl?.hide(); focusManager.clearFocus() }
         }
         Box(Modifier.fillMaxSize()) {
-            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.42f * (1f - expansion)))
+            // The dim fades out as the sheet is pulled away, so closing doesn't end on
+            // a dark screen that then vanishes at once.
+            val closeFade = (1f - position.dismissOffset / sheetTravel.coerceAtLeast(1f)).coerceIn(0f, 1f)
+            Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.42f * (1f - expansion) * closeFade))
                 .clickable(enabled = expansion < 0.99f) { latestClose() })
             BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 val heightPx = with(density) { maxHeight.toPx() }
+                sheetTravel = heightPx * 0.78f
                 val collapsedHeight = maxHeight * 0.78f
                 val expandRange = with(density) { (maxHeight - collapsedHeight).toPx() }.coerceAtLeast(1f)
                 val sheetHeight = collapsedHeight + (maxHeight - collapsedHeight) * expansion
@@ -102,9 +108,13 @@ internal fun ExpandableTaskDetail(
                     settleJob?.cancel()
                     settleJob = scope.launch {
                         if (target == DetailSnapTarget.CLOSED) {
+                            // A short eased slide (not a spring, whose slow tail made the
+                            // sheet hang near the bottom before closing).
+                            val remaining = (heightPx - position.dismissOffset).coerceAtLeast(0f)
+                            val ms = (180 + 140 * remaining / heightPx.coerceAtLeast(1f)).toInt()
                             animate(initialValue = position.dismissOffset, targetValue = heightPx,
-                                initialVelocity = velocity.coerceAtLeast(0f),
-                                animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = 500f)) { value, _ ->
+                                animationSpec = androidx.compose.animation.core.tween(ms,
+                                    easing = androidx.compose.animation.core.FastOutLinearInEasing)) { value, _ ->
                                 position = DetailDragPosition(dismissOffset = value.coerceAtLeast(0f))
                             }
                             latestClose()
