@@ -676,6 +676,16 @@ fun TaskDetailSheet(
                     restoring = false
                 }
             }
+            // Tapping a block while a panel is open brings the keyboard back: then the
+            // panel gives way to it (otherwise both would show).
+            LaunchedEffect(notePanel) {
+                if (notePanel == NotePanel.NONE) return@LaunchedEffect
+                val keyboardNow = { imeInsets.getBottom(density) - navInsets.getBottom(density) }
+                kotlinx.coroutines.withTimeoutOrNull(1_000) { snapshotFlow { keyboardNow() }.first { it <= 0 } }
+                snapshotFlow { keyboardNow() }.first { it > 0 }
+                restoring = true
+                notePanel = NotePanel.NONE
+            }
             if (activeBlockId != null || blockPanel) {
                 fun closePanel() { restoring = notePanel != NotePanel.NONE; notePanel = NotePanel.NONE; keyboard?.show() }
                 fun pickAttachment() {
