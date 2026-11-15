@@ -278,6 +278,22 @@ fun TaskDetailSheet(
                 .verticalScroll(contentScroll)
                 .padding(bottom = 12.dp)
         ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                    .clickable { showDatePicker = true }.padding(vertical = 12.dp)
+            ) {
+                Icon(Icons.Outlined.CalendarToday, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+                Text(formatDueLabel(dueTimestamp, duration, occurrenceDate.takeIf {
+                    !repeatRule.isNullOrBlank() && dueTimestamp == task.dueDate
+                }), color = if (dueTimestamp == null) TextSecondary else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f))
+                if (!repeatRule.isNullOrBlank()) Icon(Icons.Outlined.Repeat, "반복 일정", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                if (reminders.isNotEmpty()) Icon(Icons.Outlined.NotificationsActive, "알림 설정됨", tint = DetailAccent, modifier = Modifier.size(16.dp))
+            }
+            DetailDivider()
+            Spacer(Modifier.height(4.dp))
             // ── Header: list selector + flag + more ──────────────────────
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Row(
@@ -457,21 +473,6 @@ fun TaskDetailSheet(
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier.weight(1f).padding(vertical = 6.dp)
                 )
-            }
-            Spacer(Modifier.height(6.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                    .clickable { showDatePicker = true }.padding(vertical = 12.dp)
-            ) {
-                Icon(Icons.Outlined.CalendarToday, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-                Text(formatDueLabel(dueTimestamp, duration, occurrenceDate.takeIf {
-                    !repeatRule.isNullOrBlank() && dueTimestamp == task.dueDate
-                }), color = if (dueTimestamp == null) TextSecondary else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f))
-                if (!repeatRule.isNullOrBlank()) Icon(Icons.Outlined.Repeat, "반복 일정", tint = TextSecondary, modifier = Modifier.size(16.dp))
-                if (reminders.isNotEmpty()) Icon(Icons.Outlined.NotificationsActive, "알림 설정됨", tint = DetailAccent, modifier = Modifier.size(16.dp))
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 // 근무 일정: 근무 · 휴가 dropdown chips, top right.
