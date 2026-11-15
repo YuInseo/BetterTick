@@ -67,16 +67,21 @@ class EditorImeRegressionTest {
         val first = compose.onNodeWithTag("note-block-first").fetchSemanticsNode().boundsInRoot
         val second = compose.onNodeWithTag("note-block-second").fetchSemanticsNode().boundsInRoot
         assertTrue("single-line block gap must stay compact: ${second.top - first.top}", second.top - first.top <= 32f * density)
-        val beforeTop = compose.onNodeWithTag("task-detail-header").fetchSemanticsNode().boundsInRoot.top
+        val beforeTop = compose.onNodeWithTag("task-detail-header").fetchSemanticsNode().boundsInRoot.top + appBounds().top
         compose.onNodeWithTag("note-block-third").performClick()
         compose.waitUntil(15_000) { imeBounds() != null }
         compose.waitForIdle()
-        compose.waitUntil(15_000) {
-            val keyboard = imeBounds()
-            val footer = runCatching { compose.onNodeWithTag("task-detail-actions").fetchSemanticsNode().boundsInRoot }.getOrNull()
-            keyboard != null && footer != null && keyboard.top - footer.bottom in (-2f * density)..(24f * density)
+        try {
+            compose.waitUntil(15_000) {
+                val keyboard = imeBounds()
+                val footer = runCatching { compose.onNodeWithTag("task-detail-actions").fetchSemanticsNode().boundsInRoot }.getOrNull()
+                keyboard != null && footer != null && keyboard.top - (footer.bottom + appBounds().top) in (-2f * density)..(24f * density)
+            }
+        } finally {
+            val footer = compose.onNodeWithTag("task-detail-actions").fetchSemanticsNode().boundsInRoot
+            println("UI_GEOMETRY mode=$page ime=${imeBounds()} window=${appBounds()} footer=$footer")
+            capture("${if (page) "page" else "drawer"}_keyboard")
         }
-        capture("${if (page) "page" else "drawer"}_keyboard")
         val ime = requireNotNull(imeBounds())
         val appWindow = instrumentation.uiAutomation.windows.firstOrNull {
             it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isFocused
@@ -84,7 +89,7 @@ class EditorImeRegressionTest {
         val windowBounds = Rect().also { appWindow?.getBoundsInScreen(it) }
         assertTrue("dialog must not pan above the display: $windowBounds", windowBounds.top >= 0)
         val header = compose.onNodeWithTag("task-detail-header").fetchSemanticsNode().boundsInRoot
-        assertTrue("keyboard must not move the header", abs(header.top - beforeTop) <= 2f * density)
+        assertTrue("keyboard must not move the header", abs(header.top + windowBounds.top - beforeTop) <= 2f * density)
         val footer = compose.onNodeWithTag("task-detail-actions").fetchSemanticsNode().boundsInRoot
         val footerBottom = footer.bottom + windowBounds.top
         assertTrue("toolbar must stay above keyboard: $footerBottom vs ${ime.top}", footerBottom <= ime.top + 2f * density)
@@ -104,13 +109,17 @@ class EditorImeRegressionTest {
 
     @After fun screenshotOnExit() { capture("${testName.methodName}_end") }
 
+    private fun appBounds(): Rect = Rect().also { bounds ->
+        instrumentation.uiAutomation.windows.firstOrNull {
+            it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isFocused
+        }?.getBoundsInScreen(bounds)
+    }
+
     private fun capture(name: String) {
         runCatching {
-            val bitmap = instrumentation.uiAutomation.takeScreenshot() ?: return
-            val scaled = Bitmap.createScaledBitmap(bitmap, 540, (bitmap.height * 540f / bitmap.width).toInt(), true)
-            val dir = File(instrumentation.targetContext.getExternalFilesDir(null), "ui-regression").apply { mkdirs() }
-            File(dir, "$name.png").outputStream().use { scaled.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            scaled.recycle(); bitmap.recycle()
-        }
+            // Use a shell screenshot so failures are retained even if bitmap capture is unavailable.
+            val command = "mkdir -p /data/local/tmp/editor-ui && screencap -p /data/local/tmp/editor-ui/$name.png"
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(instrumentation.uiAutomation.executeShellCommand(command)).use { it.readBytes() }
+        }.onFailure { println("UI_CAPTURE_ERROR: $it") }
     }
 }
