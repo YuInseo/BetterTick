@@ -67,7 +67,11 @@ internal fun ExpandableTaskDetail(
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    Dialog(onDismissRequest = { latestClose() },
+    // Every close (back, ←, tap outside) slides the sheet away and fades the dim
+    // first; the window itself then goes without an animation of its own — its
+    // exit fade over a still-dark dim was the black flash after closing.
+    var closeRequested by remember { mutableStateOf(false) }
+    Dialog(onDismissRequest = { closeRequested = true },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val view = LocalView.current
         // Draw our own scrim so it fades continuously with the sheet instead of swapping windows.
@@ -76,6 +80,7 @@ internal fun ExpandableTaskDetail(
             val oldDim = window?.attributes?.dimAmount ?: 0f
             val oldInputMode = window?.attributes?.softInputMode ?: 0
             window?.setDimAmount(0f)
+            window?.setWindowAnimations(0)
             // A full-height edge-to-edge window must not be panned/resized by the WM as well as Compose.
             window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
             window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
@@ -111,7 +116,7 @@ internal fun ExpandableTaskDetail(
             // a dark screen that then vanishes at once.
             val closeFade = (1f - position.dismissOffset / sheetTravel.coerceAtLeast(1f)).coerceIn(0f, 1f)
             Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.42f * (1f - expansion) * closeFade))
-                .clickable(enabled = expansion < 0.99f) { latestClose() })
+                .clickable(enabled = expansion < 0.99f) { closeRequested = true })
             BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
                 val heightPx = with(density) { maxHeight.toPx() }
                 sheetTravel = heightPx * 0.78f
@@ -130,7 +135,8 @@ internal fun ExpandableTaskDetail(
                             animate(initialValue = position.dismissOffset, targetValue = heightPx,
                                 animationSpec = androidx.compose.animation.core.tween(ms,
                                     easing = androidx.compose.animation.core.FastOutLinearInEasing)) { value, _ ->
-                                position = DetailDragPosition(dismissOffset = value.coerceAtLeast(0f))
+                                // Keep the page / drawer size while it slides away.
+                                position = position.copy(dismissOffset = value.coerceAtLeast(0f))
                             }
                             latestClose()
                         } else {
@@ -142,6 +148,10 @@ internal fun ExpandableTaskDetail(
                             }
                         }
                     }
+                }
+                LaunchedEffect(closeRequested) {
+                    // Reset at once so a later back press works again if a drag interrupted it.
+                    if (closeRequested) { closeRequested = false; settle(DetailSnapTarget.CLOSED) }
                 }
 
                 // Drag anywhere on the sheet, not only the top handle: once the
@@ -204,7 +214,7 @@ internal fun ExpandableTaskDetail(
                                     }
                                 )
                             }, verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = { latestClose() }, enabled = expansion > 0.5f,
+                            IconButton(onClick = { closeRequested = true }, enabled = expansion > 0.5f,
                                 modifier = Modifier.alpha(expansion)) {
                                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, "저장하고 뒤로", tint = TextPrimary)
                             }
