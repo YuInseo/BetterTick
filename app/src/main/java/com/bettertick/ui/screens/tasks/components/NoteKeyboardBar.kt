@@ -184,7 +184,7 @@ private val EmbedItems = listOf(
  */
 @Composable
 internal fun BlockPickerPanel(turnInto: Boolean, onPick: (kind: String) -> Unit, onAttach: () -> Unit) {
-    Column(Modifier.fillMaxWidth().height(300.dp).verticalScroll(rememberScrollState())
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
         .padding(vertical = 8.dp).testTag("block-picker-panel")) {
         if (turnInto) {
             PanelSection("블록 종류 바꾸기", BasicItems, onPick, onAttach)
@@ -225,7 +225,7 @@ private fun PanelSection(title: String, items: List<PanelItem>, onPick: (String)
 /** Text colour and background colour for the edited block. */
 @Composable
 internal fun BlockColorPanel(current: String, onPick: (String) -> Unit) {
-    Column(Modifier.fillMaxWidth().height(300.dp).verticalScroll(rememberScrollState())
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
         .padding(vertical = 8.dp).testTag("block-color-panel")) {
         listOf("글자 색" to "", "배경 색" to "bg_").forEach { (title, prefix) ->
             Text(title, fontSize = 12.sp, color = TextTertiary, modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 4.dp))
