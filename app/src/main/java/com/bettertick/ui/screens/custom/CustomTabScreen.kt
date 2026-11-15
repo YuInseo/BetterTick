@@ -151,8 +151,9 @@ fun CustomTabScreen(
     val diary by viewModel.diary.collectAsState()
     val data = DashData(tasks, lists, habits, diary)
     val context = androidx.compose.ui.platform.LocalContext.current
-    androidx.compose.runtime.LaunchedEffect(viewModel) {
-        viewModel.messages.collect { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show() }
+    // 이벤트: 이 탭을 열 때.
+    androidx.compose.runtime.LaunchedEffect(tabId) {
+        MacroEngine.onOpen(context, TriggerType.TAB_OPEN, tabId, onNavigate = onNavigate)
     }
 
     var editing by rememberSaveable(tabId) {
@@ -609,6 +610,7 @@ private fun DashBlockView(
     val today = remember { LocalDate.now() }
     val tasks = data.tasks
     val heading = block.title.ifBlank { null }
+    val context = androidx.compose.ui.platform.LocalContext.current
     when (block.type) {
         DashBlockType.TODAY -> Card(heading, fill) {
             val shift = tasks.firstOrNull { it.isShiftTask() && it.occursOn(today) }
@@ -831,7 +833,7 @@ private fun DashBlockView(
         }
         DashBlockType.VALUE -> ValueBlockView(block, data.ctx, fill, onNavigate)
         DashBlockType.TEMPLATE -> TemplateBlockView(block, data.ctx, fill)
-        DashBlockType.MACRO -> MacroBlockView(block, fill) { cfg -> viewModel.runMacro(tab.id, cfg, data.ctx, onNavigate) }
+        DashBlockType.MACRO -> MacroBlockView(block, fill) { cfg -> viewModel.runMacro(context, tab.id, block.id, cfg, data.ctx, onNavigate) }
         else -> Unit
     }
 }

@@ -186,9 +186,19 @@ object CustomTabsPrefs {
     fun delete(id: String) = save(tabs.filterNot { it.id == id })
 
     private fun save(list: List<CustomTab>) {
+        val before = timeTriggerSignature(tabs)
         tabs = list
         appContext?.getSharedPreferences(PREFS, Context.MODE_PRIVATE)?.edit()?.putString("tabs", encode(list))?.apply()
+        // 정해진 시각 매크로: re-arm alarms only when those triggers changed (not on every memo keystroke).
+        if (timeTriggerSignature(list) != before) appContext?.let { MacroEngine.syncAlarms(it) }
     }
+
+    private fun timeTriggerSignature(list: List<CustomTab>): String = list.flatMap { tab ->
+        tab.blocks.filter { it.type == DashBlockType.MACRO }.flatMap { b ->
+            MacroConfig.decode(b.text).triggers.filter { it.type == TriggerType.TIME }
+                .map { "${tab.id}|${b.id}|${it.id}|${it.time}|${it.days}|${it.enabled}" }
+        }
+    }.joinToString(";")
 
     private fun encode(list: List<CustomTab>): String = JSONArray().apply {
         list.forEach { t ->

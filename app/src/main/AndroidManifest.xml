@@ -202,6 +202,7 @@
         </receiver>
         <receiver android:name=".reminder.ReminderReceiver" android:exported="false" />
         <receiver android:name=".reminder.ReminderActionReceiver" android:exported="false" />
+        <receiver android:name=".ui.screens.custom.MacroAlarmReceiver" android:exported="false" />
     </application>
 
 </manifest>
