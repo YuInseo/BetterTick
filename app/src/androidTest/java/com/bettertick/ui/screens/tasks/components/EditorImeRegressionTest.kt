@@ -76,7 +76,7 @@ class EditorImeRegressionTest {
             compose.onNodeWithTag("note-block-third").performClick()
             runCatching { compose.waitUntil(4_000) { imeBounds() != null } }
         }
-        assertNotNull("keyboard never opened after tapping the block", imeBounds())
+        if (imeBounds() == null) fail("keyboard never opened after tapping the block; " + imeDiagnostics())
         compose.waitForIdle()
         try {
             compose.waitUntil(15_000) {
@@ -111,6 +111,19 @@ class EditorImeRegressionTest {
         compose.onNodeWithTag("note-block-third").performTextInput(" edited")
         compose.onNodeWithText("저장", useUnmergedTree = true).performClick()
         compose.runOnIdle { assertTrue(saved?.memos?.any { it.id == "third" && it.text.contains("edited") } == true) }
+    }
+
+    /** Default IME and input-method service state, for a failure message. */
+    private fun imeDiagnostics(): String {
+        fun shell(cmd: String): String = runCatching {
+            val pfd = instrumentation.uiAutomation.executeShellCommand(cmd)
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().use { it.readText() }
+        }.getOrDefault("")
+        val default = shell("settings get secure default_input_method").trim()
+        val state = shell("dumpsys input_method").lines()
+            .filter { line -> listOf("mCurMethodId", "mInputShown", "mServedView", "mCurFocusedWindow", "mIsInputViewShown").any { it in line } }
+            .take(8).joinToString(" | ") { it.trim() }
+        return "default=$default; $state"
     }
 
     private fun imeBounds(): Rect? = instrumentation.uiAutomation.windows.firstOrNull {
