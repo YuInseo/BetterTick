@@ -66,7 +66,6 @@ internal fun TaskNoteEditor(
     formatRequest: Pair<String, InlineMark>? = null,
     formatTick: Int = 0
 ) {
-    var addOpen by remember { mutableStateOf(false) }
     var scopeOpen by remember { mutableStateOf(false) }
     var addingDay by remember(day) { mutableStateOf(day.orEmpty()) }
     var removed by remember { mutableStateOf<Pair<Int, TaskMemo>?>(null) }
@@ -79,29 +78,17 @@ internal fun TaskNoteEditor(
     val hidden = blocks.size - onPage.size
     val headings = onPage.filter { NoteBlockKind.headingLevel(it.kind) > 0 && it.text.isNotBlank() }
     Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            if (day != null) {
-                Box(Modifier.weight(1f)) {
-                    TextButton(onClick = { scopeOpen = true }, contentPadding = PaddingValues(horizontal = 4.dp)) {
-                        Text(if (addingDay.isBlank()) "새 블록: 공통" else "새 블록: ${dateLabel(day)}", fontSize = 11.sp, color = TextSecondary)
-                        Icon(Icons.Outlined.ExpandMore, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
-                    }
-                    DropdownMenu(expanded = scopeOpen, onDismissRequest = { scopeOpen = false }) {
-                        DropdownMenuItem(text = { Text("공통 · 모든 반복에 표시") }, onClick = { addingDay = ""; scopeOpen = false })
-                        DropdownMenuItem(text = { Text("${dateLabel(day)}에만 표시") }, onClick = { addingDay = day; scopeOpen = false })
-                    }
-                }
-            } else Spacer(Modifier.weight(1f))
+        // 새 블록 범위 (공통 / 이 날짜만) — only for repeating tasks opened on a date.
+        // Blocks are added from the keyboard bar (+), Enter or "/", so no 블록 추가 button.
+        if (day != null) {
             Box {
-                TextButton(onClick = { addOpen = true }) {
-                    Icon(Icons.Outlined.Add, null, modifier = Modifier.size(17.dp))
-                    Spacer(Modifier.width(4.dp)); Text("블록 추가", fontSize = 12.sp)
+                TextButton(onClick = { scopeOpen = true }, contentPadding = PaddingValues(horizontal = 4.dp)) {
+                    Text(if (addingDay.isBlank()) "새 블록: 공통" else "새 블록: ${dateLabel(day)}", fontSize = 11.sp, color = TextSecondary)
+                    Icon(Icons.Outlined.ExpandMore, null, tint = TextSecondary, modifier = Modifier.size(16.dp))
                 }
-                DropdownMenu(expanded = addOpen, onDismissRequest = { addOpen = false }) {
-                    NoteSlashCatalog.forEach { item ->
-                        DropdownMenuItem(text = { Text(item.label) }, onClick = { onAdd(item.kind, addingDay); addOpen = false })
-                    }
-                    DropdownMenuItem(text = { Text("이미지 · 파일") }, onClick = { addOpen = false; onAttach(addingDay) })
+                DropdownMenu(expanded = scopeOpen, onDismissRequest = { scopeOpen = false }) {
+                    DropdownMenuItem(text = { Text("공통 · 모든 반복에 표시") }, onClick = { addingDay = ""; scopeOpen = false })
+                    DropdownMenuItem(text = { Text("${dateLabel(day)}에만 표시") }, onClick = { addingDay = day; scopeOpen = false })
                 }
             }
         }
