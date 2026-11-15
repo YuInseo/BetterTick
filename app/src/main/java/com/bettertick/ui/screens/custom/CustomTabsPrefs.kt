@@ -59,9 +59,15 @@ object DashBlockType {
     const val LIST_TASKS = "list_tasks"
     const val QUICK_ADD = "quick_add"
     const val STATS = "stats"
+    const val VALUE = "value"
+    const val TEMPLATE = "template"
+    const val MACRO = "macro"
 
     /** What the "블록 추가" sheet offers, in order. */
     val catalog = listOf(
+        VALUE to "값 블록 (변수 연결)",
+        TEMPLATE to "텍스트 템플릿",
+        MACRO to "매크로 버튼",
         TODAY to "오늘 (날짜·근무)",
         TODAY_TASKS to "오늘 할 일",
         QUICK_ADD to "빠른 할 일 추가",
@@ -80,6 +86,9 @@ object DashBlockType {
 
     /** One-line explanation under each entry in the add sheet. */
     fun hint(type: String) = when (type) {
+        VALUE -> "변수 하나를 숫자·막대·원형·칩으로, 조건부 색까지"
+        TEMPLATE -> "{변수}가 들어간 문장 — 예: 오늘 {shift.today}, 할 일 {today.left}개"
+        MACRO -> "버튼 한 번에 여러 동작: 할 일 추가·완료, 습관 체크, 가계부 기록…"
         TODAY -> "날짜, 남은 할 일 수, 오늘 근무"
         TODAY_TASKS -> "오늘 할 일을 바로 체크"
         QUICK_ADD -> "입력하고 엔터 → 오늘 할 일로 추가"
@@ -98,10 +107,11 @@ object DashBlockType {
     }
 
     /** Blocks that need a choice before they can show anything. */
-    fun needsSetup(type: String) = type == DDAY || type == LIST_TASKS || type == SHORTCUT
+    fun needsSetup(type: String) = type == DDAY || type == LIST_TASKS || type == SHORTCUT ||
+        type == VALUE || type == TEMPLATE || type == MACRO
 
     /** Blocks that read well at half width by default. */
-    fun halfByDefault(type: String) = type == DDAY || type == STATS || type == SHORTCUT
+    fun halfByDefault(type: String) = type == DDAY || type == STATS || type == SHORTCUT || type == VALUE
 
     fun label(type: String) = catalog.firstOrNull { it.first == type }?.second ?: type
 }
