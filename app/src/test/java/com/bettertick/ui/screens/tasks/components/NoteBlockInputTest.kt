@@ -41,4 +41,16 @@ class NoteBlockInputTest {
         assertEquals("  first\n\nsecond", compactNoteBlockText("\n  first\n\nsecond\n  \n"))
         assertEquals("", compactNoteBlockText("\n \n"))
     }
+
+    @Test fun backspaceAtBlockStartFollowsBlockNoteRules() {
+        val text = com.bettertick.data.model.TaskMemo(id = "a", text = "앞")
+        val empty = com.bettertick.data.model.TaskMemo(id = "b", text = "")
+        val todo = com.bettertick.data.model.TaskMemo(id = "c", kind = com.bettertick.data.model.NoteBlockKind.TODO, text = "")
+        val divider = com.bettertick.data.model.TaskMemo(id = "d", kind = com.bettertick.data.model.NoteBlockKind.DIVIDER)
+        assertEquals(NoteBackspace.TO_TEXT, noteBackspaceAtStart(todo, text))
+        assertEquals(NoteBackspace.DELETE_FOCUS_PREVIOUS, noteBackspaceAtStart(empty, text))
+        assertEquals(NoteBackspace.MERGE_INTO_PREVIOUS, noteBackspaceAtStart(text.copy(id = "e"), text))
+        assertEquals(NoteBackspace.REMOVE_PREVIOUS, noteBackspaceAtStart(empty, divider))
+        assertEquals(NoteBackspace.NONE, noteBackspaceAtStart(empty, null))
+    }
 }

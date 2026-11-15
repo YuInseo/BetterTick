@@ -1,6 +1,7 @@
 package com.bettertick.ui.screens.tasks.components
 
 import com.bettertick.data.model.NoteBlockKind
+import com.bettertick.data.model.TaskMemo
 import java.util.Locale
 
 internal data class NoteSlashItem(val kind: String, val label: String, val aliases: String)
@@ -31,3 +32,27 @@ internal fun nextNoteBlockKind(current: String): String =
 /** Remove padding-only edge lines without flattening intentional line breaks or indentation. */
 internal fun compactNoteBlockText(text: String): String = text.lines()
     .dropWhile { it.isBlank() }.dropLastWhile { it.isBlank() }.joinToString("\n")
+
+/** What Backspace at the very start of a block does (BlockNote-style, native rules). */
+internal enum class NoteBackspace {
+    /** Heading / checklist → plain text, text kept. */
+    TO_TEXT,
+    /** Empty block → removed, caret to the end of the block above. */
+    DELETE_FOCUS_PREVIOUS,
+    /** Text joins the end of the block above. */
+    MERGE_INTO_PREVIOUS,
+    /** The divider right above is removed. */
+    REMOVE_PREVIOUS,
+    /** Empty block under media → removed, nothing to focus. */
+    DELETE,
+    NONE
+}
+
+internal fun noteBackspaceAtStart(current: TaskMemo, previous: TaskMemo?): NoteBackspace = when {
+    current.kind == NoteBlockKind.TODO || current.kind == NoteBlockKind.HEADING -> NoteBackspace.TO_TEXT
+    previous == null -> NoteBackspace.NONE
+    previous.kind == NoteBlockKind.DIVIDER -> NoteBackspace.REMOVE_PREVIOUS
+    previous.attachment.isNotBlank() -> if (current.text.isEmpty()) NoteBackspace.DELETE else NoteBackspace.NONE
+    current.text.isEmpty() -> NoteBackspace.DELETE_FOCUS_PREVIOUS
+    else -> NoteBackspace.MERGE_INTO_PREVIOUS
+}

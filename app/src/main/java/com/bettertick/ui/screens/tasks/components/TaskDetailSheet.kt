@@ -282,24 +282,46 @@ fun TaskDetailSheet(
                 .verticalScroll(contentScroll)
                 .padding(bottom = 12.dp)
         ) {
+            // 날짜 한 줄 + 오른쪽 아이콘 묶음 (반복 · 알림 · 우선순위 · 더보기),
+            // 아이콘은 모두 같은 크기 · 같은 간격.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                    .clickable { showDatePicker = true }.padding(vertical = 12.dp)
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
             ) {
-                Icon(Icons.Outlined.CalendarToday, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-                Text(formatDueLabel(dueTimestamp, duration, occurrenceDate.takeIf {
-                    !repeatRule.isNullOrBlank() && dueTimestamp == task.dueDate
-                }), color = if (dueTimestamp == null) TextSecondary else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f))
-                if (!repeatRule.isNullOrBlank()) Icon(Icons.Outlined.Repeat, "반복 일정", tint = TextSecondary, modifier = Modifier.size(16.dp))
-                if (reminders.isNotEmpty()) Icon(Icons.Outlined.NotificationsActive, "알림 설정됨", tint = DetailAccent, modifier = Modifier.size(16.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                        .clickable { showDatePicker = true }.padding(vertical = 8.dp)
+                ) {
+                    Icon(Icons.Outlined.CalendarToday, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+                    // 날짜와 시간을 두 줄로 — 아이콘 4개와 같이 있어도 어색하게 꺾이지 않게.
+                    val dueLabel = formatDueLabel(dueTimestamp, duration, occurrenceDate.takeIf {
+                        !repeatRule.isNullOrBlank() && dueTimestamp == task.dueDate
+                    })
+                    val dayPart = dueLabel.substringBefore(" · ")
+                    val timePart = dueLabel.substringAfter(" · ", "")
+                    Column {
+                        Text(dayPart, color = if (dueTimestamp == null) TextSecondary else TextPrimary,
+                            fontSize = 13.sp, fontWeight = FontWeight.Medium, lineHeight = 17.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (timePart.isNotEmpty()) {
+                            Text(timePart, color = TextSecondary, fontSize = 12.sp, lineHeight = 16.sp,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+                if (!repeatRule.isNullOrBlank()) Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.Repeat, "반복 일정", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                }
+                if (reminders.isNotEmpty()) Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.NotificationsActive, "알림 설정됨", tint = DetailAccent, modifier = Modifier.size(18.dp))
+                }
                 // 우선순위 · 더보기: 날짜 줄 오른쪽 끝에 함께.
                 Row(verticalAlignment = Alignment.CenterVertically) {
                 Box {
                     val flagTint = priorityColor(priority)
-                    IconButton(onClick = { priorityMenuOpen = true }, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = { priorityMenuOpen = true }, modifier = Modifier.size(34.dp)) {
                         Icon(
                             imageVector = if (priority > 0) Icons.Filled.Flag
                                 else Icons.Outlined.Flag,
@@ -351,7 +373,7 @@ fun TaskDetailSheet(
                     }
                 }
                 Box {
-                    IconButton(onClick = { moreMenuOpen = true }, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = { moreMenuOpen = true }, modifier = Modifier.size(34.dp)) {
                         Icon(
                             Icons.Outlined.MoreHoriz,
                             contentDescription = "더 보기",
