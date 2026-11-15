@@ -33,7 +33,6 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:processDebugManifest
 > Task :app:javaPreCompileDebug UP-TO-DATE
 > Task :app:mergeDebugShaders UP-TO-DATE
-> Task :app:processDebugManifestForPackage
 > Task :app:compileDebugShaders NO-SOURCE
 > Task :app:generateDebugAssets UP-TO-DATE
 > Task :app:mergeDebugAssets UP-TO-DATE
@@ -48,6 +47,7 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:stripDebugDebugSymbols NO-SOURCE
 > Task :app:validateSigningDebug UP-TO-DATE
 > Task :app:writeDebugAppMetadata UP-TO-DATE
+> Task :app:processDebugManifestForPackage
 > Task :app:writeDebugSigningConfigVersions UP-TO-DATE
 > Task :app:processDebugResources
 > Task :app:kspDebugKotlin
@@ -65,5 +65,5 @@ Debuggable builds are no longer name minified and all code optimizations and obf
 > Task :app:createDebugApkListingFileRedirect
 > Task :app:assembleDebug
 
-BUILD SUCCESSFUL in 58s
+BUILD SUCCESSFUL in 45s
 41 actionable tasks: 14 executed, 27 up-to-date
