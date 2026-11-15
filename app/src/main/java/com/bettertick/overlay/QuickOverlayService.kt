@@ -300,13 +300,13 @@ class QuickOverlayService : Service() {
         val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, channelId)
                 .setSmallIcon(com.bettertick.R.drawable.ic_stat_bettertick)
-                .setContentTitle("BetterTick 빠른 추가")
+                .setContentTitle("Daydrift 빠른 추가")
                 .build()
         } else {
             @Suppress("DEPRECATION")
             Notification.Builder(this)
                 .setSmallIcon(com.bettertick.R.drawable.ic_stat_bettertick)
-                .setContentTitle("BetterTick 빠른 추가")
+                .setContentTitle("Daydrift 빠른 추가")
                 .build()
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

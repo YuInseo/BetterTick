@@ -4,7 +4,7 @@ setlocal enabledelayedexpansion
 :START
 cls
 echo ========================================
-echo   BetterTick - USB Build and Install
+echo   Daydrift - USB Build and Install
 echo ========================================
 echo.
 
@@ -68,7 +68,7 @@ echo [4/4] Launching app...
 adb -s !DEVICE_ADDR! shell am start -n com.bettertick/.MainActivity
 echo.
 echo ========================================
-echo   BetterTick installed and launched!
+echo   Daydrift installed and launched!
 echo ========================================
 
 :RETRY

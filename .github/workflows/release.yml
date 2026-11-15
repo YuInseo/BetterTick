@@ -76,14 +76,14 @@ jobs:
       - name: Rename APK
         run: |
           mv app/build/outputs/apk/release/app-release.apk \
-             app/build/outputs/apk/release/BetterTick-${{ steps.version.outputs.name }}.apk
+             app/build/outputs/apk/release/Daydrift-${{ steps.version.outputs.name }}.apk
 
       # GitHub Releases 페이지에 APK 자동 첨부
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: BetterTick ${{ github.ref_name }}
-          files: app/build/outputs/apk/release/BetterTick-${{ steps.version.outputs.name }}.apk
+          name: Daydrift ${{ github.ref_name }}
+          files: app/build/outputs/apk/release/Daydrift-${{ steps.version.outputs.name }}.apk
           generate_release_notes: true
           draft: false
 

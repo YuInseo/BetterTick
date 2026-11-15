@@ -1,6 +1,6 @@
 <div align="center">
 
-# BetterTick
+# Daydrift
 
 ### 근무표부터 할 일까지, 내 하루에 맞게.
 
@@ -12,7 +12,7 @@
 [![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
 [![CI](https://github.com/YuInseo/BetterTick/actions/workflows/ci.yml/badge.svg)](https://github.com/YuInseo/BetterTick/actions/workflows/ci.yml)
 
-**[APK 다운로드](https://github.com/YuInseo/BetterTick/releases/download/latest-debug/BetterTick.apk)** · **[릴리즈](https://github.com/YuInseo/BetterTick/releases/tag/latest-debug)** · **[버그 제보 · 기능 제안](https://github.com/YuInseo/BetterTick/issues)**
+**[APK 다운로드](https://github.com/YuInseo/BetterTick/releases/download/latest-debug/Daydrift.apk)** · **[릴리즈](https://github.com/YuInseo/BetterTick/releases/tag/latest-debug)** · **[버그 제보 · 기능 제안](https://github.com/YuInseo/BetterTick/issues)**
 
 </div>
 
@@ -74,7 +74,7 @@
 
 ## 시작하기
 
-1. **[최신 APK](https://github.com/YuInseo/BetterTick/releases/download/latest-debug/BetterTick.apk)**를 내려받아 설치합니다.
+1. **[최신 APK](https://github.com/YuInseo/BetterTick/releases/download/latest-debug/Daydrift.apk)**를 내려받아 설치합니다.
 2. 근무 일정과 반복 패턴을 등록합니다.
 3. 설정에서 근무지와 휴가 규칙을 맞춘 뒤, 할 일과 생활 루틴을 추가합니다.
 4. 자주 쓰는 기능으로 하단 탭을 구성하고 위젯을 배치합니다.
@@ -115,8 +115,8 @@
 **준비:** Android Studio, JDK 17, Android SDK 34
 
 ```bash
-git clone https://github.com/YuInseo/BetterTick.git
-cd BetterTick
+git clone https://github.com/YuInseo/BetterTick.git Daydrift
+cd Daydrift
 
 # Debug APK 빌드
 ./gradlew assembleDebug
@@ -174,6 +174,6 @@ app/src/main/java/com/bettertick/
 <div align="center">
 
 **바뀌는 근무 속에서도, 내 하루를 차근차근.**  
-BetterTick
+Daydrift
 
 </div>

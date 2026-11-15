@@ -5,7 +5,7 @@ name: Build Debug APK
 # 서명/Secrets 불필요 — push만 하면 끝.
 #
 # 다운로드 (로그인 불필요):
-# https://github.com/YuInseo/BetterTick/releases/download/latest-debug/BetterTick.apk
+# https://github.com/YuInseo/BetterTick/releases/download/latest-debug/Daydrift.apk
 
 on:
   push:
@@ -154,18 +154,18 @@ jobs:
       - name: Stage release assets
         if: steps.build.outcome == 'success'
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk BetterTick.apk
+          cp app/build/outputs/apk/debug/app-debug.apk Daydrift.apk
           cat > version.json <<EOF
           {
             "versionCode": ${{ steps.meta.outputs.code }},
             "versionName": "${{ steps.meta.outputs.name }}",
             "sha": "${{ steps.meta.outputs.sha }}",
-            "apkUrl": "https://github.com/${{ github.repository }}/releases/download/latest-debug/BetterTick.apk",
+            "apkUrl": "https://github.com/${{ github.repository }}/releases/download/latest-debug/Daydrift.apk",
             "notes": "Auto build ${{ steps.meta.outputs.sha }}"
           }
           EOF
           cat version.json
-          ls -la BetterTick.apk
+          ls -la Daydrift.apk
 
       # 기존 release에 asset만 덮어쓰면 태그는 처음 커밋에, 게시일은 처음 날짜에
       # 그대로 남아 릴리즈 페이지에서 새 빌드가 안 올라간 것처럼 보인다.
@@ -191,14 +191,14 @@ jobs:
             Commit: ${{ steps.meta.outputs.sha }}
 
             Direct download (no login required):
-            https://github.com/${{ github.repository }}/releases/download/latest-debug/BetterTick.apk
+            https://github.com/${{ github.repository }}/releases/download/latest-debug/Daydrift.apk
 
             Smaller test build (same app, code shrunk with R8 — not used by auto-update yet):
-            https://github.com/${{ github.repository }}/releases/download/latest-debug/BetterTick-small.apk
+            https://github.com/${{ github.repository }}/releases/download/latest-debug/Daydrift-small.apk
           # version.json goes up in the next step, only after the APK has
           # finished uploading — the app treats version.json as "ready".
           files: |
-            BetterTick.apk
+            Daydrift.apk
           prerelease: true
           make_latest: "false"
 
@@ -222,8 +222,8 @@ jobs:
           set -o pipefail
           ./gradlew assembleSmall -x lint -x test \
             --build-cache --parallel --console=plain 2>&1 | tail -n 80
-          cp app/build/outputs/apk/small/app-small.apk BetterTick-small.apk
-          ls -la BetterTick-small.apk
+          cp app/build/outputs/apk/small/app-small.apk Daydrift-small.apk
+          ls -la Daydrift-small.apk
 
       - name: Upload small test APK
         if: steps.small.outcome == 'success'
@@ -231,7 +231,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release upload latest-debug BetterTick-small.apk --clobber --repo "$GITHUB_REPOSITORY"
+          gh release upload latest-debug Daydrift-small.apk --clobber --repo "$GITHUB_REPOSITORY"
 
       - name: Fail the job if build failed
         if: steps.build.outcome == 'failure'

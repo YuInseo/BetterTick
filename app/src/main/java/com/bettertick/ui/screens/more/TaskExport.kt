@@ -44,7 +44,7 @@ fun buildTasksCsv(tasks: List<Task>, lists: List<TaskList>, tags: List<Tag>): St
 fun shareTasksCsv(context: Context, csv: String) {
     runCatching {
         val dir = File(context.cacheDir, "exports").apply { mkdirs() }
-        val file = File(dir, "BetterTick_${java.time.LocalDate.now()}.csv")
+        val file = File(dir, "Daydrift_${java.time.LocalDate.now()}.csv")
         file.writeText(csv, Charsets.UTF_8)
         val uri = FileProvider.getUriForFile(context, context.packageName + ".fileprovider", file)
         val send = Intent(Intent.ACTION_SEND).apply {

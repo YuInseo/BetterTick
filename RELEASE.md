@@ -1,4 +1,4 @@
-# BetterTick — 릴리스 가이드
+# Daydrift — 릴리스 가이드
 
 두 가지 릴리스 경로가 준비돼 있어요. **개발/공유용**은 자동, **공식 배포용**은 태그.
 
@@ -19,7 +19,7 @@ git push origin main
 ### 결과 다운로드 (안정 URL)
 
 ```
-https://github.com/YuInseo/BetterTick/releases/download/latest-debug/BetterTick.apk
+https://github.com/YuInseo/BetterTick/releases/download/latest-debug/Daydrift.apk
 ```
 
 이 URL은 **항상 최신 빌드**를 가리킵니다. 친구한테 공유하거나 자신의 안드로이드폰에서 바로 다운받기 좋아요.

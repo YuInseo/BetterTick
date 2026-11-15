@@ -104,7 +104,7 @@ fun AppearanceScreen(
                 colors = listOf(Color(0xFF81FBB8), Color(0xFF28C76F), Color(0xFF7367F0)),
                 accentColor = Color(0xFF28C76F),
                 isPremium = true,
-                description = "매번 핸드폰 배경화면을 변경할 때마다, 당신의 BetterTick 화면도 새롭게 갱신됩니다."
+                description = "매번 핸드폰 배경화면을 변경할 때마다, 당신의 Daydrift 화면도 새롭게 갱신됩니다."
             ),
             // City / scene themes — premium. Preview card shows a full gradient
             // background with a Canvas-drawn landmark silhouette at the bottom.
