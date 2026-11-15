@@ -151,7 +151,20 @@ internal fun tabRouteFor(tabId: String): String? = when (tabId) {
     "diary" -> BottomNavItem.Diary.route
     "money" -> BottomNavItem.Money.route
     "more" -> BottomNavItem.More.route
-    else -> null
+    else -> if (tabId.startsWith(com.bettertick.ui.screens.custom.CustomTabsPrefs.ID_PREFIX) &&
+        com.bettertick.ui.screens.custom.CustomTabsPrefs.tab(tabId) != null) "custom/$tabId" else null
+}
+
+/** Route pattern of the user-made tabs (내 탭). */
+internal const val CUSTOM_TAB_ROUTE = "custom/{id}"
+
+/** Is [route] (a concrete tab route) the screen this back-stack entry shows? */
+private fun androidx.navigation.NavBackStackEntry?.shows(route: String): Boolean {
+    val entry = this ?: return false
+    if (route.startsWith("custom/")) {
+        return entry.destination.route == CUSTOM_TAB_ROUTE && "custom/" + entry.arguments?.getString("id") == route
+    }
+    return entry.destination.hierarchy.any { it.route == route }
 }
 
 /** Jump to the Tasks tab without re-adding it to the backstack. Used from
@@ -268,7 +281,7 @@ private fun MainContent(
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    val isTabRoute = currentRoute == null ||
+    val isTabRoute = currentRoute == null || currentRoute == CUSTOM_TAB_ROUTE ||
             BottomNavItem.items.any { it.route == currentRoute }
 
     ModalNavigationDrawer(
@@ -364,7 +377,7 @@ private fun MainContent(
             bottomBar = {
                 if (isTabRoute) {
                     val accent = MaterialTheme.colorScheme.primary
-                    val catalog = remember { tabCatalog() }
+                    val catalog = remember(com.bettertick.ui.screens.custom.CustomTabsPrefs.tabs) { tabCatalog() }
                     val allUserItems = remember(tabBarConfig, catalog) {
                         tabBarConfig.enabledIds
                             .filter { it != "more" }
@@ -411,7 +424,7 @@ private fun MainContent(
                             allNavItems.forEach { (id, tab, route) ->
                                 if (id == "__overflow__") {
                                     val overflowSelected = overflowItems.any { (_, _, r) ->
-                                        currentDestination?.hierarchy?.any { it.route == r } == true
+                                        navBackStackEntry.shows(r)
                                     } || currentDestination?.hierarchy?.any { it.route == moreRoute } == true
                                     BottomNavTab(
                                         modifier = Modifier.weight(1f),
@@ -422,7 +435,7 @@ private fun MainContent(
                                         onClick = { showOverflowSheet = true }
                                     )
                                 } else {
-                                    val selected = currentDestination?.hierarchy?.any { it.route == route } == true
+                                    val selected = navBackStackEntry.shows(route)
                                     BottomNavTab(
                                         modifier = Modifier.weight(1f),
                                         icon = tab.icon,
@@ -578,6 +591,20 @@ private fun MainContent(
                 composable(BottomNavItem.Diary.route) {
                     DiaryScreen()
                 }
+                composable(CUSTOM_TAB_ROUTE) { entry ->
+                    com.bettertick.ui.screens.custom.CustomTabScreen(
+                        tabId = entry.arguments?.getString("id").orEmpty(),
+                        onNavigate = { target ->
+                            val route = tabRouteFor(target) ?: return@CustomTabScreen
+                            navController.navigate(route) {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        onDeleted = { jumpToTasksTab(navController) }
+                    )
+                }
                 composable(BottomNavItem.Money.route) {
                     com.bettertick.ui.screens.money.MoneyScreen(
                         onSettings = { navController.navigate("salary_settings") }
@@ -605,7 +632,13 @@ private fun MainContent(
                 }
                 composable("tabbar") {
                     TabBarScreen(
-                        onBack = { navController.popBackStack() }
+                        onBack = { navController.popBackStack() },
+                        onOpenCustomTab = { id ->
+                            navController.navigate("custom/$id") {
+                                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                launchSingleTop = true
+                            }
+                        }
                     )
                 }
                 composable("widgets") {
@@ -786,7 +819,7 @@ private fun MainContent(
     }
 
     if (showOverflowSheet) {
-        val catalog = remember { tabCatalog() }
+        val catalog = remember(com.bettertick.ui.screens.custom.CustomTabsPrefs.tabs) { tabCatalog() }
         val allUserItems = remember(tabBarConfig, catalog) {
             tabBarConfig.enabledIds
                 .filter { it != "more" }

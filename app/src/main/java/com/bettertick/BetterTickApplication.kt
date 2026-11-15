@@ -62,6 +62,7 @@ class BetterTickApplication : Application() {
         com.bettertick.ui.screens.tasks.LeavePrefs.init(this)
         com.bettertick.ui.screens.tasks.SalaryPrefs.init(this)
         com.bettertick.ui.screens.tasks.MoneyPrefs.init(this)
+        com.bettertick.ui.screens.custom.CustomTabsPrefs.init(this)
         com.bettertick.reminder.ReminderScheduler.scheduleDailySummary(this)
         // Initialize widget service locator for AppWidget access
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)

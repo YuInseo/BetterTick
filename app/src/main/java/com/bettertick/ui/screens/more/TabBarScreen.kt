@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -94,15 +95,18 @@ fun tabCatalog(): List<TabItem> = listOf(
     TabItem("money", "가계부", "월급·용돈·지출을 한눈에 관리하세요.", Icons.Outlined.AccountBalanceWallet),
     TabItem("dday", "디데이", "특별한 날을 기억하세요.", Icons.Outlined.Star),
     TabItem("search", "검색", "빠르게 작업을 검색하세요.", Icons.Outlined.Search)
-)
+) + com.bettertick.ui.screens.custom.CustomTabsPrefs.tabs.map { t ->
+    TabItem(t.id, t.name, "내가 만든 탭 · 블록 ${t.blocks.size}개", com.bettertick.ui.screens.custom.customTabIcon(t.icon))
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TabBarScreen(
     onBack: () -> Unit,
+    onOpenCustomTab: (String) -> Unit = {},
     viewModel: TabBarViewModel = hiltViewModel()
 ) {
-    val catalog = remember { tabCatalog() }
+    val catalog = remember(com.bettertick.ui.screens.custom.CustomTabsPrefs.tabs) { tabCatalog() }
 
     val persisted by viewModel.config.collectAsState()
 
@@ -110,7 +114,7 @@ fun TabBarScreen(
 
     val enabledTabs = remember { mutableStateListOf<TabItem>() }
     var maxTabs by remember { mutableIntStateOf(persisted.maxTabs) }
-    LaunchedEffect(persisted) {
+    LaunchedEffect(persisted, pickerCatalog) {
         enabledTabs.clear()
         persisted.enabledIds
             .filter { it != "more" }
@@ -201,6 +205,45 @@ fun TabBarScreen(
                             enabledTabs.add(tab)
                             commit()
                         }
+                    )
+                }
+            }
+
+            // 내 탭 만들기: a new tab made of blocks, put where the bar shows it.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(GroupedCard)
+                    .clickable {
+                        val n = com.bettertick.ui.screens.custom.CustomTabsPrefs.tabs.size + 1
+                        val created = com.bettertick.ui.screens.custom.CustomTabsPrefs.create("내 탭 $n", "dashboard")
+                        val item = TabItem(created.id, created.name, "내가 만든 탭",
+                            com.bettertick.ui.screens.custom.customTabIcon(created.icon))
+                        enabledTabs.add((maxTabs - 2).coerceIn(0, enabledTabs.size), item)
+                        commit()
+                        onOpenCustomTab(created.id)
+                    }
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    Icons.Outlined.Add,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "내 탭 만들기",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "오늘 할 일·근무·가계부·메모·바로가기를 골라 원하는 순서로 배치해요",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
                     )
                 }
             }
