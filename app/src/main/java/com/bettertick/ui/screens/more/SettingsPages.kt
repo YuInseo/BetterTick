@@ -356,6 +356,12 @@ fun GeneralSettingsScreen(
                 checked = AppPrefs.newTaskOnTop,
                 onCheckedChange = AppPrefs::updateNewTaskOnTop
             )
+            OptionSwitchRow(
+                title = "하위 페이지 유지",
+                subtitle = "하위 페이지를 연 채로 닫으면, 다음에 그 할일을 열 때 그 하위 페이지가 다시 열립니다. 끄면 항상 상위 페이지부터 열립니다.",
+                checked = AppPrefs.reopenLastSubPage,
+                onCheckedChange = AppPrefs::updateReopenLastSubPage
+            )
         }
         Text(
             "휴가 일수 · ${LeavePrefs.currentWorkplace.name}",
