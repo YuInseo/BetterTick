@@ -21,6 +21,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.input.key.Key
@@ -136,7 +137,7 @@ private fun NoteBlockRow(
     var menu by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val media = block.attachment.isNotBlank()
-    var fieldValue by remember(block.id) { mutableStateOf(TextFieldValue(block.text, TextRange(block.text.length))) }
+    var fieldValue by remember(block.id) { mutableStateOf(TextFieldValue(block.text, TextRange(if (focus) 0 else block.text.length))) }
     var softBreak by remember { mutableStateOf(false) }
     var dismissedSlash by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(block.text) {
@@ -150,7 +151,7 @@ private fun NoteBlockRow(
     Row(Modifier.fillMaxWidth().padding(top = if (block.kind == NoteBlockKind.HEADING) 6.dp else 0.dp,
         bottom = if (block.kind == NoteBlockKind.HEADING) 2.dp else 0.dp), verticalAlignment = Alignment.Top) {
         Box {
-            Box(Modifier.size(32.dp).clickable { menu = true }, contentAlignment = Alignment.Center) {
+            Box(Modifier.size(width = 32.dp, height = 26.dp).clickable { menu = true }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Outlined.DragIndicator, "블록 메뉴", tint = TextTertiary, modifier = Modifier.size(17.dp))
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -172,7 +173,7 @@ private fun NoteBlockRow(
             }
         }
         if (block.kind == NoteBlockKind.TODO) {
-            Box(Modifier.size(width = 30.dp, height = 32.dp).clickable { onChange(block.copy(checked = !block.checked)) }, contentAlignment = Alignment.Center) {
+            Box(Modifier.size(width = 30.dp, height = 26.dp).clickable { onChange(block.copy(checked = !block.checked)) }, contentAlignment = Alignment.Center) {
                 TickCheckbox(0, block.checked, size = 18.dp)
             }
         }
@@ -185,9 +186,10 @@ private fun NoteBlockRow(
                     BasicTextField(
                     value = fieldValue,
                     onValueChange = { next ->
-                        val split = if (next.composition == null && !softBreak && canInsert)
-                            splitNoteOnEnter(fieldValue.text, next.text, next.selection.end) else null
-                        fieldValue = next
+                        val split = if (!softBreak && canInsert)
+                            splitNoteOnEnter(fieldValue.text, next.text, next.selection.end,
+                                next.composition?.let { it.min until it.max }) else null
+                        fieldValue = if (split == null) next else TextFieldValue(split.first, TextRange(split.first.length))
                         if (split != null) {
                             if (block.kind == NoteBlockKind.TODO && split.first.isEmpty() && split.second.isEmpty()) {
                                 onChange(block.copy(kind = NoteBlockKind.TEXT, text = "", checked = false))
@@ -200,15 +202,15 @@ private fun NoteBlockRow(
                     textStyle = TextStyle(
                         color = if (block.checked && block.kind == NoteBlockKind.TODO) TextSecondary else TextPrimary,
                         fontSize = if (block.kind == NoteBlockKind.HEADING) 21.sp else 15.sp,
-                        lineHeight = if (block.kind == NoteBlockKind.HEADING) 30.sp else 24.sp,
+                        lineHeight = if (block.kind == NoteBlockKind.HEADING) 30.sp else 22.sp,
                         fontWeight = if (block.kind == NoteBlockKind.HEADING) FontWeight.SemiBold else FontWeight.Normal,
                         textDecoration = if (block.checked && block.kind == NoteBlockKind.TODO) TextDecoration.LineThrough else null),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.focusRequester(focusRequester).onPreviewKeyEvent { event ->
+                    modifier = Modifier.testTag("note-block-${block.id}").focusRequester(focusRequester).onPreviewKeyEvent { event ->
                         if (event.key == Key.Enter) softBreak = event.type == KeyEventType.KeyDown && event.isShiftPressed
                         false
-                    }.fillMaxWidth().heightIn(min = if (block.kind == NoteBlockKind.HEADING) 36.dp else 30.dp, max = 240.dp)
-                        .padding(vertical = 3.dp),
+                    }.fillMaxWidth().heightIn(min = if (block.kind == NoteBlockKind.HEADING) 36.dp else 26.dp, max = 240.dp)
+                        .padding(vertical = 2.dp),
                     decorationBox = { inner ->
                         Box {
                             if (block.text.isEmpty()) Text(when (block.kind) {

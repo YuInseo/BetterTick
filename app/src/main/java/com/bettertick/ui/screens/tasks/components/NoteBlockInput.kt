@@ -17,8 +17,9 @@ internal fun noteSlashItems(query: String): List<NoteSlashItem> {
 }
 
 /** Split only a single newly inserted newline at the caret, never bulk pasted or composing text. */
-internal fun splitNoteOnEnter(previous: String, next: String, cursor: Int): Pair<String, String>? {
+internal fun splitNoteOnEnter(previous: String, next: String, cursor: Int, composingRange: IntRange? = null): Pair<String, String>? {
     val at = cursor - 1
+    if (composingRange?.contains(at) == true) return null
     if (next.length != previous.length + 1 || at !in next.indices || next[at] != '\n') return null
     if (next.removeRange(at, at + 1) != previous) return null
     return next.substring(0, at) to next.substring(at + 1)
@@ -26,3 +27,7 @@ internal fun splitNoteOnEnter(previous: String, next: String, cursor: Int): Pair
 
 internal fun nextNoteBlockKind(current: String): String =
     if (current == NoteBlockKind.TODO) NoteBlockKind.TODO else NoteBlockKind.TEXT
+
+/** Remove padding-only edge lines without flattening intentional line breaks or indentation. */
+internal fun compactNoteBlockText(text: String): String = text.lines()
+    .dropWhile { it.isBlank() }.dropLastWhile { it.isBlank() }.joinToString("\n")
