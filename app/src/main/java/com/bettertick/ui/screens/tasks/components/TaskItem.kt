@@ -152,10 +152,8 @@ fun TaskItem(
         // 44dp touch target keeps the parent drag detector from stealing the
         // tap; the visible box is TickTick's 18dp rounded square.
         if (isShift) {
-            // 근무 일정 — no completion checkbox, just the shift badge.
-            Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
-                ShiftBadge(task.shiftKindOn(shiftDay), leave)
-            }
+            // 근무 일정 — no checkbox and no badge, the title starts near the edge.
+            Spacer(Modifier.width(12.dp))
         } else {
             var statusMenu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
             Box(
