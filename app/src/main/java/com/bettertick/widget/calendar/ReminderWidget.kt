@@ -402,7 +402,7 @@ class ReminderWidget : GlanceAppWidget() {
         )
         // Tapping the badge always jumps back to today — that's its whole
         // purpose on Samsung's Reminder widget.
-        val jumpToTodayIntent = selectDateIntent(context, today, LocalWidgetId.current)
+        val jumpToToday = selectDateAction(today)
 
         Row(
             modifier = GlanceModifier.fillMaxWidth(),
@@ -415,14 +415,14 @@ class ReminderWidget : GlanceAppWidget() {
                 modifier = GlanceModifier.defaultWeight(),
                 contentAlignment = Alignment.CenterStart
             ) {
-                AppBadge(today, jumpToTodayIntent, pal)
+                AppBadge(today, jumpToToday, pal)
             }
 
             // Center group — `‹ 4월 ›` with clickable arrows.
             Box(
                 modifier = GlanceModifier
                     .size(32.dp)
-                    .clickable(actionStartActivityWithIntent(selectDateIntent(context, prevWeek, LocalWidgetId.current))),
+                    .clickable(selectDateAction(prevWeek)),
                 contentAlignment = Alignment.Center
             ) {
                 com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_left, pal.text, (16 * fs).dp)
@@ -438,7 +438,7 @@ class ReminderWidget : GlanceAppWidget() {
             Box(
                 modifier = GlanceModifier
                     .size(32.dp)
-                    .clickable(actionStartActivityWithIntent(selectDateIntent(context, nextWeek, LocalWidgetId.current))),
+                    .clickable(selectDateAction(nextWeek)),
                 contentAlignment = Alignment.Center
             ) {
                 com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_chevron_right, pal.text, (16 * fs).dp)
@@ -472,14 +472,14 @@ class ReminderWidget : GlanceAppWidget() {
     }
 
     @androidx.compose.runtime.Composable
-    private fun AppBadge(today: LocalDate, onTapIntent: Intent, pal: WidgetPalette) {
+    private fun AppBadge(today: LocalDate, onTap: androidx.glance.action.Action, pal: WidgetPalette) {
         // Calendar-outline badge that always shows TODAY's day-of-month
         // (unrelated to the selected date). Tapping it jumps the week strip
         // back to today — Samsung Reminder widget parity.
         Box(
             modifier = GlanceModifier
                 .size(30.dp)
-                .clickable(actionStartActivityWithIntent(onTapIntent)),
+                .clickable(onTap),
             contentAlignment = Alignment.Center
         ) {
             com.bettertick.widget.theme.WidgetIcon(com.bettertick.R.drawable.ic_widget_today, pal.text, 26.dp)
@@ -526,7 +526,7 @@ class ReminderWidget : GlanceAppWidget() {
                     modifier = GlanceModifier
                         .defaultWeight()
                         .height(32.dp)
-                        .clickable(actionStartActivityWithIntent(selectDateIntent(context, date, LocalWidgetId.current))),
+                        .clickable(selectDateAction(date)),
                     contentAlignment = Alignment.Center
                 ) {
                     when {
@@ -815,6 +815,12 @@ class ReminderWidget : GlanceAppWidget() {
      * survives. PendingIntent identity is (component, action, data), so
      * each per-date URI gets its own pending intent.
      */
+    /** Date / today / arrow tap → [SelectWidgetDateAction] for this widget. */
+    private fun selectDateAction(date: LocalDate): androidx.glance.action.Action =
+        androidx.glance.appwidget.action.actionRunCallback<SelectWidgetDateAction>(
+            androidx.glance.action.actionParametersOf(SelectWidgetDateAction.DateKey to date.toString())
+        )
+
     private fun selectDateIntent(context: Context, date: LocalDate, widgetId: Int): Intent =
         Intent(context, WidgetActionDispatcher::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION
