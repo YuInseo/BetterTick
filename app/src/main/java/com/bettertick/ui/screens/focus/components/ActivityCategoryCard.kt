@@ -39,22 +39,25 @@ fun ActivityCategoryCard(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(DarkCard)
             .clickable(enabled = !isTimerRunning) { onStartClick() }
             .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Column {
+        Column(Modifier.weight(1f)) {
             Text(
                 text = category.name,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "${todayMinutes}m",
+                text = "오늘 " + if (todayMinutes >= 60) "${todayMinutes / 60}시간 ${todayMinutes % 60}분" else "${todayMinutes}분",
                 style = MaterialTheme.typography.bodySmall,
                 color = TextSecondary
             )
@@ -66,7 +69,7 @@ fun ActivityCategoryCard(
         ) {
             Icon(
                 Icons.Default.PlayArrow,
-                contentDescription = "Start ${category.name}",
+                contentDescription = "${category.name} 집중 시작",
                 tint = if (isTimerRunning) TextSecondary else MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(32.dp)
             )

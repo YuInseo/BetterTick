@@ -274,7 +274,8 @@ fun TasksScreen(
                 title = {
                     Text(
                         text = viewModel.filterTitle,
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                 },
@@ -387,6 +388,17 @@ fun TasksScreen(
                 .weight(1f)
                 .fillMaxWidth()
         ) {
+            if (!archive && (openTasks.isNotEmpty() || completedTasks.isNotEmpty())) {
+                item(key = "list-overview") {
+                    val total = openTasks.size + completedTasks.size
+                    com.bettertick.ui.components.TabOverview(
+                        title = if (openTasks.isEmpty()) "모두 마쳤어요" else "남은 할일 ${openTasks.size}개",
+                        subtitle = "현재 목록 · 완료 ${completedTasks.size}개 / 전체 ${total}개",
+                        progress = completedTasks.size.toFloat() / total.coerceAtLeast(1),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
             (groups + listOfNotNull(completedGroup)).forEach { group ->
                 // 완료됨 starts collapsed, like TickTick.
                 val expanded = groupExpanded[group.key] ?: (group.key != "completed")

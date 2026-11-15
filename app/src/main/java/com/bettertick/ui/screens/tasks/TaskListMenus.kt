@@ -281,7 +281,7 @@ fun EmptyTaskList() {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 120.dp),
+            .padding(horizontal = 24.dp, vertical = 48.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(

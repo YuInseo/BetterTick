@@ -85,7 +85,8 @@ fun FocusScreen(
             title = {
                 Text(
                     text = "포커스",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
             },
@@ -97,7 +98,7 @@ fun FocusScreen(
                     Icon(Icons.Outlined.Settings, contentDescription = "포커스 설정", tint = MaterialTheme.colorScheme.onBackground)
                 }
                 IconButton(onClick = { showAddDialog = true }) {
-                    Icon(Icons.Default.Add, contentDescription = "Add category", tint = MaterialTheme.colorScheme.onBackground)
+                    Icon(Icons.Default.Add, contentDescription = "집중 활동 추가", tint = MaterialTheme.colorScheme.onBackground)
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
@@ -139,24 +140,10 @@ fun FocusScreen(
 
             if (categories.isEmpty()) {
                 item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 48.dp),
-                        horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "집중할 활동을 추가하세요",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = TextSecondary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "우측 상단의 + 버튼을 눌러 시작하세요",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
-                    }
+                    com.bettertick.ui.components.EmptyTabState(
+                        "무엇에 집중할까요?", "공부, 독서, 운동처럼 시간을 기록할 활동을 정해보세요.",
+                        "집중 활동 추가", { showAddDialog = true }
+                    )
                 }
             }
         }
@@ -202,6 +189,7 @@ fun FocusScreen(
             },
             confirmButton = {
                 TextButton(
+                    enabled = categoryName.isNotBlank(),
                     onClick = {
                         if (categoryName.isNotBlank()) {
                             viewModel.addCategory(categoryName.trim())

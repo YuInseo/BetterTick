@@ -46,6 +46,7 @@ import java.time.temporal.ChronoUnit
 @Composable
 fun MoneyScreen(onSettings: () -> Unit) {
     var monthKey by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
+    var salaryExpanded by rememberSaveable { mutableStateOf(false) }
     var editOverride by remember { mutableStateOf(false) }
     // null = closed; true = 수입, false = 지출.
     var adding by remember { mutableStateOf<Boolean?>(null) }
@@ -90,6 +91,30 @@ fun MoneyScreen(onSettings: () -> Unit) {
                 }
             }
 
+            val book = MoneyPrefs.book
+            val salary = if (wp != null) rules.total(month) else 0L
+            val extraIn = book.incomeIn(month)
+            val spent = book.expenseIn(month)
+            val balance = salary + extraIn - spent
+            com.bettertick.ui.components.TabOverview(
+                title = (if (balance < 0) "−" + won(-balance) else won(balance)) + " 남음",
+                subtitle = "${month.monthValue}월 수입 ${won(salary + extraIn)} · 지출 ${won(spent)}"
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                QuickAddButton("+ 지출", PayRed, Modifier.weight(1f)) { adding = false }
+                QuickAddButton("+ 수입", accent, Modifier.weight(1f)) { adding = true }
+            }
+            if (month != YearMonth.now()) {
+                TextButton(onClick = { monthKey = YearMonth.now().toString() }, modifier = Modifier.align(Alignment.End)) {
+                    Text("이번 달로 돌아가기", fontSize = 12.sp)
+                }
+            }
+            if (wp != null && !rules.isEmpty) {
+                TextButton(onClick = { salaryExpanded = !salaryExpanded }) {
+                    Text(if (salaryExpanded) "월급 · 분기 · 연간 상세 접기 ▴" else "월급 · 분기 · 연간 상세 보기 ▾")
+                }
+            }
+            if (salaryExpanded || wp == null || rules.isEmpty) {
             when {
                 wp == null -> SheetCard {
                     Text(
@@ -194,33 +219,11 @@ fun MoneyScreen(onSettings: () -> Unit) {
                 }
             }
 
-            // ── 가계부: 추가 수입·지출, 매달 고정 (용돈 등) ──
-            val book = MoneyPrefs.book
-            val salary = if (wp != null) rules.total(month) else 0L
-            val extraIn = book.incomeIn(month)
-            val spent = book.expenseIn(month)
-            SheetLabel("${month.monthValue}월 돈 흐름")
-            SheetCard {
-                PayRow("월급", if (wp == null || rules.isEmpty) "설정 안 함" else null, salary)
-                PayRow("추가 수입", "용돈·부수입 등", extraIn)
-                PayRow("지출", null, -spent)
-                PayDivider()
-                val left = salary + extraIn - spent
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("남은 돈", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary, modifier = Modifier.weight(1f))
-                    Text(
-                        if (left < 0) "−" + won(-left) else won(left),
-                        fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                        color = if (left < 0) PayRed else accent
-                    )
-                }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickAddButton("+ 지출", PayRed, Modifier.weight(1f)) { adding = false }
-                QuickAddButton("+ 수입", accent, Modifier.weight(1f)) { adding = true }
+            SheetLabel("이번 달 수입")
+            SheetCard {
+                PayRow("월급", if (wp == null || rules.isEmpty) "설정 안 함" else wp.name, salary)
+                PayRow("추가 수입", "용돈·부수입 등", extraIn)
             }
             val byCat = book.expenseByCategory(month)
             if (byCat.isNotEmpty()) {
