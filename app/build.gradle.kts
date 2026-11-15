@@ -30,7 +30,7 @@ android {
         versionCode = System.getenv("CI_VERSION_CODE")?.toIntOrNull() ?: 3
         versionName = System.getenv("CI_VERSION_NAME") ?: "0.1.2"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "com.bettertick.EditorUiTestRunner"
     }
 
     signingConfigs {
@@ -102,6 +102,11 @@ android {
 
 dependencies {
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     // Compose BOM
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)

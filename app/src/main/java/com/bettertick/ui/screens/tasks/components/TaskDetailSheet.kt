@@ -83,6 +83,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -164,7 +165,10 @@ fun TaskDetailSheet(
     // 개별 메모: 반복 할일을 특정 날짜에서 열었을 때 그 날에만 보이는 메모.
     val dayKey = occurrenceDate?.takeIf { !task.repeatRule.isNullOrBlank() }?.toString()
     val blocks = remember(task.id) {
-        androidx.compose.runtime.mutableStateListOf<TaskMemo>().apply { addAll(task.noteBlocks()) }
+        androidx.compose.runtime.mutableStateListOf<TaskMemo>().apply { addAll(task.noteBlocks().map { block ->
+            if (block.attachment.isBlank() && block.kind != NoteBlockKind.DIVIDER)
+                block.copy(text = compactNoteBlockText(block.text)) else block
+        }) }
     }
     var focusBlockId by remember(task.id) { mutableStateOf<String?>(null) }
     var requestAttachment by remember { mutableStateOf(false) }
@@ -201,12 +205,11 @@ fun TaskDetailSheet(
 
     var showDatePicker by remember { mutableStateOf(false) }
     // 반복 > 근무 패턴 반복 — 이 블록 날짜 주변의 근무 입력으로 패턴을 찾아 자동 반복.
-    val shiftViewModel: ShiftRotationViewModel = androidx.hilt.navigation.compose.hiltViewModel()
     var shiftAnchor by remember { mutableStateOf<LocalDate?>(null) }
     var shiftDetection by remember { mutableStateOf<com.bettertick.data.model.ShiftDetection?>(null) }
-    LaunchedEffect(shiftAnchor) {
-        val anchor = shiftAnchor ?: return@LaunchedEffect
-        shiftDetection = shiftViewModel.detect(anchor)
+    shiftAnchor?.let { anchor ->
+        val shiftViewModel: ShiftRotationViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+        LaunchedEffect(anchor) { shiftDetection = shiftViewModel.detect(anchor) }
     }
     var showNotionInput by remember { mutableStateOf(false) }
     var showTagPicker by remember { mutableStateOf(false) }
@@ -267,75 +270,15 @@ fun TaskDetailSheet(
         onDismiss()
     }
 
-    ExpandableTaskDetail(onClose = { commitAndClose() }) {
-        val scrollbarColor = TextSecondary.copy(alpha = 0.45f)
-        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .detailScrollbar(contentScroll, scrollbarColor)
-                .verticalScroll(contentScroll)
-                .padding(bottom = 12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                    .clickable { showDatePicker = true }.padding(vertical = 12.dp)
-            ) {
-                Icon(Icons.Outlined.CalendarToday, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-                Text(formatDueLabel(dueTimestamp, duration, occurrenceDate.takeIf {
-                    !repeatRule.isNullOrBlank() && dueTimestamp == task.dueDate
-                }), color = if (dueTimestamp == null) TextSecondary else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                    modifier = Modifier.weight(1f))
-                if (!repeatRule.isNullOrBlank()) Icon(Icons.Outlined.Repeat, "반복 일정", tint = TextSecondary, modifier = Modifier.size(16.dp))
-                if (reminders.isNotEmpty()) Icon(Icons.Outlined.NotificationsActive, "알림 설정됨", tint = DetailAccent, modifier = Modifier.size(16.dp))
-            }
-            DetailDivider()
-            Spacer(Modifier.height(4.dp))
-            // ── Header: list selector + flag + more ──────────────────────
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                        .clickable { showListPicker = true }
-                        .padding(vertical = 12.dp)
-                ) {
-                    Icon(Icons.Outlined.Folder, null, tint = TextSecondary, modifier = Modifier.size(14.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = shownListName,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 90.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Icon(
-                        Icons.Outlined.ExpandMore,
-                        contentDescription = "리스트 선택",
-                        tint = TextSecondary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                if (!parentTitle.isNullOrBlank()) {
-                    Text(" / ", fontSize = 12.sp, color = TextTertiary)
-                    Text(parentTitle, color = TextSecondary, fontSize = 12.sp,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                } else Spacer(Modifier.weight(1f))
-
+    ExpandableTaskDetail(onClose = { commitAndClose() }, actions = {
                 Box {
                     val flagTint = priorityColor(priority)
-                    IconButton(onClick = { priorityMenuOpen = true }) {
+                    IconButton(onClick = { priorityMenuOpen = true }, modifier = Modifier.size(40.dp)) {
                         Icon(
                             imageVector = if (priority > 0) Icons.Filled.Flag
                                 else Icons.Outlined.Flag,
                             contentDescription = "우선순위",
-                            tint = flagTint
+                            tint = flagTint, modifier = Modifier.size(18.dp)
                         )
                     }
                     DropdownMenu(
@@ -382,11 +325,11 @@ fun TaskDetailSheet(
                     }
                 }
                 Box {
-                    IconButton(onClick = { moreMenuOpen = true }) {
+                    IconButton(onClick = { moreMenuOpen = true }, modifier = Modifier.size(40.dp)) {
                         Icon(
                             Icons.Outlined.MoreHoriz,
                             contentDescription = "더 보기",
-                            tint = TextSecondary
+                            tint = TextSecondary, modifier = Modifier.size(18.dp)
                         )
                     }
                     DropdownMenu(
@@ -452,6 +395,65 @@ fun TaskDetailSheet(
                         }
                     }
                 }
+    }) {
+        val scrollbarColor = TextSecondary.copy(alpha = 0.45f)
+        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .detailScrollbar(contentScroll, scrollbarColor)
+                .verticalScroll(contentScroll)
+                .padding(bottom = 12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                    .clickable { showDatePicker = true }.padding(vertical = 12.dp)
+            ) {
+                Icon(Icons.Outlined.CalendarToday, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+                Text(formatDueLabel(dueTimestamp, duration, occurrenceDate.takeIf {
+                    !repeatRule.isNullOrBlank() && dueTimestamp == task.dueDate
+                }), color = if (dueTimestamp == null) TextSecondary else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f))
+                if (!repeatRule.isNullOrBlank()) Icon(Icons.Outlined.Repeat, "반복 일정", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                if (reminders.isNotEmpty()) Icon(Icons.Outlined.NotificationsActive, "알림 설정됨", tint = DetailAccent, modifier = Modifier.size(16.dp))
+            }
+            // ── Compact list / parent context directly below the date ──────────────────────
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                        .clickable { showListPicker = true }
+                        .padding(vertical = 4.dp)
+                ) {
+                    Icon(Icons.Outlined.Folder, null, tint = TextSecondary, modifier = Modifier.size(12.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = shownListName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 90.dp)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        Icons.Outlined.ExpandMore,
+                        contentDescription = "리스트 선택",
+                        tint = TextSecondary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+
+                if (!parentTitle.isNullOrBlank()) {
+                    Text(" / ", fontSize = 11.sp, color = TextTertiary)
+                    Text(parentTitle, color = TextSecondary, fontSize = 11.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                } else Spacer(Modifier.weight(1f))
+
             }
 
             Spacer(Modifier.height(4.dp))
@@ -802,7 +804,7 @@ private fun BottomToolbar(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().testTag("task-detail-actions")
     ) {
         TextButton(onClick = onTagClick, contentPadding = PaddingValues(horizontal = 8.dp)) {
             Icon(Icons.AutoMirrored.Outlined.Label, null, tint = TextSecondary, modifier = Modifier.size(17.dp))

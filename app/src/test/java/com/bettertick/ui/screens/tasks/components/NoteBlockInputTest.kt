@@ -32,4 +32,13 @@ class NoteBlockInputTest {
         assertEquals("todo", nextNoteBlockKind("todo"))
         assertEquals("text", nextNoteBlockKind("text"))
     }
+    @Test fun samsungStyleCompositionOutsideNewlineCanStillContinueToNextBlock() {
+        assertEquals("흠" to "", splitNoteOnEnter("흠", "흠\n", 2, 0 until 1))
+        assertNull(splitNoteOnEnter("흠", "흠\n", 2, 0 until 2))
+    }
+
+    @Test fun compactingLegacyBlockEdgesKeepsInternalFormatting() {
+        assertEquals("  first\n\nsecond", compactNoteBlockText("\n  first\n\nsecond\n  \n"))
+        assertEquals("", compactNoteBlockText("\n \n"))
+    }
 }
