@@ -25,6 +25,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -116,9 +118,12 @@ internal fun ExpandableTaskDetail(
                 val sheetDrag = remember(heightPx, expandRange) {
                     object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
                         var moved = false
+                        // Only a finger on the sheet moves it — not the scroll that
+                        // brings a focused field into view when the keyboard opens.
+                        var fingerDown = false
                         override fun onPreScroll(available: Offset,
                                                  source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
-                            if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag) return Offset.Zero
+                            if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag || !fingerDown) return Offset.Zero
                             // Sheet not fully up yet (or pulled down): the finger moves the sheet first.
                             if (available.y < 0f && (position.dismissOffset > 0f || (moved && position.expansion < 1f))) {
                                 settleJob?.cancel()
@@ -130,7 +135,7 @@ internal fun ExpandableTaskDetail(
                         }
                         override fun onPostScroll(consumed: Offset, available: Offset,
                                                   source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): Offset {
-                            if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag || available.y <= 0f) return Offset.Zero
+                            if (source != androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag || available.y <= 0f || !fingerDown) return Offset.Zero
                             settleJob?.cancel()
                             position = dragTaskDetail(position, available.y, expandRange)
                             moved = true
@@ -198,7 +203,19 @@ internal fun ExpandableTaskDetail(
                         // Hairline under the pinned bar while the page is scrolled.
                         Box(Modifier.fillMaxWidth().height(1.dp)
                             .alpha(if (titleScrolledAway) expansion else 0f).background(TextTertiary.copy(alpha = 0.18f)))
-                        Box(Modifier.weight(1f).fillMaxWidth().nestedScroll(sheetDrag)) {
+                        Box(Modifier.weight(1f).fillMaxWidth()
+                            .pointerInput(sheetDrag) {
+                                // Watch (never consume) touches so the sheet knows a finger is down.
+                                awaitEachGesture {
+                                    awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                    sheetDrag.fingerDown = true
+                                    do {
+                                        val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                                    } while (event.changes.any { it.pressed })
+                                    sheetDrag.fingerDown = false
+                                }
+                            }
+                            .nestedScroll(sheetDrag)) {
                             CompositionLocalProvider(LocalDetailExpansion provides expansion) { content() }
                         }
                     }
