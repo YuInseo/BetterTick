@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -149,7 +150,7 @@ private val DetailAccent: Color get() = com.bettertick.ui.theme.ThemeState.accen
  * [onUpdateTask] when the sheet closes if anything has changed, so we
  * don't write on every keystroke.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TaskDetailSheet(
     task: Task,
@@ -664,7 +665,14 @@ fun TaskDetailSheet(
             val navInsets = WindowInsets.navigationBars
             val imePx = (imeInsets.getBottom(density) - navInsets.getBottom(density)).coerceAtLeast(0)
             var keyboardPx by remember { mutableIntStateOf(0) }
-            if (imePx > keyboardPx) keyboardPx = imePx
+            // The height the keyboard is heading to (known at the start of its
+            // animation). Remember that — not the largest height ever seen —
+            // so a keyboard that comes back shorter (no emoji row, …) doesn't
+            // leave a strip of panel between the bar and the keys.
+            val imeTargetPx = (WindowInsets.imeAnimationTarget.getBottom(density) -
+                navInsets.getBottom(density)).coerceAtLeast(0)
+            if (imeTargetPx > 0 && imeTargetPx != keyboardPx) keyboardPx = imeTargetPx
+            else if (keyboardPx == 0 && imePx > 0) keyboardPx = imePx
             val panelPx = if (keyboardPx > 0) keyboardPx else with(density) { 280.dp.roundToPx() }
             // Panel last shown, kept on screen while the keyboard comes back over it.
             var lastPanel by remember { mutableStateOf(NotePanel.NONE) }
@@ -672,9 +680,9 @@ fun TaskDetailSheet(
             if (notePanel != NotePanel.NONE) lastPanel = notePanel
             LaunchedEffect(restoring) {
                 if (restoring) {
-                    val target = panelPx - 2
+                    // keyboardPx is state: if the keyboard turns out shorter, the target follows.
                     kotlinx.coroutines.withTimeoutOrNull(700) {
-                        snapshotFlow { imeInsets.getBottom(density) - navInsets.getBottom(density) }.first { it >= target }
+                        snapshotFlow { imeInsets.getBottom(density) - navInsets.getBottom(density) >= keyboardPx - 2 }.first { it }
                     }
                     restoring = false
                 }
