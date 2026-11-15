@@ -82,6 +82,13 @@ internal fun ExpandableTaskDetail(
             onDispose { window?.setDimAmount(oldDim); window?.setSoftInputMode(oldInputMode) }
         }
         val expansion = position.expansion.coerceIn(0f, 1f)
+        // Pulling the sheet down (to close it) puts the keyboard away right away.
+        val keyboardCtl = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+        val pullingDown = position.dismissOffset > with(density) { 24.dp.toPx() }
+        LaunchedEffect(pullingDown) {
+            if (pullingDown) { keyboardCtl?.hide(); focusManager.clearFocus() }
+        }
         Box(Modifier.fillMaxSize()) {
             Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.42f * (1f - expansion)))
                 .clickable(enabled = expansion < 0.99f) { latestClose() })
