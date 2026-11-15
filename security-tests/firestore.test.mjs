@@ -146,3 +146,19 @@ for (const kind of ['locationRecords', 'favoritePlaces']) {
     await assertSucceeds(deleteDoc(ref));
   });
 }
+
+test('ordered note blocks remain owner-private within the existing memo schema', async () => {
+  const ref = doc(db('alice'), 'users/alice/tasks/blocks');
+  await assertSucceeds(setDoc(ref, task({
+    notes: '# Plan\n- [x] Done',
+    attachments: ['image|content://private/photo|photo.jpg'],
+    memos: [
+      { id: 'heading', kind: 'heading', text: 'Plan', day: '', checked: false, attachment: '' },
+      { id: 'todo', kind: 'todo', text: 'Done', day: '', checked: true, attachment: '' },
+      { id: 'photo', kind: 'image', text: 'photo.jpg', day: '2026-11-15', checked: false, attachment: 'image|content://private/photo|photo.jpg' }
+    ]
+  })));
+  await assertSucceeds(getDoc(ref));
+  await assertFails(getDoc(doc(db('bob'), 'users/alice/tasks/blocks')));
+  await assertFails(updateDoc(doc(db('bob'), 'users/alice/tasks/blocks'), { memos: [] }));
+});

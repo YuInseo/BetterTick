@@ -103,6 +103,13 @@ import com.bettertick.data.model.shiftKindOn
 import com.bettertick.data.model.withDayShift
 import com.bettertick.data.model.shiftDay
 import com.bettertick.data.model.withLeaveToggled
+import com.bettertick.data.model.NoteBlockKind
+import com.bettertick.data.model.TaskMemo
+import com.bettertick.data.model.noteBlocks
+import com.bettertick.data.model.savedNoteBlocks
+import com.bettertick.data.model.commonNoteText
+import com.bettertick.data.model.noteAttachments
+import com.bettertick.data.model.attachmentNoteBlock
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
 import com.bettertick.ui.components.MarkdownInlineTransformation
@@ -126,7 +133,7 @@ private val DetailAccent: Color get() = com.bettertick.ui.theme.ThemeState.accen
 /**
  * Bottom-sheet view of a single task. Shows the list the task belongs to,
  * its date/time line (tappable — reuses [TaskDatePickerSheet]), a big
- * title, a Notion link card, and a markdown-editable notes area.
+ * title, schedule properties and an ordered native block document.
  *
  * Edits are local until the sheet is dismissed; we fire a single
  * [onUpdateTask] when the sheet closes if anything has changed, so we
@@ -156,40 +163,28 @@ fun TaskDetailSheet(
 ) {
     // Local edit state — keyed by task.id so re-opening a different task
     // pulls in fresh values instead of leaking from the previous one.
+    val context = LocalContext.current
     var title by remember(task.id) { mutableStateOf(task.title) }
-    var notes by remember(task.id) { mutableStateOf(task.notes) }
     // 개별 메모: 반복 할일을 특정 날짜에서 열었을 때 그 날에만 보이는 메모.
     val dayKey = occurrenceDate?.takeIf { !task.repeatRule.isNullOrBlank() }?.toString()
-    // 메모장: 기존 날짜별 메모(dayNotes)도 메모로 옮겨 담는다.
-    val memos = remember(task.id) {
-        androidx.compose.runtime.mutableStateListOf<com.bettertick.data.model.TaskMemo>().apply {
-            addAll(task.memos)
-            task.dayNotes.forEach { (d, t) -> add(com.bettertick.data.model.TaskMemo(text = t, day = d)) }
-        }
+    val blocks = remember(task.id) {
+        androidx.compose.runtime.mutableStateListOf<TaskMemo>().apply { addAll(task.noteBlocks()) }
     }
-    // 근무 할일: 병가 / 지휴 per day.
+    var focusBlockId by remember(task.id) { mutableStateOf<String?>(null) }
+    var requestAttachment by remember { mutableStateOf(false) }
+    var attachmentDay by remember(task.id, dayKey) { mutableStateOf(dayKey.orEmpty()) }
+    fun addBlock(kind: String, day: String) {
+        if (blocks.size >= 1000) {
+            android.widget.Toast.makeText(context, "블록은 최대 1,000개까지 추가할 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val block = TaskMemo(kind = kind, day = day)
+        blocks.add(block)
+        focusBlockId = block.id
+    }
+    // 근무 할일: leave and per-day shift edits remain task properties.
     var leaves by remember(task.id) { mutableStateOf(task.leaves) }
-    // 근무 할일: 그 날만 다른 근무로 (주 / 야 / 비 / 휴).
     var dayShifts by remember(task.id) { mutableStateOf(task.dayShifts) }
-    val attachments = remember(task.id) {
-        androidx.compose.runtime.mutableStateListOf<String>().apply { addAll(task.attachments) }
-    }
-    // Inline checklist/bullet editor state. When listMode != None, `items`
-    // is the source of truth for the notes body; we serialize back into
-    // `notes` on every mutation so commitAndClose sees the latest.
-    var listMode by remember(task.id) {
-        mutableStateOf(inferListMode(task.notes))
-    }
-    var descriptionOpen by remember(task.id) { mutableStateOf(task.notes.isNotBlank()) }
-    var focusDescription by remember(task.id) { mutableStateOf(false) }
-    val items = remember(task.id) {
-        androidx.compose.runtime.mutableStateListOf<ChecklistItem>().apply {
-            addAll(parseChecklistItems(task.notes))
-        }
-    }
-    fun syncNotesFromItems() {
-        notes = serializeChecklist(items, listMode)
-    }
     var notionUrl by remember(task.id) { mutableStateOf(task.notionUrl) }
     var dueTimestamp by remember(task.id) { mutableStateOf(task.dueDate) }
     var duration by remember(task.id) { mutableStateOf(task.durationMinutes) }
@@ -222,11 +217,11 @@ fun TaskDetailSheet(
     var priorityMenuOpen by remember { mutableStateOf(false) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val context = LocalContext.current
 
     fun commitAndClose() {
-        val attachmentsList = attachments.toList()
-        val newMemos = memos.filter { it.text.isNotBlank() }
+        val newMemos = blocks.toList().savedNoteBlocks()
+        val notes = newMemos.commonNoteText()
+        val attachmentsList = newMemos.noteAttachments()
         val changed =
             newMemos != task.memos || task.dayNotes.isNotEmpty() ||
             title != task.title ||
@@ -419,7 +414,9 @@ fun TaskDetailSheet(
                         if (onDuplicate != null) {
                             DetailMenuItem("복제", Icons.Outlined.ContentCopy) {
                                 moreMenuOpen = false
-                                onDuplicate(task.copy(title = title, notes = notes, dueDate = dueTimestamp,
+                                val document = blocks.toList().savedNoteBlocks()
+                                onDuplicate(task.copy(title = title, notes = document.commonNoteText(),
+                                    memos = document, dayNotes = emptyMap(), attachments = document.noteAttachments(), dueDate = dueTimestamp,
                                     durationMinutes = duration, repeatRule = repeatRule, repeatEnd = repeatEnd,
                                     tagIds = tagIds, priority = priority, reminders = reminders, listId = listId))
                                 android.widget.Toast.makeText(context, "할일을 복제했습니다", android.widget.Toast.LENGTH_SHORT).show()
@@ -430,9 +427,9 @@ fun TaskDetailSheet(
                         }
                         DetailMenuItem("공유", Icons.Outlined.Share) {
                             moreMenuOpen = false
-                            com.bettertick.ui.screens.tasks.shareText(
-                                context, if (notes.isBlank()) title else "$title\n\n$notes"
-                            )
+                            val notes = blocks.filter { it.day.isBlank() || dayKey == null || it.day == dayKey }
+                                .map { it.copy(day = "") }.commonNoteText()
+                            com.bettertick.ui.screens.tasks.shareText(context, if (notes.isBlank()) title else "$title\n\n$notes")
                         }
                         // 하위 할일: 상위에서 분리 (예전 안내 칸 대신 메뉴에).
                         if (onUnnest != null) {
@@ -530,44 +527,9 @@ fun TaskDetailSheet(
                 )
             }
 
-            // ── Notes body ───────────────────────────────────────────────
-            // Plain markdown when listMode is None, otherwise an interactive
-            // checklist / bullet editor. The list-button in the bottom bar
-            // cycles between the two modes and keeps `notes` in sync.
-            if (descriptionOpen || notes.isNotBlank() || listMode != ListMode.None) {
-                Spacer(Modifier.height(12.dp))
-                NoteSectionLabel("설명")
-                if (listMode == ListMode.None) {
-                    MarkdownNotesEditor(value = notes, onValueChange = { notes = it },
-                        modifier = Modifier.fillMaxWidth(), minHeight = 32.dp, requestFocus = focusDescription)
-                } else {
-                    ChecklistEditor(items = items, mode = listMode,
-                        onItemsMutated = { syncNotesFromItems() },
-                        onExitListMode = { syncNotesFromItems(); listMode = ListMode.None })
-                }
-                Spacer(Modifier.height(12.dp))
-            } else {
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { descriptionOpen = true; focusDescription = true },
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(Icons.AutoMirrored.Outlined.Notes, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-                    Text("설명 추가", color = TextSecondary, fontSize = 13.sp)
-                }
-            }
-            DetailDivider()
-            MemoSection(
-                memos = memos,
-                dayKey = dayKey,
-                dayLabel = occurrenceDate?.let { "${it.monthValue}월 ${it.dayOfMonth}일" }
-            )
-
-            if (attachments.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                AttachmentGrid(
-                    entries = attachments,
-                    onRemove = { idx -> if (idx in attachments.indices) attachments.removeAt(idx) }
-                )
-            }
-
+            TaskNoteEditor(blocks = blocks, day = dayKey, focusId = focusBlockId,
+                onAdd = ::addBlock,
+                onAttach = { day -> attachmentDay = day; requestAttachment = true })
         }
             DetailDivider()
             Spacer(Modifier.height(4.dp))
@@ -576,31 +538,15 @@ fun TaskDetailSheet(
             BottomToolbar(
                 onTagClick = { showTagPicker = true },
                 onDone = { commitAndClose() },
-                onListClick = {
-                    descriptionOpen = true
-                    val next = when (listMode) {
-                        ListMode.None -> ListMode.Checklist
-                        ListMode.Checklist -> ListMode.Bullet
-                        ListMode.Bullet -> ListMode.None
-                    }
-                    if (listMode == ListMode.None && next != ListMode.None) {
-                        // Entering list mode from plain text — parse notes
-                        // into items so existing content carries over.
-                        items.clear()
-                        items.addAll(parseChecklistItems(notes))
-                        if (items.isEmpty()) {
-                            items.add(ChecklistItem(newItemId(), "", false))
-                        }
-                    }
-                    listMode = next
-                    if (next == ListMode.None) {
-                        syncNotesFromItems()
-                    } else {
-                        syncNotesFromItems()
-                    }
-                },
+                onListClick = { addBlock(NoteBlockKind.TODO, dayKey.orEmpty()) },
+                requestAttachment = requestAttachment,
+                onAttachmentRequestHandled = { requestAttachment = false },
                 onAttachmentPicked = { entry ->
-                    attachments.add(entry)
+                    if (blocks.size < 1000 && (blocks.noteAttachments().size < 100 || entry in blocks.noteAttachments())) {
+                        val block = attachmentNoteBlock(entry).copy(day = attachmentDay)
+                        blocks.add(block)
+                        focusBlockId = block.id
+                    } else android.widget.Toast.makeText(context, "첨부파일 또는 블록 개수 한도에 도달했어요", android.widget.Toast.LENGTH_SHORT).show()
                 }
             )
 
@@ -797,126 +743,6 @@ private fun NotionCard(
     }
 }
 
-// ── Notes editor ─────────────────────────────────────────────────────────
-
-/**
- * 메모장: 메모 카드 목록 + "+ 메모" 버튼. 반복 할일을 날짜에서 열면 버튼이
- * "이 날 메모"와 "공통 메모" 둘로 나뉜다. 다른 날짜의 메모는 숨겨 두되 지우지 않는다.
- */
-@Composable
-private fun MemoSection(
-    memos: androidx.compose.runtime.snapshots.SnapshotStateList<com.bettertick.data.model.TaskMemo>,
-    dayKey: String?,
-    dayLabel: String?
-) {
-    val shown = memos.filter { it.day.isBlank() || dayKey == null || it.day == dayKey }
-    val hiddenCount = memos.size - shown.size
-    var addMenu by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Outlined.Notes, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(10.dp))
-            Text("메모", fontSize = 13.sp, color = TextSecondary)
-            if (shown.isNotEmpty()) Text("  ${shown.size}", fontSize = 12.sp, color = TextTertiary)
-            Spacer(Modifier.weight(1f))
-            Box {
-                TextButton(onClick = {
-                    if (dayKey == null) memos.add(com.bettertick.data.model.TaskMemo()) else addMenu = true
-                }) {
-                    Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("추가", fontSize = 12.sp)
-                }
-                DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
-                    DropdownMenuItem(text = { Text("${dayLabel ?: "이 날"} 메모") }, onClick = {
-                        memos.add(com.bettertick.data.model.TaskMemo(day = dayKey.orEmpty())); addMenu = false
-                    })
-                    DropdownMenuItem(text = { Text("공통 메모") }, onClick = {
-                        memos.add(com.bettertick.data.model.TaskMemo()); addMenu = false
-                    })
-                }
-            }
-        }
-        shown.forEach { memo ->
-            val idx = memos.indexOfFirst { it.id == memo.id }
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                .background(TextTertiary.copy(alpha = 0.08f)).padding(start = 14.dp, end = 8.dp, top = 4.dp, bottom = 14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(if (memo.day.isBlank()) "공통 메모" else (dayLabel?.takeIf { memo.day == dayKey } ?: memo.day),
-                        fontSize = 11.sp, fontWeight = FontWeight.Medium,
-                        color = if (memo.day.isBlank()) TextSecondary else DetailAccent,
-                        modifier = Modifier.weight(1f))
-                    IconButton(onClick = { if (idx >= 0) memos.removeAt(idx) }, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Default.Close, "메모 삭제", tint = TextTertiary, modifier = Modifier.size(16.dp))
-                    }
-                }
-                Box {
-                    if (memo.text.isEmpty()) Text("메모를 입력하세요", fontSize = 14.sp, color = TextTertiary)
-                    BasicTextField(value = memo.text,
-                        onValueChange = { v -> if (idx >= 0) memos[idx] = memo.copy(text = v) },
-                        textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp, lineHeight = 22.sp),
-                        cursorBrush = SolidColor(DetailAccent),
-                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp, max = 160.dp).padding(end = 6.dp))
-                }
-            }
-        }
-        if (hiddenCount > 0) Text("다른 날짜의 메모 ${hiddenCount}개", fontSize = 11.sp, color = TextTertiary)
-    }
-}
-
-@Composable
-private fun NoteSectionLabel(text: String) {
-    Text(
-        text = text,
-        fontSize = 12.sp,
-        color = TextTertiary,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(bottom = 4.dp)
-    )
-}
-
-@Composable
-private fun MarkdownNotesEditor(
-    value: String,
-    onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    placeholder: String = "설명을 추가하세요",
-    minHeight: androidx.compose.ui.unit.Dp = 160.dp,
-    requestFocus: Boolean = false
-) {
-    val noteFocus = remember { androidx.compose.ui.focus.FocusRequester() }
-    LaunchedEffect(requestFocus) { if (requestFocus) noteFocus.requestFocus() }
-    val transformation = remember { MarkdownInlineTransformation() }
-
-    // TickTick style: no box or label — the notes read as a continuation of
-    // the title, with a faint "설명" placeholder. The field fills the empty
-    // area so tapping anywhere below the title starts typing.
-    Box(modifier = modifier) {
-        if (value.isEmpty()) {
-            Text(
-                text = placeholder,
-                fontSize = 14.sp,
-                color = TextTertiary
-            )
-        }
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            textStyle = TextStyle(
-                color = TextPrimary,
-                fontSize = 14.sp,
-                lineHeight = 22.sp
-            ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            visualTransformation = transformation,
-            modifier = Modifier
-                .focusRequester(noteFocus)
-                .fillMaxWidth()
-                .heightIn(min = minHeight)
-        )
-    }
-}
-
 // ── Bottom toolbar ───────────────────────────────────────────────────────
 
 @Composable
@@ -924,9 +750,14 @@ private fun BottomToolbar(
     onTagClick: () -> Unit,
     onListClick: () -> Unit,
     onDone: () -> Unit,
+    requestAttachment: Boolean = false,
+    onAttachmentRequestHandled: () -> Unit = {},
     onAttachmentPicked: (entry: String) -> Unit
 ) {
     var attachMenuOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(requestAttachment) {
+        if (requestAttachment) { attachMenuOpen = true; onAttachmentRequestHandled() }
+    }
     val context = LocalContext.current
 
     // Gallery picker — PickVisualMedia grants a persistable read permission
@@ -961,7 +792,7 @@ private fun BottomToolbar(
         contract = androidx.activity.result.contract.ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
-            val savedUri = saveBitmapToCache(context, bitmap)
+            val savedUri = saveCapturedBitmap(context, bitmap)
             if (savedUri != null) {
                 onAttachmentPicked("image|$savedUri|사진 ${bitmap.width}×${bitmap.height}")
             }
@@ -1119,320 +950,17 @@ private fun tryPersistRead(context: android.content.Context, uri: Uri) {
 // TakePicturePreview returns a tiny Bitmap only. Persist it to the app's
 // cache dir so we get a stable file:// URI (no Firebase, no FileProvider
 // needed for in-app Coil display).
-private fun saveBitmapToCache(
+private fun saveCapturedBitmap(
     context: android.content.Context,
     bitmap: android.graphics.Bitmap
 ): Uri? = runCatching {
-    val dir = java.io.File(context.cacheDir, "attachments").apply { mkdirs() }
+    val dir = java.io.File(context.filesDir, "attachments").apply { mkdirs() }
     val file = java.io.File(dir, "photo_${System.currentTimeMillis()}.jpg")
     java.io.FileOutputStream(file).use { out ->
         bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
     }
     Uri.fromFile(file)
 }.getOrNull()
-
-// ── Attachment grid ──────────────────────────────────────────────────────
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun AttachmentGrid(
-    entries: List<String>,
-    onRemove: (index: Int) -> Unit
-) {
-    val context = LocalContext.current
-    Text(
-        text = "첨부",
-        fontSize = 12.sp,
-        color = TextTertiary,
-        modifier = Modifier.padding(bottom = 6.dp)
-    )
-    FlowRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        entries.forEachIndexed { idx, entry ->
-            val parts = entry.split('|', limit = 3)
-            val kind = parts.getOrNull(0) ?: "file"
-            val uriStr = parts.getOrNull(1).orEmpty()
-            val name = parts.getOrNull(2).orEmpty()
-            val uri = runCatching { Uri.parse(uriStr) }.getOrNull()
-
-            Box(
-                modifier = Modifier
-                    .size(width = 110.dp, height = 110.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(DarkSurfaceVariant)
-                    .clickable {
-                        if (uri != null) {
-                            runCatching {
-                                val view = Intent(Intent.ACTION_VIEW, uri).apply {
-                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                }
-                                context.startActivity(view)
-                            }
-                        }
-                    }
-            ) {
-                if (kind == "image" && uri != null) {
-                    coil.compose.AsyncImage(
-                        model = uri,
-                        contentDescription = name,
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(8.dp),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = if (kind == "audio") Icons.Outlined.Mic else Icons.Outlined.Folder,
-                            contentDescription = null,
-                            tint = TextSecondary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = name.ifBlank { "파일" },
-                            color = TextPrimary,
-                            fontSize = 11.sp,
-                            maxLines = 2,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                // Remove button
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .size(22.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xCC000000))
-                        .clickable { onRemove(idx) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = "삭제",
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ── Checklist editor ─────────────────────────────────────────────────────
-
-enum class ListMode { None, Checklist, Bullet }
-
-data class ChecklistItem(val id: Long, val text: String, val done: Boolean)
-
-private var checklistIdCounter = 0L
-private fun newItemId(): Long {
-    checklistIdCounter += 1
-    return checklistIdCounter
-}
-
-private fun inferListMode(notes: String): ListMode {
-    val lines = notes.split("\n").map { it.trimStart() }
-    return when {
-        lines.any { it.startsWith("- [ ] ") || it.startsWith("- [x] ") || it.startsWith("- [X] ") } -> ListMode.Checklist
-        lines.any { it.startsWith("- ") } -> ListMode.Bullet
-        else -> ListMode.None
-    }
-}
-
-private fun parseChecklistItems(notes: String): List<ChecklistItem> {
-    if (notes.isBlank()) return emptyList()
-    return notes.split("\n").mapNotNull { raw ->
-        val line = raw.trimStart()
-        when {
-            line.startsWith("- [ ] ") -> ChecklistItem(newItemId(), line.removePrefix("- [ ] "), false)
-            line.startsWith("- [x] ") || line.startsWith("- [X] ") ->
-                ChecklistItem(newItemId(), line.replaceFirst(Regex("""- \[[xX]\] """), ""), true)
-            line.startsWith("- ") -> ChecklistItem(newItemId(), line.removePrefix("- "), false)
-            line.isBlank() -> null
-            else -> ChecklistItem(newItemId(), line, false)
-        }
-    }
-}
-
-private fun serializeChecklist(items: List<ChecklistItem>, mode: ListMode): String {
-    return items.joinToString("\n") { item ->
-        when (mode) {
-            ListMode.Checklist -> if (item.done) "- [x] ${item.text}" else "- [ ] ${item.text}"
-            ListMode.Bullet -> "- ${item.text}"
-            ListMode.None -> item.text
-        }
-    }
-}
-
-@Composable
-private fun ChecklistEditor(
-    items: androidx.compose.runtime.snapshots.SnapshotStateList<ChecklistItem>,
-    mode: ListMode,
-    onItemsMutated: () -> Unit,
-    onExitListMode: () -> Unit
-) {
-    // Row id that should grab focus on its next composition. Set by the
-    // Enter-key handler when a new row is inserted so the cursor lands on
-    // the fresh row instead of staying on the previous one.
-    var pendingFocusId by remember { mutableStateOf<Long?>(null) }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        items.forEachIndexed { idx, item ->
-            androidx.compose.runtime.key(item.id) {
-                ChecklistRow(
-                    item = item,
-                    mode = mode,
-                    isLast = idx == items.lastIndex,
-                    requestFocus = pendingFocusId == item.id,
-                    onFocusConsumed = { pendingFocusId = null },
-                    onTextChange = { newText ->
-                        items[idx] = item.copy(text = newText)
-                        onItemsMutated()
-                    },
-                    onToggleDone = {
-                        items[idx] = item.copy(done = !item.done)
-                        onItemsMutated()
-                    },
-                    onEnter = {
-                        val next = ChecklistItem(newItemId(), "", false)
-                        items.add(idx + 1, next)
-                        pendingFocusId = next.id
-                        onItemsMutated()
-                    },
-                    onDelete = {
-                        if (items.size <= 1 && item.text.isBlank()) {
-                            onExitListMode()
-                        } else {
-                            items.removeAt(idx)
-                            onItemsMutated()
-                        }
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun ChecklistRow(
-    item: ChecklistItem,
-    mode: ListMode,
-    isLast: Boolean,
-    requestFocus: Boolean,
-    onFocusConsumed: () -> Unit,
-    onTextChange: (String) -> Unit,
-    onToggleDone: () -> Unit,
-    onEnter: () -> Unit,
-    onDelete: () -> Unit
-) {
-    val focusRequester = remember { androidx.compose.ui.focus.FocusRequester() }
-    androidx.compose.runtime.LaunchedEffect(requestFocus) {
-        if (requestFocus) {
-            runCatching { focusRequester.requestFocus() }
-            onFocusConsumed()
-        }
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        // Leading marker — checkbox for Checklist, dot for Bullet.
-        if (mode == ListMode.Checklist) {
-            val shape = RoundedCornerShape(6.dp)
-            Box(
-                modifier = Modifier
-                    .size(22.dp)
-                    .clip(shape)
-                    .then(
-                        if (item.done) Modifier.background(TextTertiary)
-                        else Modifier.border(2.dp, TextSecondary, shape)
-                    )
-                    .clickable { onToggleDone() },
-                contentAlignment = Alignment.Center
-            ) {
-                if (item.done) {
-                    Icon(
-                        Icons.Filled.Check,
-                        contentDescription = "완료",
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(22.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(TextSecondary)
-                )
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        Box(modifier = Modifier.weight(1f)) {
-            if (item.text.isEmpty() && isLast) {
-                Text(
-                    text = "\"엔터\"를 눌러 할일 생성",
-                    color = TextTertiary,
-                    fontSize = 15.sp
-                )
-            }
-            BasicTextField(
-                value = item.text,
-                onValueChange = onTextChange,
-                textStyle = TextStyle(
-                    color = if (item.done) TextSecondary else TextPrimary,
-                    fontSize = 15.sp,
-                    textDecoration = if (item.done) TextDecoration.LineThrough else TextDecoration.None
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
-                    onNext = { onEnter() },
-                    onDone = { onEnter() }
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .focusRequester(focusRequester)
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        IconButton(onClick = onDelete) {
-            Icon(
-                Icons.Filled.Close,
-                contentDescription = "삭제",
-                tint = if (isLast && item.text.isEmpty()) OverdueRed else TextSecondary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
-    }
-    // Hairline divider under each row to match the screenshot's underlined
-    // field look.
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(1.dp)
-            .background(TextTertiary.copy(alpha = 0.25f))
-    )
-}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
