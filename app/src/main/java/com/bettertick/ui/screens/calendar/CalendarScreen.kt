@@ -4,7 +4,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import com.bettertick.ui.theme.DarkSurface
 import com.bettertick.ui.theme.TextTertiary
 import com.bettertick.ui.theme.ThemeState
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -12,7 +11,12 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.animation.togetherWith
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -516,9 +520,25 @@ fun CalendarScreen(
                 )
             }
 
-            CalendarViewMode.MONTH -> Crossfade(
+            // Week strip + day list ↔ whole month: the month unrolls downward from the
+            // week row while the list slides away (and back), instead of a crossfade.
+            CalendarViewMode.MONTH -> androidx.compose.animation.AnimatedContent(
                 targetState = date,
-                animationSpec = tween(durationMillis = 280),
+                contentKey = { it == null },
+                transitionSpec = {
+                    val toMonth = targetState == null
+                    val enter = if (toMonth)
+                        androidx.compose.animation.fadeIn(tween(200)) +
+                            androidx.compose.animation.expandVertically(tween(320), expandFrom = Alignment.Top)
+                    else androidx.compose.animation.fadeIn(tween(220, delayMillis = 60)) +
+                        androidx.compose.animation.slideInVertically(tween(320)) { it / 4 }
+                    val exit = if (toMonth)
+                        androidx.compose.animation.fadeOut(tween(160)) +
+                            androidx.compose.animation.slideOutVertically(tween(320)) { it / 4 }
+                    else androidx.compose.animation.fadeOut(tween(200)) +
+                        androidx.compose.animation.shrinkVertically(tween(320), shrinkTowards = Alignment.Top)
+                    (enter togetherWith exit).using(androidx.compose.animation.SizeTransform(clip = true))
+                },
                 label = "calendar_month",
                 modifier = Modifier.weight(1f).fillMaxWidth()
             ) { currentDate ->
@@ -584,6 +604,68 @@ fun CalendarScreen(
                                 onExpandMonth = { viewModel.clearSelection() },
                                 onSwipeWeek = { dir -> viewModel.setSelectedDate(currentDate.plusWeeks(dir.toLong())) }
                             )
+                            // 아래로 당기면 월 달력으로: the list follows the finger, and a
+                            // long enough pull opens the month (also from an empty day).
+                            val pullScope = androidx.compose.runtime.rememberCoroutineScope()
+                            var pull by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+                            val pullThreshold = with(density) { 72.dp.toPx() }
+                            val maxPull = with(density) { 160.dp.toPx() }
+                            val releasePull: () -> Unit = {
+                                if (pull > pullThreshold) viewModel.clearSelection()
+                                val from = pull
+                                pullScope.launch {
+                                    androidx.compose.animation.core.animate(from, 0f, animationSpec = tween(220)) { v, _ -> pull = v }
+                                }
+                            }
+                            val latestRelease by androidx.compose.runtime.rememberUpdatedState(releasePull)
+                            val pullConnection = remember {
+                                object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                                    override fun onPreScroll(available: androidx.compose.ui.geometry.Offset,
+                                                             source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                                        // While pulled, scrolling back up first undoes the pull.
+                                        if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag && available.y < 0f && pull > 0f) {
+                                            val used = maxOf(available.y, -pull)
+                                            pull += used
+                                            return androidx.compose.ui.geometry.Offset(0f, used)
+                                        }
+                                        return androidx.compose.ui.geometry.Offset.Zero
+                                    }
+                                    override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset,
+                                                              source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
+                                        // The list is at its top and the finger keeps going down.
+                                        if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag && available.y > 0f) {
+                                            pull = (pull + available.y * 0.5f).coerceAtMost(maxPull)
+                                            return androidx.compose.ui.geometry.Offset(0f, available.y)
+                                        }
+                                        return androidx.compose.ui.geometry.Offset.Zero
+                                    }
+                                    override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                                        if (pull > 0f) { latestRelease(); return available }
+                                        return androidx.compose.ui.unit.Velocity.Zero
+                                    }
+                                }
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .nestedScroll(pullConnection)
+                                    // A day whose list doesn't scroll (empty, short) still pulls.
+                                    .pointerInput(Unit) {
+                                        detectVerticalDragGestures(
+                                            onDragEnd = { latestRelease() },
+                                            onDragCancel = { latestRelease() },
+                                            onVerticalDrag = { change, delta ->
+                                                if (delta > 0f || pull > 0f) {
+                                                    pull = (pull + delta * 0.5f).coerceIn(0f, maxPull)
+                                                    change.consume()
+                                                }
+                                            }
+                                        )
+                                    }
+                                    .offset { IntOffset(0, pull.roundToInt()) }
+                                    .graphicsLayer { alpha = 1f - (pull / maxPull) * 0.35f }
+                            ) {
                             SelectedDatePanel(
                                 tasks = lookup.tasksOn(currentDate),
                                 selectedDate = currentDate,
@@ -639,10 +721,10 @@ fun CalendarScreen(
                                     activeDrag = null
                                 },
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
+                                    .fillMaxSize()
                                     .padding(vertical = 6.dp)
                             )
+                            }
                         }
 
                         pendingRecurringMove?.let { (task, source, target) ->
@@ -841,14 +923,16 @@ private fun DragAwareWeekStrip(
     val selectedWeek = week.take(7)
     val selectedWeekList = remember(selectedWeek) { listOf(selectedWeek) }
     val latestSwipeWeek by androidx.compose.runtime.rememberUpdatedState(onSwipeWeek)
+    // Pager-like swipe: the previous / next week sit right beside this one and
+    // slide in with the finger, then the selection moves when it settles.
     var swipeX by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    var swiping by remember { mutableStateOf(false) }
-    val shownX by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (swiping) swipeX else 0f,
-        animationSpec = if (swiping) androidx.compose.animation.core.snap()
-        else androidx.compose.animation.core.spring(),
-        label = "weekSwipe"
-    )
+    var stripWidth by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    val swipeScope = androidx.compose.runtime.rememberCoroutineScope()
+    var settleJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // The new week arrived: it is now the one in the middle.
+    androidx.compose.runtime.LaunchedEffect(selectedWeek.firstOrNull()) { swipeX = 0f }
+    val prevWeek = remember(selectedWeek) { selectedWeek.map { it.minusWeeks(1) } }
+    val nextWeek = remember(selectedWeek) { selectedWeek.map { it.plusWeeks(1) } }
 
     Box(
         modifier = Modifier
@@ -867,19 +951,39 @@ private fun DragAwareWeekStrip(
             // 좌우로 밀어서 지난주 / 다음주.
             .pointerInput(Unit) {
                 val threshold = 56.dp.toPx()
+                val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                 detectHorizontalDragGestures(
-                    onDragStart = { swipeX = 0f; swiping = true },
+                    onDragStart = { settleJob?.cancel(); tracker.resetTracking() },
                     onDragEnd = {
-                        when {
-                            swipeX < -threshold -> latestSwipeWeek(1)
-                            swipeX > threshold -> latestSwipeWeek(-1)
+                        val width = stripWidth.toFloat().coerceAtLeast(1f)
+                        val velocity = tracker.calculateVelocity().x
+                        val dir = when {
+                            swipeX < -threshold || velocity < -1200f -> 1
+                            swipeX > threshold || velocity > 1200f -> -1
+                            else -> 0
                         }
-                        swiping = false
-                        swipeX = 0f
+                        val from = swipeX
+                        settleJob = swipeScope.launch {
+                            if (dir != 0) {
+                                androidx.compose.animation.core.animate(from, -dir * width,
+                                    animationSpec = androidx.compose.animation.core.tween(200)) { v, _ -> swipeX = v }
+                                // Stays at the neighbour until the new week shows up (no flash).
+                                latestSwipeWeek(dir)
+                            } else {
+                                androidx.compose.animation.core.animate(from, 0f,
+                                    animationSpec = androidx.compose.animation.core.spring()) { v, _ -> swipeX = v }
+                            }
+                        }
                     },
-                    onDragCancel = { swiping = false; swipeX = 0f },
+                    onDragCancel = {
+                        val from = swipeX
+                        settleJob = swipeScope.launch {
+                            androidx.compose.animation.core.animate(from, 0f) { v, _ -> swipeX = v }
+                        }
+                    },
                     onHorizontalDrag = { change, amount ->
                         change.consume()
+                        tracker.addPosition(change.uptimeMillis, change.position)
                         swipeX += amount
                     }
                 )
@@ -889,24 +993,41 @@ private fun DragAwareWeekStrip(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp)
-                .graphicsLayer {
-                    translationX = shownX * 0.5f
-                    alpha = 1f - (kotlin.math.abs(shownX) / (size.width.coerceAtLeast(1f))).coerceIn(0f, 0.5f)
-                }
+                .onSizeChanged { stripWidth = it.width }
+                .clipToBounds()
         ) {
             androidx.compose.runtime.CompositionLocalProvider(
                 com.bettertick.ui.screens.calendar.LocalChipShowTime provides false
             ) {
-                WeekRow(
-                    week = selectedWeek,
-                    weekIdx = 0,
-                    allWeeks = selectedWeekList,
-                    today = today,
-                    selectedDate = selectedDate,
-                    lookup = lookup,
-                    onDateSelected = onDateSelected,
-                    height = 84.dp
-                )
+                // Previous and next weeks, drawn only while swiping.
+                if (swipeX != 0f) {
+                    listOf(-1 to prevWeek, 1 to nextWeek).forEach { (side, weekDays) ->
+                        Box(Modifier.fillMaxWidth().graphicsLayer { translationX = swipeX + side * size.width }) {
+                            WeekRow(
+                                week = weekDays,
+                                weekIdx = 0,
+                                allWeeks = listOf(weekDays),
+                                today = today,
+                                selectedDate = selectedDate,
+                                lookup = lookup,
+                                onDateSelected = onDateSelected,
+                                height = 84.dp
+                            )
+                        }
+                    }
+                }
+                Box(Modifier.fillMaxWidth().graphicsLayer { translationX = swipeX }) {
+                    WeekRow(
+                        week = selectedWeek,
+                        weekIdx = 0,
+                        allWeeks = selectedWeekList,
+                        today = today,
+                        selectedDate = selectedDate,
+                        lookup = lookup,
+                        onDateSelected = onDateSelected,
+                        height = 84.dp
+                    )
+                }
             }
             Row(modifier = Modifier.fillMaxWidth()) {
                 selectedWeek.forEach { d ->

@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.alpha
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -204,6 +205,8 @@ fun SelectedDatePanel(
             modifier = Modifier
                 .padding(horizontal = 8.dp)
                 .fillMaxWidth()
+                // Bounded so the list scrolls instead of running off the bottom.
+                .weight(1f, fill = false)
         ) {
             if (active.isEmpty() && done.isEmpty()) {
                 EmptyState(modifier = Modifier
@@ -211,7 +214,7 @@ fun SelectedDatePanel(
                     .height(180.dp)
                     .clip(shape)
                     .background(DarkCard))
-            } else if (active.isNotEmpty()) {
+            } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -339,6 +342,63 @@ fun SelectedDatePanel(
                         if (lineBelow) ReorderLine(nestUnder = dropParent?.title, indent = !nestedRow)
                         }
                     }
+                    // Completed families: same list, so a long day scrolls all the way down.
+                    if (done.isNotEmpty()) {
+                        item(key = "__done_header") {
+                            Text(
+                                text = "완료 & 포기",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 22.dp, bottom = 10.dp)
+                            )
+                        }
+                        itemsIndexed(done, key = { _, t -> "done-${t.id}" }) { index, task ->
+                    val taskTags = remember(task.tagIds, tags) {
+                        task.tagIds.mapNotNull { id -> tags.firstOrNull { it.id == id } }
+                    }
+                    val doneDepth = doneDepths[task.id] ?: 0
+                    Box(
+                        Modifier
+                            .familyCardSegment(
+                                first = doneDepth == 0,
+                                last = done.getOrNull(index + 1)?.let { (doneDepths[it.id] ?: 0) == 0 } ?: true,
+                                separated = doneDepth == 0 && index > 0
+                            )
+                            .then(
+                                if (doneDepth > 0) Modifier.subtaskSurface(
+                                    depth = doneDepth,
+                                    first = (done.getOrNull(index - 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
+                                    last = (done.getOrNull(index + 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
+                                    surface = MaterialTheme.colorScheme.onSurface
+                                ) else Modifier
+                            )
+                    ) {
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        com.bettertick.ui.screens.tasks.components.LocalCompactTaskRow provides (doneDepth > 0)
+                    ) {
+                    TaskItem(
+                        task = task,
+                        onToggleComplete = {
+                            // Toggling a completed/abandoned row restores it
+                            when {
+                                task.isCompleted -> onToggleComplete(task)
+                                task.isAbandoned -> onUnabandon(task)
+                            }
+                        },
+                        onClick = { detailFor = task },
+                        overrideDate = selectedDate,
+                        listName = detailListName(task),
+                        resolvedTags = taskTags,
+                        onStatusAction = { action -> onStatusAction(task, action) }
+                    )
+                    }
+                    }
+                
+                        }
+                    }
+                    // Room to scroll the last card above the floating buttons.
+                    item(key = "__bottom_space") { Spacer(Modifier.height(104.dp)) }
                 }
             }
         }
@@ -380,67 +440,6 @@ fun SelectedDatePanel(
                         color = if (overUnnestZone) accent else TextSecondary
                     )
                 }
-            }
-        }
-
-        // Completed families use the same card boundaries under their section label.
-        if (done.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Column(
-                modifier = Modifier
-                    .padding(horizontal = 8.dp)
-                    .fillMaxWidth()
-            ) {
-                Text(
-                    text = "완료 & 포기",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                )
-                done.forEachIndexed { index, task ->
-                    val taskTags = remember(task.tagIds, tags) {
-                        task.tagIds.mapNotNull { id -> tags.firstOrNull { it.id == id } }
-                    }
-                    val doneDepth = doneDepths[task.id] ?: 0
-                    Box(
-                        Modifier
-                            .familyCardSegment(
-                                first = doneDepth == 0,
-                                last = done.getOrNull(index + 1)?.let { (doneDepths[it.id] ?: 0) == 0 } ?: true,
-                                separated = doneDepth == 0 && index > 0
-                            )
-                            .then(
-                                if (doneDepth > 0) Modifier.subtaskSurface(
-                                    depth = doneDepth,
-                                    first = (done.getOrNull(index - 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
-                                    last = (done.getOrNull(index + 1)?.let { doneDepths[it.id] ?: 0 } ?: 0) == 0,
-                                    surface = MaterialTheme.colorScheme.onSurface
-                                ) else Modifier
-                            )
-                    ) {
-                    androidx.compose.runtime.CompositionLocalProvider(
-                        com.bettertick.ui.screens.tasks.components.LocalCompactTaskRow provides (doneDepth > 0)
-                    ) {
-                    TaskItem(
-                        task = task,
-                        onToggleComplete = {
-                            // Toggling a completed/abandoned row restores it
-                            when {
-                                task.isCompleted -> onToggleComplete(task)
-                                task.isAbandoned -> onUnabandon(task)
-                            }
-                        },
-                        onClick = { detailFor = task },
-                        overrideDate = selectedDate,
-                        listName = detailListName(task),
-                        resolvedTags = taskTags,
-                        onStatusAction = { action -> onStatusAction(task, action) }
-                    )
-                    }
-                    }
-                }
-                Spacer(Modifier.height(6.dp))
             }
         }
     }
