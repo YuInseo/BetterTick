@@ -79,6 +79,21 @@ internal fun ExpandableTaskDetail(
             // A full-height edge-to-edge window must not be panned/resized by the WM as well as Compose.
             window?.setLayout(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT)
             window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+            // The dialog window has its own (black) status / navigation bar colour,
+            // which showed as a black strip at the top over the home screen or the
+            // calendar. Clear them so our dim and sheet show right to the edges.
+            window?.let { w ->
+                w.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+                @Suppress("DEPRECATION")
+                w.statusBarColor = android.graphics.Color.TRANSPARENT
+                @Suppress("DEPRECATION")
+                w.navigationBarColor = android.graphics.Color.TRANSPARENT
+                androidx.core.view.WindowCompat.setDecorFitsSystemWindows(w, false)
+                androidx.core.view.WindowCompat.getInsetsController(w, w.decorView).apply {
+                    isAppearanceLightStatusBars = false
+                    isAppearanceLightNavigationBars = false
+                }
+            }
             onDispose { window?.setDimAmount(oldDim); window?.setSoftInputMode(oldInputMode) }
         }
         val expansion = position.expansion.coerceIn(0f, 1f)
