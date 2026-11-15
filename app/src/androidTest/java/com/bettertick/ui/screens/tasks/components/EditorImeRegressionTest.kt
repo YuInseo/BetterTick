@@ -68,8 +68,15 @@ class EditorImeRegressionTest {
         val second = compose.onNodeWithTag("note-block-second").fetchSemanticsNode().boundsInRoot
         assertTrue("single-line block gap must stay compact: ${second.top - first.top}", second.top - first.top <= 32f * density)
         val beforeTop = compose.onNodeWithTag("task-detail-header").fetchSemanticsNode().boundsInRoot.top + appBounds().top
-        compose.onNodeWithTag("note-block-third").performClick()
-        compose.waitUntil(15_000) { imeBounds() != null }
+        // A tap that lands before the editor dialog's window has input focus can
+        // focus the field without the keyboard ever being shown (seen as flaky
+        // timeouts here). Tap again until the keyboard is up, within 20 s.
+        val keyboardDeadline = System.currentTimeMillis() + 20_000
+        while (imeBounds() == null && System.currentTimeMillis() < keyboardDeadline) {
+            compose.onNodeWithTag("note-block-third").performClick()
+            runCatching { compose.waitUntil(4_000) { imeBounds() != null } }
+        }
+        assertNotNull("keyboard never opened after tapping the block", imeBounds())
         compose.waitForIdle()
         try {
             compose.waitUntil(15_000) {
