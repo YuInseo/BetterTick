@@ -604,7 +604,7 @@ fun ShiftDayPickers(
 private fun Dot(color: Color) {
     Box(
         Modifier
-            .size(10.dp)
+            .size(7.dp)
             .clip(androidx.compose.foundation.shape.CircleShape)
             .background(color)
     )
@@ -628,16 +628,16 @@ private fun HeaderChip(
                 else Modifier.border(1.dp, TextTertiary.copy(alpha = 0.5f), shape)
             )
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(start = 10.dp, end = if (enabled) 4.dp else 10.dp, top = 5.dp, bottom = 5.dp),
+            .padding(start = 8.dp, end = if (enabled) 3.dp else 8.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (filled) {
             Dot(color)
-            Spacer(Modifier.width(5.dp))
+            Spacer(Modifier.width(4.dp))
         }
         Text(
             text,
-            fontSize = 13.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             color = if (filled) color else TextSecondary,
             maxLines = 1
@@ -647,7 +647,7 @@ private fun HeaderChip(
                 androidx.compose.material.icons.Icons.Default.KeyboardArrowDown,
                 contentDescription = null,
                 tint = if (filled) color else TextTertiary,
-                modifier = Modifier.size(16.dp)
+                modifier = Modifier.size(14.dp)
             )
         }
     }
