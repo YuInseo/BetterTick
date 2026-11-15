@@ -56,7 +56,7 @@ internal fun TaskNoteEditor(
     var removed by remember { mutableStateOf<Pair<Int, TaskMemo>?>(null) }
     val visible = blocks.filter { it.day.isBlank() || day == null || it.day == day }
     val hidden = blocks.size - visible.size
-    Column(Modifier.fillMaxWidth().padding(top = 8.dp)) {
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             if (day != null) {
                 Box(Modifier.weight(1f)) {
@@ -88,7 +88,7 @@ internal fun TaskNoteEditor(
             key(block.id) {
                 if ((day != null || block.day.isNotBlank()) && (index == 0 || visible[index - 1].day != block.day)) {
                     Text(if (block.day.isBlank()) "공통" else dateLabel(block.day), fontSize = 10.sp,
-                        color = TextTertiary, modifier = Modifier.padding(start = 32.dp, top = 10.dp, bottom = 4.dp))
+                        color = TextTertiary, modifier = Modifier.padding(start = 32.dp, top = 6.dp, bottom = 2.dp))
                 }
                 NoteBlockRow(block, focusId == block.id,
                     onChange = { changed -> val at = blocks.indexOfFirst { it.id == block.id }; if (at >= 0) blocks[at] = changed },
@@ -122,7 +122,7 @@ internal fun TaskNoteEditor(
         }) { Text("블록 삭제 취소", fontSize = 12.sp) }
         if (hidden > 0) Text("다른 날짜의 블록 ${hidden}개는 보관 중", fontSize = 10.sp, color = TextTertiary,
             modifier = Modifier.padding(start = 32.dp, top = 8.dp))
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
     }
 }
 
@@ -147,9 +147,10 @@ private fun NoteBlockRow(
     val slashQuery = block.text.takeIf { it.startsWith("/") && '\n' !in it && it.length <= 40 }
     val slashItems = noteSlashItems(slashQuery?.drop(1).orEmpty())
     LaunchedEffect(focus) { if (focus && !media && block.kind != NoteBlockKind.DIVIDER) focusRequester.requestFocus() }
-    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.Top) {
+    Row(Modifier.fillMaxWidth().padding(top = if (block.kind == NoteBlockKind.HEADING) 6.dp else 0.dp,
+        bottom = if (block.kind == NoteBlockKind.HEADING) 2.dp else 0.dp), verticalAlignment = Alignment.Top) {
         Box {
-            IconButton(onClick = { menu = true }, modifier = Modifier.size(width = 32.dp, height = 44.dp)) {
+            Box(Modifier.size(32.dp).clickable { menu = true }, contentAlignment = Alignment.Center) {
                 Icon(Icons.Outlined.DragIndicator, "블록 메뉴", tint = TextTertiary, modifier = Modifier.size(17.dp))
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
@@ -171,7 +172,7 @@ private fun NoteBlockRow(
             }
         }
         if (block.kind == NoteBlockKind.TODO) {
-            Box(Modifier.size(width = 30.dp, height = 44.dp).clickable { onChange(block.copy(checked = !block.checked)) }, contentAlignment = Alignment.Center) {
+            Box(Modifier.size(width = 30.dp, height = 32.dp).clickable { onChange(block.copy(checked = !block.checked)) }, contentAlignment = Alignment.Center) {
                 TickCheckbox(0, block.checked, size = 18.dp)
             }
         }
@@ -179,7 +180,7 @@ private fun NoteBlockRow(
             when {
                 media -> NoteMediaBlock(block)
                 block.kind == NoteBlockKind.DIVIDER -> HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 22.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                    modifier = Modifier.padding(vertical = 15.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
                 else -> Box(Modifier.fillMaxWidth()) {
                     BasicTextField(
                     value = fieldValue,
@@ -206,7 +207,8 @@ private fun NoteBlockRow(
                     modifier = Modifier.focusRequester(focusRequester).onPreviewKeyEvent { event ->
                         if (event.key == Key.Enter) softBreak = event.type == KeyEventType.KeyDown && event.isShiftPressed
                         false
-                    }.fillMaxWidth().heightIn(min = 44.dp, max = 240.dp).padding(vertical = 10.dp),
+                    }.fillMaxWidth().heightIn(min = if (block.kind == NoteBlockKind.HEADING) 36.dp else 30.dp, max = 240.dp)
+                        .padding(vertical = 3.dp),
                     decorationBox = { inner ->
                         Box {
                             if (block.text.isEmpty()) Text(when (block.kind) {
