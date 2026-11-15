@@ -65,7 +65,6 @@ import com.bettertick.data.model.shiftTitleOn
 import com.bettertick.widget.util.WidgetDateUtils
 import com.bettertick.widget.util.WidgetDateUtils.localDueDate
 import kotlinx.coroutines.flow.first
-import java.text.SimpleDateFormat
 import java.time.LocalDate
 import java.time.ZoneId
 import java.util.Locale
@@ -165,6 +164,10 @@ class ReminderWidget : GlanceAppWidget() {
                     (settings.showCompleted || (!it.isCompleted && !it.isAbandoned))
             }
             val datesWithEvents = weekDates.associateWith { d -> visible.any { it.occursOn(d) } }
+            // 근무 그 날의 종류 (주간/야간/비번/휴무) — shown as a small chip under each date.
+            val shiftOn = weekDates.associateWith { d ->
+                visible.firstOrNull { it.isShiftTask() && it.occursOn(d) }?.shiftKindOn(d)?.takeIf { it.isNotBlank() }
+            }
             // 기한 지난 할일 포함: unfinished one-off tasks from earlier days
             // are listed under today, like TickTick's 오늘 view.
             val overdue = if (settings.showOverdue && selectedDate == today) {
@@ -200,7 +203,7 @@ class ReminderWidget : GlanceAppWidget() {
                 .groupedUnderParents()
 
             androidx.compose.runtime.CompositionLocalProvider(LocalWidgetId provides widgetId) {
-                ReminderContent(today, selectedDate, weekDates, datesWithEvents, dayTasks, listById, settings, menuOpen)
+                ReminderContent(today, selectedDate, weekDates, datesWithEvents, shiftOn, dayTasks, listById, settings, menuOpen)
             }
         }
     }
@@ -219,6 +222,7 @@ class ReminderWidget : GlanceAppWidget() {
         selectedDate: LocalDate,
         weekDates: List<LocalDate>,
         datesWithEvents: Map<LocalDate, Boolean>,
+        shiftOn: Map<LocalDate, String?>,
         tasks: List<Task>,
         listById: Map<String, TaskList>,
         settings: WidgetServiceLocator.ReminderSettings,
@@ -260,7 +264,7 @@ class ReminderWidget : GlanceAppWidget() {
                         Spacer(GlanceModifier.height(4.dp))
                         DatesRow(today, selectedDate, weekDates, pal, fs)
                         Spacer(GlanceModifier.height(4.dp))
-                        DotsRow(weekDates, datesWithEvents)
+                        DotsRow(weekDates, datesWithEvents, shiftOn, fs)
                         Spacer(GlanceModifier.height(8.dp))
                     }
                 }
@@ -570,19 +574,39 @@ class ReminderWidget : GlanceAppWidget() {
     @androidx.compose.runtime.Composable
     private fun DotsRow(
         weekDates: List<LocalDate>,
-        datesWithEvents: Map<LocalDate, Boolean>
+        datesWithEvents: Map<LocalDate, Boolean>,
+        shiftOn: Map<LocalDate, String?>,
+        fs: Float
     ) {
+        // Under each date: that day's shift as a tinted chip (like the app's
+        // calendar), or a small dot when there are only tasks.
         Row(modifier = GlanceModifier.fillMaxWidth()) {
             weekDates.forEach { date ->
                 Box(
-                    modifier = GlanceModifier.defaultWeight().height(8.dp),
+                    modifier = GlanceModifier.defaultWeight().height(18.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (datesWithEvents[date] == true) {
+                    val kind = shiftOn[date]
+                    if (kind != null) {
+                        val tint = com.bettertick.ui.screens.tasks.components.shiftColor(kind) ?: WidgetColorValues.accent
                         Box(
                             modifier = GlanceModifier
-                                .size(6.dp)
-                                .background(ColorProvider(WidgetColorValues.blue))
+                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                                .background(ColorProvider(tint.copy(alpha = 0.22f)))
+                                .cornerRadius(7.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = kind.take(2),
+                                style = TextStyle(color = ColorProvider(tint), fontSize = (9 * fs).sp, fontWeight = FontWeight.Bold),
+                                maxLines = 1
+                            )
+                        }
+                    } else if (datesWithEvents[date] == true) {
+                        Box(
+                            modifier = GlanceModifier
+                                .size(5.dp)
+                                .background(ColorProvider(WidgetColorValues.blue.copy(alpha = 0.8f)))
                                 .cornerRadius(3.dp)
                         ) {}
                     }
@@ -621,18 +645,14 @@ class ReminderWidget : GlanceAppWidget() {
                 val tint = leave?.let { widgetLeaveColor(it) }
                     ?: com.bettertick.ui.screens.tasks.components.shiftColor(task.shiftKindOn(today))
                     ?: WidgetColorValues.accent
+                // Slim coloured bar, like the shift card accent in the app.
                 Box(
                     modifier = GlanceModifier
-                        .size(24.dp)
-                        .background(ColorProvider(tint.copy(alpha = 0.2f)))
-                        .cornerRadius(12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = task.shiftKindOn(today).take(2),
-                        style = TextStyle(color = ColorProvider(tint), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    )
-                }
+                        .width(4.dp)
+                        .height(30.dp)
+                        .background(ColorProvider(tint))
+                        .cornerRadius(2.dp)
+                ) {}
             } else if (memo) {
                 // 메모 모드: a slim colored bar instead of a checkbox.
                 Box(
@@ -758,7 +778,8 @@ class ReminderWidget : GlanceAppWidget() {
                 }
             }
 
-            if (showDetail) {
+            // 기본함 is the default — only other lists are worth the space.
+            if (showDetail && task.listId.isNotBlank() && listById[task.listId] != null) {
                 Spacer(GlanceModifier.width(8.dp))
                 val listName = listById[task.listId]?.name ?: "기본함"
                 Text(
@@ -839,16 +860,16 @@ class ReminderWidget : GlanceAppWidget() {
         val startDt = startDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime()
         // A repeating task shows the day being viewed, not its series start.
         val day = if (task.repeatRule.isNullOrBlank()) startDt.toLocalDate() else shownDay
-        val dateLabel = "${day.monthValue}월 ${day.dayOfMonth}일"
-        if (startDt.hour == 0 && startDt.minute == 0) return dateLabel
+        // The date is only worth showing when it isn't the day on screen (기한 지남).
+        val dateLabel = if (day == shownDay) null else "${day.monthValue}월 ${day.dayOfMonth}일"
+        if (startDt.hour == 0 && startDt.minute == 0) return dateLabel ?: "하루 종일"
 
-        val timeFormatter = SimpleDateFormat("a h:mm", Locale.KOREAN)
-        val startLabel = timeFormatter.format(startDate)
+        // 시간 형식 설정을 따른다 (오후 6:00 / 18:00 / 08:00).
+        val fmt = { t: java.time.LocalTime -> com.bettertick.ui.theme.AppPrefs.formatTime(t) }
+        val startLabel = fmt(startDt.toLocalTime())
         val dur = task.durationMinutes
-        if (dur <= 0) return "$dateLabel, $startLabel"
-
-        val endDate = java.util.Date(startDate.time + dur * 60_000L)
-        val endLabel = timeFormatter.format(endDate)
-        return "$dateLabel, $startLabel - $endLabel"
+        val time = if (dur <= 0) startLabel
+            else "$startLabel – ${fmt(startDt.plusMinutes(dur.toLong()).toLocalTime())}"
+        return listOfNotNull(dateLabel, time).joinToString(", ")
     }
 }
