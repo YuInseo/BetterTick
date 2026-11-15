@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -63,6 +64,12 @@ internal fun ExpandableTaskDetail(
     onSwipeClose: (() -> Unit)? = null,
     /** Bump to slide the sheet away as if swiped (a sub-page above was swiped closed). */
     swipeCloseTick: Int = 0,
+    /** A sub-page is open on top: this page steps out of sight (its dim too), so the
+     *  sub-page alone covers the screen and a swipe-close is one single slide. */
+    hidden: Boolean = false,
+    /** Back / ← / tap outside slide the sheet away; a sub-page instead switches
+     *  straight back to the page under it (which is waiting, hidden). */
+    animateBackClose: Boolean = true,
     content: @Composable () -> Unit
 ) {
     var position by remember { mutableStateOf(DetailDragPosition()) }
@@ -113,7 +120,7 @@ internal fun ExpandableTaskDetail(
         LaunchedEffect(pullingDown) {
             if (pullingDown) { keyboardCtl?.hide(); focusManager.clearFocus() }
         }
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (hidden) 0f else 1f }) {
             // The dim fades out as the sheet is pulled away, so closing doesn't end on
             // a dark screen that then vanishes at once.
             val closeFade = (1f - position.dismissOffset / sheetTravel.coerceAtLeast(1f)).coerceIn(0f, 1f)
@@ -157,7 +164,10 @@ internal fun ExpandableTaskDetail(
                 }
                 LaunchedEffect(closeRequested) {
                     // Reset at once so a later back press works again if a drag interrupted it.
-                    if (closeRequested) { closeRequested = false; settle(DetailSnapTarget.CLOSED) }
+                    if (closeRequested) {
+                        closeRequested = false
+                        if (animateBackClose) settle(DetailSnapTarget.CLOSED) else latestClose()
+                    }
                 }
 
                 // Drag anywhere on the sheet, not only the top handle: once the

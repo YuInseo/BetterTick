@@ -588,6 +588,8 @@ fun TaskDetailSheet(
     ExpandableTaskDetail(onClose = { commitAndClose() },
         onSwipeClose = if (onSwipeDismiss != null) ({ swipeCloseAll() }) else null,
         swipeCloseTick = swipeCloseTick,
+        hidden = openPage != null,
+        animateBackClose = onSwipeDismiss == null,
         pageTitle = title.ifBlank { "제목 없음" }, pageSubtitle = shownListName,
         titleScrolledAway = titleScrolledAway,
         pageBar = { dateRow(Modifier.fillMaxWidth()) }) {
@@ -886,7 +888,9 @@ fun TaskDetailSheet(
             // Swiped down in the sub-page: remember it, and close this page too.
             onSwipeDismiss = {
                 com.bettertick.ui.theme.AppPrefs.setLastSubPage(task.id, page.id)
-                swipeCloseTick++
+                // This page is hidden behind the sub-page, so it closes at once —
+                // the sub-page's slide is the only animation.
+                swipeCloseAll()
             },
             onUpdateTask = { updated ->
                 pageScope.launch { runCatching { subPages.value.update(updated) } }
