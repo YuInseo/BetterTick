@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.CloseFullscreen
-import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -130,11 +128,9 @@ internal fun ExpandableTaskDetail(onClose: () -> Unit, actions: @Composable RowS
                                 Text("페이지", fontSize = 14.sp, color = TextSecondary, modifier = Modifier.alpha(expansion))
                             }
                             actions()
-                            IconButton(onClick = { settle(if (expansion > 0.5f) DetailSnapTarget.DRAWER else DetailSnapTarget.PAGE) }, modifier = Modifier.size(40.dp)) {
-                                Icon(if (expansion > 0.5f) Icons.Outlined.CloseFullscreen else Icons.Outlined.OpenInFull,
-                                    if (expansion > 0.5f) "작은 창으로 보기" else "전체 페이지로 열기",
-                                    tint = TextSecondary, modifier = Modifier.size(18.dp))
-                            }
+                            // No expand button: drag the handle up for the full page.
+                            // Keeps the handle centred against the back button.
+                            Spacer(Modifier.size(48.dp))
                         }
                         Box(Modifier.weight(1f).fillMaxWidth()) { content() }
                     }

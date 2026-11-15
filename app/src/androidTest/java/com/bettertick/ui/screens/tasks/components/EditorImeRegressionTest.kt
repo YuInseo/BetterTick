@@ -54,7 +54,16 @@ class EditorImeRegressionTest {
                     onDismiss = { open.value = false }, onUpdateTask = { saved = it }, onToggleComplete = {})
             }
         }
-        if (page) compose.onNodeWithContentDescription("전체 페이지로 열기").performClick()
+        // Full page: drag the handle up (there is no expand button any more).
+        if (page) {
+            fun surfaceHeight() = compose.onNodeWithTag("task-detail-surface").fetchSemanticsNode().boundsInRoot.height
+            val drawerHeight = surfaceHeight()
+            compose.onNodeWithTag("task-detail-header").performTouchInput {
+                swipe(center, androidx.compose.ui.geometry.Offset(center.x, center.y - 3000f), durationMillis = 250L)
+            }
+            // The drawer is 78 % of the page height; wait for the full page.
+            compose.waitUntil(5_000) { surfaceHeight() >= drawerHeight / 0.78f - 4f }
+        }
         compose.waitForIdle()
     }
 
