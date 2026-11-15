@@ -50,7 +50,9 @@ internal fun TaskNoteEditor(
     focusId: String?,
     onAdd: (kind: String, day: String) -> Unit,
     onAttach: (String) -> Unit,
-    onFocusBlock: (String) -> Unit
+    onFocusBlock: (String) -> Unit,
+    /** Which block is being edited (null when none) — drives the keyboard block bar. */
+    onActiveBlock: (id: String, focused: Boolean) -> Unit = { _, _ -> }
 ) {
     var addOpen by remember { mutableStateOf(false) }
     var scopeOpen by remember { mutableStateOf(false) }
@@ -96,6 +98,7 @@ internal fun TaskNoteEditor(
                         color = TextTertiary, modifier = Modifier.padding(start = 32.dp, top = 6.dp, bottom = 2.dp))
                 }
                 NoteBlockRow(block, focusId == block.id,
+                    onFocused = { f -> onActiveBlock(block.id, f) },
                     onChange = { changed -> val at = blocks.indexOfFirst { it.id == block.id }; if (at >= 0) blocks[at] = changed },
                     onMove = { direction -> val moved = blocks.toList().moveNoteBlock(block.id, direction, day); blocks.clear(); blocks.addAll(moved) },
                     canMoveUp = index > 0, canMoveDown = index < visible.lastIndex,
@@ -159,7 +162,7 @@ internal fun TaskNoteEditor(
 
 @Composable
 private fun NoteBlockRow(
-    block: TaskMemo, focus: Boolean, onChange: (TaskMemo) -> Unit,
+    block: TaskMemo, focus: Boolean, onFocused: (Boolean) -> Unit, onChange: (TaskMemo) -> Unit,
     onMove: (Int) -> Unit, canMoveUp: Boolean, canMoveDown: Boolean,
     onDuplicate: () -> Unit, onRemove: () -> Unit, selectedDay: String?,
     canInsert: Boolean,
@@ -261,7 +264,7 @@ private fun NoteBlockRow(
                         textDecoration = if (block.checked && block.kind == NoteBlockKind.TODO) TextDecoration.LineThrough else null),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier.testTag("note-block-${block.id}").focusRequester(focusRequester)
-                        .onFocusChanged { focused = it.isFocused }.onPreviewKeyEvent { event ->
+                        .onFocusChanged { if (focused != it.isFocused) { focused = it.isFocused; onFocused(it.isFocused) } }.onPreviewKeyEvent { event ->
                         if (event.key == Key.Enter) softBreak = event.type == KeyEventType.KeyDown && event.isShiftPressed
                         false
                     }.fillMaxWidth().heightIn(min = if (block.kind == NoteBlockKind.HEADING) 36.dp else 26.dp, max = 240.dp)

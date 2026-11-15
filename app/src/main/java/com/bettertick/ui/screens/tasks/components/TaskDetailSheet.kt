@@ -54,6 +54,11 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.CheckBox
+import androidx.compose.material.icons.outlined.HorizontalRule
+import androidx.compose.material.icons.outlined.KeyboardHide
+import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material.icons.outlined.Title
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.NotificationsActive
@@ -174,6 +179,31 @@ fun TaskDetailSheet(
     var focusBlockId by remember(task.id) { mutableStateOf<String?>(null) }
     var requestAttachment by remember { mutableStateOf(false) }
     var attachmentDay by remember(task.id, dayKey) { mutableStateOf(dayKey.orEmpty()) }
+    // 키보드 위 블록 바 (노션처럼): 편집 중인 블록과 블록 고르기 패널.
+    var activeBlockId by remember(task.id) { mutableStateOf<String?>(null) }
+    var blockPanel by remember { mutableStateOf(false) }
+    /** Notion-style: an empty block becomes [kind]; otherwise [kind] goes right below it. */
+    fun applyBlockKind(kind: String) {
+        val at = blocks.indexOfFirst { it.id == activeBlockId }
+        val current = blocks.getOrNull(at)
+        val day = current?.day ?: dayKey.orEmpty()
+        if (current != null && current.text.isEmpty() && current.attachment.isBlank() && kind != NoteBlockKind.DIVIDER) {
+            blocks[at] = current.copy(kind = kind, checked = false)
+            return
+        }
+        if (blocks.size >= 999) {
+            android.widget.Toast.makeText(context, "블록은 최대 1,000개까지 추가할 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        val block = TaskMemo(kind = kind, day = day)
+        val insertAt = if (at >= 0) at + 1 else blocks.size
+        blocks.add(insertAt, block)
+        if (kind == NoteBlockKind.DIVIDER) {
+            val after = TaskMemo(kind = NoteBlockKind.TEXT, day = day)
+            blocks.add(insertAt + 1, after)
+            focusBlockId = after.id
+        } else focusBlockId = block.id
+    }
     fun addBlock(kind: String, day: String) {
         if (blocks.size >= 1000) {
             android.widget.Toast.makeText(context, "블록은 최대 1,000개까지 추가할 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
@@ -557,8 +587,36 @@ fun TaskDetailSheet(
             TaskNoteEditor(blocks = blocks, day = dayKey, focusId = focusBlockId,
                 onAdd = ::addBlock,
                 onFocusBlock = { focusBlockId = it },
-                onAttach = { day -> attachmentDay = day; requestAttachment = true })
+                onAttach = { day -> attachmentDay = day; requestAttachment = true },
+                onActiveBlock = { id, focused ->
+                    if (focused) activeBlockId = id
+                    else if (activeBlockId == id && !blockPanel) activeBlockId = null
+                })
         }
+            // ── 키보드 위 블록 바 + 블록 고르기 패널 (편집 중일 때만) ─────────
+            val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+            if (activeBlockId != null || blockPanel) {
+                BlockKeyboardBar(
+                    panelOpen = blockPanel,
+                    onTogglePanel = {
+                        if (blockPanel) { blockPanel = false; keyboard?.show() }
+                        else { blockPanel = true; keyboard?.hide() }
+                    },
+                    onQuick = { kind -> applyBlockKind(kind); blockPanel = false; keyboard?.show() },
+                    onImage = {
+                        attachmentDay = blocks.firstOrNull { it.id == activeBlockId }?.day ?: dayKey.orEmpty()
+                        requestAttachment = true; blockPanel = false
+                    },
+                    onDone = { blockPanel = false; keyboard?.hide(); activeBlockId = null }
+                )
+                if (blockPanel) BlockPickerPanel(
+                    onPick = { kind -> applyBlockKind(kind); blockPanel = false; keyboard?.show() },
+                    onAttach = {
+                        attachmentDay = blocks.firstOrNull { it.id == activeBlockId }?.day ?: dayKey.orEmpty()
+                        requestAttachment = true; blockPanel = false
+                    }
+                )
+            }
             // ── No visible bottom toolbar: closing the sheet saves, 태그 sits by
             // the list, check/attach live in 블록 추가. This keeps only the
             // attachment pickers (opened from 블록 추가 › 이미지·파일).
@@ -1264,5 +1322,82 @@ private fun Modifier.detailScrollbar(state: ScrollState, tint: Color): Modifier 
         val top = (height - thumb) * state.value / range
         drawRoundRect(tint, topLeft = Offset(size.width - 3.dp.toPx(), top),
             size = Size(2.dp.toPx(), thumb), cornerRadius = CornerRadius(1.dp.toPx()))
+    }
+}
+
+
+/** Bar that sits right above the keyboard while a block is edited (Notion style). */
+@Composable
+private fun BlockKeyboardBar(
+    panelOpen: Boolean,
+    onTogglePanel: () -> Unit,
+    onQuick: (kind: String) -> Unit,
+    onImage: () -> Unit,
+    onDone: () -> Unit
+) {
+    Column(Modifier.fillMaxWidth().testTag("block-keyboard-bar")) {
+        HorizontalDivider(color = TextTertiary.copy(alpha = 0.2f))
+        Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+            @Composable
+            fun BarButton(desc: String, selected: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
+                Box(
+                    Modifier.size(40.dp).clip(RoundedCornerShape(8.dp))
+                        .background(if (selected) TextTertiary.copy(alpha = 0.18f) else Color.Transparent)
+                        .clickable(onClickLabel = desc) { onClick() },
+                    contentAlignment = Alignment.Center
+                ) { content() }
+            }
+            BarButton("블록 추가", selected = panelOpen, onClick = onTogglePanel) {
+                Icon(Icons.Default.Add, "블록 추가", tint = TextPrimary, modifier = Modifier.size(22.dp))
+            }
+            BarButton("제목", onClick = { onQuick(NoteBlockKind.HEADING) }) {
+                Text("H", color = TextSecondary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+            }
+            BarButton("체크리스트", onClick = { onQuick(NoteBlockKind.TODO) }) {
+                Icon(Icons.Outlined.CheckBox, "체크리스트", tint = TextSecondary, modifier = Modifier.size(20.dp))
+            }
+            BarButton("구분선", onClick = { onQuick(NoteBlockKind.DIVIDER) }) {
+                Icon(Icons.Outlined.HorizontalRule, "구분선", tint = TextSecondary, modifier = Modifier.size(20.dp))
+            }
+            BarButton("이미지 · 파일", onClick = onImage) {
+                Icon(Icons.Outlined.Image, "이미지 · 파일", tint = TextSecondary, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.weight(1f))
+            BarButton("키보드 닫기", onClick = onDone) {
+                Icon(Icons.Outlined.KeyboardHide, "키보드 닫기", tint = TextSecondary, modifier = Modifier.size(20.dp))
+            }
+        }
+    }
+}
+
+/** Block choices shown in place of the keyboard when + is tapped. */
+@Composable
+private fun BlockPickerPanel(onPick: (kind: String) -> Unit, onAttach: () -> Unit) {
+    val items = listOf(
+        Triple("텍스트", NoteBlockKind.TEXT, Icons.Outlined.TextFields),
+        Triple("제목", NoteBlockKind.HEADING, Icons.Outlined.Title),
+        Triple("체크리스트", NoteBlockKind.TODO, Icons.Outlined.CheckBox),
+        Triple("구분선", NoteBlockKind.DIVIDER, Icons.Outlined.HorizontalRule),
+        Triple("이미지 · 파일", "", Icons.Outlined.Image)
+    )
+    Column(Modifier.fillMaxWidth().heightIn(min = 220.dp).padding(vertical = 8.dp).testTag("block-picker-panel")) {
+        Text("기본 블록", fontSize = 12.sp, color = TextTertiary, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
+        items.chunked(2).forEach { row ->
+            Row(Modifier.fillMaxWidth()) {
+                row.forEach { (label, kind, icon) ->
+                    Row(
+                        Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
+                            .clickable { if (kind.isEmpty()) onAttach() else onPick(kind) }
+                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(icon, null, tint = TextSecondary, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text(label, fontSize = 15.sp, color = TextPrimary)
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
     }
 }
