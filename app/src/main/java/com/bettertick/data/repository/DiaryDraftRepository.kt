@@ -13,13 +13,15 @@ class DiaryDraftRepository @Inject constructor(
         context.getSharedPreferences("diary_drafts", Context.MODE_PRIVATE)
     }
 
-    fun saveDraft(dateStr: String, content: String) {
-        prefs.edit().putString(dateStr, content).apply()
+    fun saveDraft(dateStr: String, content: String, mood: Int = 0) {
+        prefs.edit().putString(dateStr, content).putInt("$dateStr:mood", mood).apply()
     }
 
     fun getDraft(dateStr: String): String? = prefs.getString(dateStr, null)
 
+    fun getDraftMood(dateStr: String): Int = prefs.getInt("$dateStr:mood", 0)
+
     fun deleteDraft(dateStr: String) {
-        prefs.edit().remove(dateStr).apply()
+        prefs.edit().remove(dateStr).remove("$dateStr:mood").apply()
     }
 }

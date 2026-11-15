@@ -3,6 +3,11 @@ package com.bettertick.ui.screens.more
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Switch
 import com.bettertick.LockScreenBar
 import com.bettertick.overlay.FloatingOverlayService
@@ -78,11 +83,19 @@ fun MoreScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var confirmSignOut by remember { mutableStateOf(false) }
     var checkingUpdate by remember { mutableStateOf(false) }
     val currentVersion = remember { AppUpdater.currentVersionName(context) }
     val prefs = remember { context.getSharedPreferences("bettertick_prefs", android.content.Context.MODE_PRIVATE) }
     var lockScreenBarEnabled by remember {
         mutableStateOf(prefs.getBoolean("lock_screen_bar", true))
+    }
+    if (confirmSignOut) {
+        AlertDialog(onDismissRequest = { confirmSignOut = false },
+            title = { Text("로그아웃할까요?") },
+            text = { Text("계정에 다시 로그인하면 동기화된 기록을 이어서 볼 수 있어요.") },
+            confirmButton = { TextButton(onClick = { confirmSignOut = false; onSignOut() }) { Text("로그아웃", color = OverdueRed) } },
+            dismissButton = { TextButton(onClick = { confirmSignOut = false }) { Text("취소") } })
     }
     Column(
         modifier = Modifier
@@ -129,21 +142,23 @@ fun MoreScreen(
                                 .background(MaterialTheme.colorScheme.primary)
                         )
                     } else {
-                        Spacer(
-                            modifier = Modifier
-                                .size(56.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                        )
+                        Box(Modifier.size(56.dp).clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center) {
+                            Text(userName.firstOrNull()?.uppercaseChar()?.toString() ?: "B",
+                                fontSize = 22.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = userName.ifEmpty { "User" },
+                            text = userName.ifEmpty { "내 계정" },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
+                        Text("계정 · 기기 · 동기화", style = MaterialTheme.typography.bodySmall, color = TextSecondary,
+                            modifier = Modifier.padding(top = 4.dp))
                     }
                     Icon(
                         Icons.Default.ChevronRight,
@@ -154,49 +169,19 @@ fun MoreScreen(
                 }
             }
 
-            // Tab bar
+            SettingsSectionLabel("화면과 목록")
             SettingsCard {
-                SettingsItem(
-                    icon = Icons.Outlined.GridView,
-                    title = "탭 바",
-                    onClick = onNavigateToTabBar
-                )
+                SettingsItem(Icons.Outlined.Palette, "외관", onNavigateToAppearance, showDivider = false)
+                SettingsItem(Icons.Outlined.GridView, "탭 바", onNavigateToTabBar)
+                SettingsItem(Icons.Outlined.GridView, "스마트 목록", onNavigateToSmartLists)
             }
-
-            // Settings group
+            SettingsSectionLabel("일정과 알림")
             SettingsCard {
-                SettingsItem(
-                    icon = Icons.Outlined.Palette,
-                    title = "외관",
-                    onClick = onNavigateToAppearance
-                )
-                SettingsItem(
-                    icon = Icons.Outlined.GridView,
-                    title = "스마트 목록",
-                    onClick = onNavigateToSmartLists
-                )
-                SettingsItem(
-                    icon = Icons.Outlined.AccessTime,
-                    title = "날짜 & 시간",
-                    onClick = onNavigateToDateTime
-                )
-                SettingsItem(
-                    icon = Icons.Outlined.MusicNote,
-                    title = "사운드 & 알림",
-                    onClick = onNavigateToSounds
-                )
-                SettingsItem(
-                    icon = Icons.Outlined.Widgets,
-                    title = "위젯",
-                    onClick = onNavigateToWidgets
-                )
-                SettingsItem(
-                    icon = Icons.Outlined.Tune,
-                    title = "일반",
-                    onClick = onNavigateToGeneral
-                )
+                SettingsItem(Icons.Outlined.AccessTime, "날짜 & 시간", onNavigateToDateTime, showDivider = false)
+                SettingsItem(Icons.Outlined.MusicNote, "사운드 & 알림", onNavigateToSounds)
+                SettingsItem(Icons.Outlined.Widgets, "위젯", onNavigateToWidgets)
             }
-
+            SettingsSectionLabel("빠른 입력")
             // Lock screen quick bar
             SettingsCard {
                 Row(
@@ -244,6 +229,8 @@ fun MoreScreen(
                 }
             }
 
+            SettingsSectionLabel("앱 관리")
+            SettingsCard { SettingsItem(Icons.Outlined.Tune, "일반", onNavigateToGeneral, showDivider = false) }
             // Update check
             SettingsCard {
                 UpdateCheckItem(
@@ -282,7 +269,7 @@ fun MoreScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSignOut() }
+                        .clickable { confirmSignOut = true }
                         .padding(vertical = 16.dp),
                     horizontalArrangement = Arrangement.Center
                 ) {
@@ -295,7 +282,7 @@ fun MoreScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(104.dp))
         }
     }
 }
@@ -307,7 +294,7 @@ private fun SettingsCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(GroupedCard)
     ) {
         content()
@@ -318,8 +305,11 @@ private fun SettingsCard(
 private fun SettingsItem(
     icon: ImageVector,
     title: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    showDivider: Boolean = true
 ) {
+    if (showDivider) HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+        modifier = Modifier.padding(start = 64.dp, end = 16.dp))
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -331,7 +321,8 @@ private fun SettingsItem(
             icon,
             contentDescription = title,
             tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(32.dp).clip(RoundedCornerShape(9.dp))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)).padding(6.dp)
         )
         Spacer(modifier = Modifier.width(16.dp))
         Text(
@@ -396,4 +387,10 @@ private fun UpdateCheckItem(
             )
         }
     }
+}
+
+@Composable
+private fun SettingsSectionLabel(title: String) {
+    Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary,
+        modifier = Modifier.padding(start = 4.dp, top = 8.dp))
 }

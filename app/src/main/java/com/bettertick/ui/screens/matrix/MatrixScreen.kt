@@ -99,7 +99,17 @@ fun MatrixScreen(
     val tags by viewModel.tags.collectAsState()
     val lists by viewModel.lists.collectAsState()
     var menuOpen by remember { mutableStateOf(false) }
+    var showGuide by remember { mutableStateOf(false) }
     var detailFor by remember { mutableStateOf<Task?>(null) }
+
+    if (showGuide) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showGuide = false },
+            title = { Text("중요도와 긴급도로 정리하기") },
+            text = { Text("기본 분류는 우선도 높음·중간·낮음·없음에 따라 나뉩니다.\n\n할일을 누르면 상세 내용을 열고, 길게 눌러 다른 칸으로 옮기면 해당 칸의 조건에 맞게 바뀝니다.\n\n더 보기 → 편집에서 칸 이름과 목록·태그·날짜 조건을 바꿀 수 있어요. 조건에 따라 같은 할일이 여러 칸에 표시될 수도 있습니다.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { showGuide = false }) { Text("알겠어요") } }
+        )
+    }
 
     val onToggleComplete: (Task) -> Unit = { task ->
         viewModel.toggleComplete(task.id, !task.isCompleted)
@@ -129,7 +139,6 @@ fun MatrixScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .background(DarkBackground)
-                .padding(top = 24.dp)
         ) {
             Row(
                 modifier = Modifier
@@ -214,12 +223,18 @@ fun MatrixScreen(
                                     tint = TextPrimary
                                 )
                             },
-                            onClick = { menuOpen = false /* stub — no guide yet */ }
+                            onClick = { menuOpen = false; showGuide = true }
                         )
                     }
                 }
             }
 
+            Text(
+                (if (config.todayOnly) "오늘 일정" else "모든 날짜") + " · " +
+                    (if (config.hideCompleted) "완료 숨김" else "완료 포함"),
+                fontSize = 12.sp, color = TextSecondary,
+                modifier = Modifier.padding(start = 20.dp, bottom = 10.dp)
+            )
             val quadrants = config.quadrants
             val row1 = quadrants.take(2)
             val row2 = quadrants.drop(2).take(2)

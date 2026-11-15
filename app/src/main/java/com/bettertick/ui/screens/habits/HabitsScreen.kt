@@ -153,16 +153,17 @@ fun HabitsScreen(
                 title = {
                     Text(
                         "습관",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                 },
                 actions = {
                     IconButton(onClick = { showList = true }) {
-                        Icon(Icons.Outlined.List, contentDescription = null, tint = TextSecondary)
+                        Icon(Icons.Outlined.List, contentDescription = "습관 관리", tint = TextSecondary)
                     }
                     IconButton(onClick = { showSettings = true }) {
-                        Icon(Icons.Outlined.Tune, contentDescription = null, tint = TextSecondary)
+                        Icon(Icons.Outlined.Tune, contentDescription = "습관 설정", tint = TextSecondary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = DarkBackground)
@@ -220,23 +221,10 @@ fun HabitsScreen(
             Spacer(Modifier.height(8.dp))
 
             if (habits.isEmpty()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        "습관을 추가해 보세요",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TextSecondary
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "+ 버튼으로 첫 습관을 만들어보세요",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    com.bettertick.ui.components.EmptyTabState(
+                        "작은 습관부터 시작해요", "물을 마시거나 책 한 쪽을 읽는 일부터\n매일의 기록을 쌓아보세요.",
+                        "첫 습관 만들기", { showGallery = true }
                     )
                 }
             } else {
@@ -247,6 +235,15 @@ fun HabitsScreen(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     val todayStr = today.toString()
+                    item(key = "habit-overview") {
+                        val doneToday = habits.count { weekLogs[it.id]?.contains(todayStr) == true }
+                        com.bettertick.ui.components.TabOverview(
+                            "오늘 ${doneToday} / ${habits.size}개 완료",
+                            if (doneToday == habits.size) "오늘의 습관을 모두 기록했어요" else "습관을 눌러 기록하고, 지난 날짜도 확인해보세요",
+                            progress = doneToday.toFloat() / habits.size.coerceAtLeast(1),
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                    }
                     val sections = HabitPrefs.groups.map { g ->
                         val members = habits.filter { HabitPrefs.groupOf(it) == g }
                         g to if (HabitPrefs.sortByCheckIn) {

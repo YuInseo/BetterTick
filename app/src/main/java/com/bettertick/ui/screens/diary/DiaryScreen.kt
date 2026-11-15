@@ -35,6 +35,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -70,25 +80,51 @@ fun DiaryScreen(
     val draftContent by viewModel.draftContent.collectAsState()
 
     var displayMonth by remember { mutableStateOf(LocalDate.now().withDayOfMonth(1)) }
-    var textContent by remember { mutableStateOf("") }
-    var selectedMood by remember { mutableIntStateOf(0) }
-    var hasUnsaved by remember { mutableStateOf(false) }
+    var textContent by remember(selectedDate) { mutableStateOf(currentEntry?.content.orEmpty()) }
+    var selectedMood by remember(selectedDate) { mutableIntStateOf(currentEntry?.mood ?: 0) }
+    var hasUnsaved by remember(selectedDate) { mutableStateOf(false) }
+    var confirmDelete by remember(selectedDate) { mutableStateOf(false) }
+    val saveError by viewModel.saveError.collectAsState()
 
-    LaunchedEffect(currentEntry) {
-        textContent = currentEntry?.content ?: ""
-        selectedMood = currentEntry?.mood ?: 0
-        hasUnsaved = false
-    }
-
-    // Auto-save draft after 2s of inactivity
-    LaunchedEffect(textContent) {
-        if (textContent.isNotBlank() && hasUnsaved) {
-            delay(2000)
-            viewModel.saveDraft(textContent)
+    LaunchedEffect(selectedDate, currentEntry) {
+        // Cache/server emissions must not replace edits still being typed.
+        if (!hasUnsaved) {
+            textContent = currentEntry?.content.orEmpty()
+            selectedMood = currentEntry?.mood ?: 0
         }
     }
 
-    val showDraftBanner = draftContent != null && draftContent != textContent
+    // Capture the day in the effect; leaving the tab also flushes immediately.
+    LaunchedEffect(selectedDate, textContent, selectedMood, hasUnsaved) {
+        if (hasUnsaved) {
+            delay(700)
+            viewModel.saveDraft(textContent, selectedMood, selectedDate)
+        }
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val flushDraft by rememberUpdatedState(newValue = {
+        if (hasUnsaved) viewModel.saveDraft(textContent, selectedMood, selectedDate)
+    })
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) flushDraft()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { flushDraft(); lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    if (confirmDelete) {
+        AlertDialog(onDismissRequest = { confirmDelete = false },
+            title = { Text("이 날의 일기를 삭제할까요?") },
+            text = { Text("삭제한 일기는 되돌릴 수 없어요.") },
+            confirmButton = { TextButton(onClick = {
+                hasUnsaved = false
+                viewModel.deleteCurrentEntry(); confirmDelete = false
+            }) { Text("삭제", color = com.bettertick.ui.theme.OverdueRed) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("취소") } })
+    }
+
+    val showDraftBanner = !hasUnsaved && draftContent != null &&
+        (draftContent != textContent || viewModel.draftMood() != selectedMood)
 
     val listState = rememberLazyListState()
     LaunchedEffect(selectedDate, displayMonth) {
@@ -99,7 +135,10 @@ fun DiaryScreen(
 
     fun saveIfNeeded() {
         if (hasUnsaved && textContent.isNotBlank()) {
-            viewModel.saveEntry(textContent, selectedMood)
+            viewModel.saveEntry(textContent, selectedMood, selectedDate)
+            hasUnsaved = false
+        } else if (hasUnsaved) {
+            viewModel.saveDraft(textContent, selectedMood, selectedDate)
             hasUnsaved = false
         }
     }
@@ -124,19 +163,22 @@ fun DiaryScreen(
                 modifier = Modifier.weight(1f)
             )
             if (currentEntry != null) {
-                IconButton(onClick = { viewModel.deleteCurrentEntry() }) {
+                IconButton(onClick = { confirmDelete = true }) {
                     Icon(Icons.Outlined.Delete, contentDescription = "삭제", tint = TextSecondary)
                 }
             }
-            if (hasUnsaved) {
-                TextButton(onClick = {
-                    viewModel.saveEntry(textContent, selectedMood)
+            if (hasUnsaved || saveError != null) {
+                TextButton(enabled = textContent.isNotBlank(), onClick = {
+                    viewModel.saveEntry(textContent, selectedMood, selectedDate)
                     hasUnsaved = false
                 }) {
                     Text("저장", color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
+
+        if (saveError != null) Text(saveError.orEmpty(), color = com.bettertick.ui.theme.OverdueRed,
+            style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp))
 
         // Month navigation
         val isNotToday = selectedDate != LocalDate.now()
@@ -150,7 +192,7 @@ fun DiaryScreen(
                 onClick = { displayMonth = displayMonth.minusMonths(1) },
                 modifier = Modifier.size(36.dp)
             ) {
-                Icon(Icons.Outlined.ChevronLeft, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.ChevronLeft, "이전 달", tint = TextSecondary, modifier = Modifier.size(20.dp))
             }
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -183,7 +225,7 @@ fun DiaryScreen(
                 onClick = { displayMonth = displayMonth.plusMonths(1) },
                 modifier = Modifier.size(36.dp)
             ) {
-                Icon(Icons.Outlined.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                Icon(Icons.Outlined.ChevronRight, "다음 달", tint = TextSecondary, modifier = Modifier.size(20.dp))
             }
         }
 
@@ -273,6 +315,8 @@ fun DiaryScreen(
             modifier = Modifier.padding(start = 20.dp, top = 10.dp, bottom = 4.dp)
         )
 
+        Text("오늘의 기분", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary,
+            modifier = Modifier.padding(start = 20.dp, top = 10.dp, bottom = 6.dp))
         // Mood selector
         val moods = listOf("😶" to 0, "😔" to 1, "😐" to 2, "🙂" to 3, "😄" to 4)
         Row(
@@ -286,7 +330,8 @@ fun DiaryScreen(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(44.dp)
+                        .semantics { contentDescription = listOf("선택 안 함", "아쉬움", "보통", "좋음", "아주 좋음")[value] }
                         .clip(CircleShape)
                         .background(
                             if (isSel) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
@@ -330,6 +375,7 @@ fun DiaryScreen(
                 TextButton(
                     onClick = {
                         textContent = draftContent!!
+                        selectedMood = viewModel.draftMood()
                         viewModel.deleteDraft()
                         hasUnsaved = true
                     }
@@ -340,6 +386,11 @@ fun DiaryScreen(
             }
         }
 
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(if (hasUnsaved) "작성 중 · 자동 임시저장" else "나의 기록", fontSize = 11.sp, color = TextSecondary)
+            Text("${textContent.length}자", fontSize = 11.sp, color = TextTertiary)
+        }
         // Writing area
         Box(
             modifier = Modifier
@@ -347,7 +398,7 @@ fun DiaryScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp)
                 .padding(bottom = 16.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(18.dp))
                 .background(DarkCard)
                 .padding(16.dp)
         ) {
@@ -357,7 +408,7 @@ fun DiaryScreen(
                     textContent = it
                     hasUnsaved = true
                 },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
                 textStyle = TextStyle(
                     fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onBackground,

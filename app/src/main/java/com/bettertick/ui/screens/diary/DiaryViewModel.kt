@@ -34,6 +34,8 @@ class DiaryViewModel @Inject constructor(
     private val _draftContent = MutableStateFlow<String?>(null)
     val draftContent: StateFlow<String?> = _draftContent.asStateFlow()
 
+    private val _saveError = MutableStateFlow<String?>(null)
+    val saveError = _saveError.asStateFlow()
     private var dateJob: Job? = null
 
     init {
@@ -46,52 +48,68 @@ class DiaryViewModel @Inject constructor(
     }
 
     fun selectDate(date: LocalDate) {
+        if (date == _selectedDate.value) return
         _selectedDate.value = date
+        _currentEntry.value = _entriesMap.value[date.toString()]
+        _saveError.value = null
         observeDate()
     }
 
     private fun observeDate() {
         dateJob?.cancel()
         _draftContent.value = draftRepository.getDraft(_selectedDate.value.toString())
+        val date = _selectedDate.value
         dateJob = viewModelScope.launch {
-            repository.observeEntryForDate(_selectedDate.value.toString()).collect {
-                _currentEntry.value = it
+            repository.observeEntryForDate(date.toString()).collect {
+                if (_selectedDate.value == date) _currentEntry.value = it
             }
         }
     }
 
-    fun saveDraft(content: String) {
-        draftRepository.saveDraft(_selectedDate.value.toString(), content)
-        _draftContent.value = content
+    fun saveDraft(content: String, mood: Int = 0, date: LocalDate = _selectedDate.value) {
+        draftRepository.saveDraft(date.toString(), content, mood)
+        if (_selectedDate.value == date) _draftContent.value = content
     }
+
+    fun draftMood(): Int = draftRepository.getDraftMood(_selectedDate.value.toString())
 
     fun deleteDraft() {
         draftRepository.deleteDraft(_selectedDate.value.toString())
         _draftContent.value = null
     }
 
-    fun saveEntry(content: String, mood: Int) {
+    fun saveEntry(content: String, mood: Int, date: LocalDate = _selectedDate.value) {
+        // Capture the date and existing identity while still on the editing day.
+        val existing = _currentEntry.value?.takeIf { it.dateStr == date.toString() }
+            ?: _entriesMap.value[date.toString()]
+        val entry = diarySaveSnapshot(date, content, mood, existing)
+        saveDraft(content, mood, date)
+        _saveError.value = null
         viewModelScope.launch {
-            val existing = _currentEntry.value
-            val entry = if (existing != null) {
-                existing.copy(content = content, mood = mood)
-            } else {
-                DiaryEntry(dateStr = _selectedDate.value.toString(), content = content, mood = mood)
+            try {
+                repository.saveEntry(entry)
+                // A newer draft typed during this save must survive.
+                if (draftRepository.getDraft(entry.dateStr) == entry.content &&
+                    draftRepository.getDraftMood(entry.dateStr) == entry.mood) {
+                    draftRepository.deleteDraft(entry.dateStr)
+                    if (_selectedDate.value == date) _draftContent.value = null
+                }
+                txtExporter.export(entry)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (_selectedDate.value == date) _saveError.value = "저장하지 못했어요. 내용은 임시저장되어 있어요. 다시 시도해 주세요."
             }
-            repository.saveEntry(entry)
-            draftRepository.deleteDraft(_selectedDate.value.toString())
-            _draftContent.value = null
-            txtExporter.export(entry)
         }
     }
 
     fun deleteCurrentEntry() {
+        val date = _selectedDate.value
+        val id = _currentEntry.value?.id?.takeIf { it.isNotBlank() } ?: return
         viewModelScope.launch {
-            _currentEntry.value?.id?.takeIf { it.isNotBlank() }?.let {
-                repository.deleteEntry(it)
-                draftRepository.deleteDraft(_selectedDate.value.toString())
-                _draftContent.value = null
-            }
+            repository.deleteEntry(id)
+            draftRepository.deleteDraft(date.toString())
+            if (_selectedDate.value == date) _draftContent.value = null
         }
     }
 }
