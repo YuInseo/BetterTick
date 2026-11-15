@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -21,6 +22,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,32 +55,69 @@ import java.time.LocalDate
  *
  * URI: bettertick://widget/taskmenu/<taskId>?d=<ISO date shown in the widget>
  */
+@dagger.hilt.android.AndroidEntryPoint
 class WidgetTaskMenuActivity : ComponentActivity() {
+    @javax.inject.Inject lateinit var taskRepository: com.bettertick.data.repository.TaskRepository
+    @javax.inject.Inject lateinit var tagRepository: com.bettertick.data.repository.TagRepository
+    @javax.inject.Inject lateinit var listRepository: com.bettertick.data.repository.ListRepository
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Draw behind the status / navigation bars so the dimmed backdrop covers
+        // the whole screen (no undimmed strips at the top and bottom).
+        enableEdgeToEdge()
         val uri = intent?.data
         val taskId = uri?.pathSegments?.getOrNull(1)
         val day = uri?.getQueryParameter("d")?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
-        val task = taskId?.let { id ->
-            if (WidgetServiceLocator.isInitialized) WidgetServiceLocator.tasksCache.value.firstOrNull { it.id == id } else null
-        }
-        if (task == null) {
-            openApp()
-            return
-        }
+        if (taskId == null) { openApp(); return }
+        val cached = if (WidgetServiceLocator.isInitialized) WidgetServiceLocator.tasksCache.value.firstOrNull { it.id == taskId } else null
         setContent {
             BetterTickTheme {
-                StatusSheet(
-                    task = task,
-                    onAction = { action ->
-                        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                            runCatching { WidgetServiceLocator.taskRepository.applyStatus(task, action, day) }
+                // Widget row tap → the task's own page (note blocks, date, tags …).
+                var task by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(cached) }
+                androidx.compose.runtime.LaunchedEffect(taskId) {
+                    if (task == null) {
+                        task = runCatching {
+                            taskRepository.observeAllTasks().first().firstOrNull { it.id == taskId }
+                        }.getOrNull()
+                        if (task == null) openApp()
+                    }
+                }
+                val tags by androidx.compose.runtime.remember { tagRepository.observeTags() }
+                    .collectAsState(initial = emptyList())
+                val lists by androidx.compose.runtime.remember { listRepository.observeLists() }
+                    .collectAsState(initial = emptyList())
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                task?.let { t ->
+                    com.bettertick.ui.screens.tasks.components.TaskDetailSheet(
+                        task = t,
+                        listName = lists.firstOrNull { it.id == t.listId }?.name ?: "기본함",
+                        onDismiss = { finish() },
+                        onUpdateTask = { updated ->
+                            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                                runCatching { taskRepository.updateTask(updated) }
+                            }
+                        },
+                        onToggleComplete = {
+                            scope.launch {
+                                runCatching { taskRepository.applyStatus(t, if (t.isCompleted || t.isAbandoned) TaskStatusAction.REOPEN else TaskStatusAction.COMPLETE, day) }
+                            }
+                        },
+                        tags = tags,
+                        onCreateTag = { name ->
+                            val trimmed = name.trim().removePrefix("#")
+                            tags.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }?.id
+                                ?: tagRepository.addTag(com.bettertick.data.model.Tag(name = trimmed))
+                        },
+                        lists = lists,
+                        occurrenceDate = day,
+                        onDelete = { del ->
+                            CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                                runCatching { taskRepository.deleteTask(del.id) }
+                            }
                         }
-                        finish()
-                    },
-                    onOpenApp = { openApp() },
-                    onDismiss = { finish() }
-                )
+                    )
+                }
             }
         }
     }

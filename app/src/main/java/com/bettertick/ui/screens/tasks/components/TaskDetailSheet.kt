@@ -721,14 +721,26 @@ fun TaskDetailSheet(
             var lastPanel by remember { mutableStateOf(NotePanel.NONE) }
             var restoring by remember { mutableStateOf(false) }
             if (notePanel != NotePanel.NONE) lastPanel = notePanel
+            // While going back to the keyboard the panel also folds away on its own,
+            // quickly — so a keyboard that animates slowly (or jumps in late) never
+            // leaves the panel hanging there.
+            var collapseCap by remember { androidx.compose.runtime.mutableFloatStateOf(Float.MAX_VALUE) }
             LaunchedEffect(restoring) {
                 if (restoring) {
-                    // keyboardPx is state: if the keyboard turns out shorter, the target follows.
-                    kotlinx.coroutines.withTimeoutOrNull(700) {
-                        snapshotFlow { imeInsets.getBottom(density) - navInsets.getBottom(density) >= keyboardPx - 2 }.first { it }
+                    kotlinx.coroutines.coroutineScope {
+                        launch {
+                            androidx.compose.animation.core.animate(panelPx.toFloat(), 0f,
+                                animationSpec = androidx.compose.animation.core.tween(200,
+                                    easing = androidx.compose.animation.core.FastOutSlowInEasing)) { v, _ -> collapseCap = v }
+                        }
+                        // keyboardPx is state: if the keyboard turns out shorter, the target follows.
+                        kotlinx.coroutines.withTimeoutOrNull(400) {
+                            snapshotFlow { imeInsets.getBottom(density) - navInsets.getBottom(density) >= keyboardPx - 2 }.first { it }
+                        }
                     }
                     restoring = false
                 }
+                collapseCap = Float.MAX_VALUE
             }
             // Tapping a block while a panel is open brings the keyboard back: then the
             // panel gives way to it (otherwise both would show).
@@ -777,7 +789,7 @@ fun TaskDetailSheet(
                 )
                 val shown = if (notePanel != NotePanel.NONE) notePanel else if (restoring) lastPanel else NotePanel.NONE
                 if (shown != NotePanel.NONE) {
-                    val visiblePx = (panelPx - imePx).coerceAtLeast(0)
+                    val visiblePx = minOf((panelPx - imePx).coerceAtLeast(0).toFloat(), collapseCap).toInt()
                     Box(Modifier.fillMaxWidth().height(with(density) { visiblePx.toDp() }).clipToBounds()) {
                         Box(Modifier.fillMaxWidth().requiredHeight(with(density) { panelPx.toDp() })
                             .align(Alignment.TopCenter).padding(horizontal = 12.dp)) {

@@ -109,7 +109,10 @@ class EditorImeRegressionTest {
         val windowBounds = Rect().also { appWindow?.getBoundsInScreen(it) }
         assertTrue("dialog must not pan above the display: $windowBounds", windowBounds.top >= 0)
         val header = compose.onNodeWithTag("task-detail-header").fetchSemanticsNode().boundsInRoot
-        assertTrue("keyboard must not move the header", abs(header.top + windowBounds.top - beforeTop) <= 2f * density)
+        val surface = runCatching { compose.onNodeWithTag("task-detail-surface").fetchSemanticsNode().boundsInRoot }.getOrNull()
+        assertTrue("keyboard must not move the header: before=$beforeTop now=${header.top + windowBounds.top} " +
+            "header=$header window=$windowBounds surface=$surface ime=$ime density=$density",
+            abs(header.top + windowBounds.top - beforeTop) <= 2f * density)
         val footer = compose.onNodeWithTag("block-keyboard-bar").fetchSemanticsNode().boundsInRoot
         val footerBottom = footer.bottom + windowBounds.top
         assertTrue("toolbar must stay above keyboard: $footerBottom vs ${ime.top}", footerBottom <= ime.top + 2f * density)
