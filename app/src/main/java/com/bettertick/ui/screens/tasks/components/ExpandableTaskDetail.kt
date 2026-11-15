@@ -42,6 +42,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+/** 0 = drawer, 1 = full page; lets the content move its date row into the pinned bar. */
+internal val LocalDetailExpansion = androidx.compose.runtime.compositionLocalOf { 0f }
+
 /** One window and one editor composition for the entire drawer ↔ page transition. */
 @Composable
 internal fun ExpandableTaskDetail(
@@ -51,6 +54,8 @@ internal fun ExpandableTaskDetail(
     pageTitle: String = "",
     pageSubtitle: String = "",
     titleScrolledAway: Boolean = false,
+    /** Page mode only: shown beside the back button (the sheet's date row moves up here). */
+    pageBar: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit
 ) {
     var position by remember { mutableStateOf(DetailDragPosition()) }
@@ -109,7 +114,7 @@ internal fun ExpandableTaskDetail(
                     modifier = Modifier.testTag("task-detail-surface").align(Alignment.BottomCenter).fillMaxWidth().height(sheetHeight)
                         .offset { IntOffset(0, position.dismissOffset.roundToInt()) }) {
                     Column(Modifier.fillMaxSize().imePadding()) {
-                        Row(Modifier.testTag("task-detail-header").fillMaxWidth().height(44.dp + 4.dp * expansion)
+                        Row(Modifier.testTag("task-detail-header").fillMaxWidth().height(44.dp + (if (pageBar != null) 16.dp else 4.dp) * expansion)
                             .pointerInput(heightPx, expandRange) {
                                 val tracker = VelocityTracker()
                                 var distance = 0f
@@ -135,8 +140,14 @@ internal fun ExpandableTaskDetail(
                             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                                 Box(Modifier.size(width = 32.dp, height = 4.dp).alpha(1f - expansion)
                                     .clip(RoundedCornerShape(2.dp)).background(TextTertiary.copy(alpha = 0.5f)))
-                                // Pinned page bar: the title appears here once it scrolls out of view.
-                                if (pageTitle.isNotBlank()) Column(Modifier.fillMaxWidth().alpha(expansion * titleAlpha)) {
+                                // Page mode: the date row sits here, level with the back button…
+                                val pageAlpha = ((expansion - 0.5f) * 2f).coerceIn(0f, 1f)
+                                if (pageBar != null && expansion >= 0.5f && titleAlpha < 1f) {
+                                    Box(Modifier.fillMaxWidth().alpha(pageAlpha * (1f - titleAlpha))) { pageBar() }
+                                }
+                                // …and the title takes its place once the big title scrolls away.
+                                if (pageTitle.isNotBlank() && titleAlpha > 0f) Column(Modifier.fillMaxWidth().alpha(
+                                    (if (pageBar != null) pageAlpha else expansion) * titleAlpha)) {
                                     Text(pageTitle, fontSize = 16.sp, color = TextPrimary, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                     if (pageSubtitle.isNotBlank()) Text(pageSubtitle, fontSize = 12.sp, color = TextSecondary, maxLines = 1,
@@ -146,12 +157,14 @@ internal fun ExpandableTaskDetail(
                             actions()
                             // No expand button: drag the handle up for the full page.
                             // Keeps the handle centred against the back button.
-                            Spacer(Modifier.size(48.dp))
+                            Spacer(Modifier.width(if (pageBar != null) 48.dp * (1f - expansion) + 8.dp * expansion else 48.dp))
                         }
                         // Hairline under the pinned bar while the page is scrolled.
                         Box(Modifier.fillMaxWidth().height(1.dp)
                             .alpha(if (titleScrolledAway) expansion else 0f).background(TextTertiary.copy(alpha = 0.18f)))
-                        Box(Modifier.weight(1f).fillMaxWidth()) { content() }
+                        Box(Modifier.weight(1f).fillMaxWidth()) {
+                            CompositionLocalProvider(LocalDetailExpansion provides expansion) { content() }
+                        }
                     }
                 }
             }

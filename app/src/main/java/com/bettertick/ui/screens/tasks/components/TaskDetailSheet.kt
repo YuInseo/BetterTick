@@ -93,6 +93,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -358,24 +359,11 @@ fun TaskDetailSheet(
     var titleBottomPx by remember { mutableIntStateOf(0) }
     // derivedStateOf: scrolling only recomposes when the answer flips, not every frame.
     val titleScrolledAway by remember { androidx.compose.runtime.derivedStateOf { titleBottomPx > 0 && contentScroll.value > titleBottomPx } }
-    ExpandableTaskDetail(onClose = { commitAndClose() },
-        pageTitle = title.ifBlank { "제목 없음" }, pageSubtitle = shownListName,
-        titleScrolledAway = titleScrolledAway) {
-        val scrollbarColor = TextSecondary.copy(alpha = 0.45f)
-        Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 8.dp)) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .detailScrollbar(contentScroll, scrollbarColor)
-                .verticalScroll(contentScroll)
-                .padding(bottom = 12.dp)
-        ) {
-            // 날짜 한 줄 + 오른쪽 아이콘 묶음 (반복 · 알림 · 우선순위 · 더보기),
-            // 아이콘은 모두 같은 크기 · 같은 간격.
+    // 날짜 줄: inside the sheet in drawer mode, in the pinned top bar in page mode.
+    val dateRow: @Composable (Modifier) -> Unit = { rowModifier ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                modifier = rowModifier
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -543,6 +531,26 @@ fun TaskDetailSheet(
                 }
                 }
             }
+    }
+    ExpandableTaskDetail(onClose = { commitAndClose() },
+        pageTitle = title.ifBlank { "제목 없음" }, pageSubtitle = shownListName,
+        titleScrolledAway = titleScrolledAway,
+        pageBar = { dateRow(Modifier.fillMaxWidth()) }) {
+        val scrollbarColor = TextSecondary.copy(alpha = 0.45f)
+        Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 8.dp)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .detailScrollbar(contentScroll, scrollbarColor)
+                .verticalScroll(contentScroll)
+                .padding(bottom = 12.dp)
+        ) {
+            // 날짜 한 줄 + 오른쪽 아이콘 묶음 (반복 · 알림 · 우선순위 · 더보기),
+            // 아이콘은 모두 같은 크기 · 같은 간격.
+            // In page mode this row moves up beside the back button (pinned bar).
+            val pageExpansion = LocalDetailExpansion.current
+            if (pageExpansion < 0.5f) dateRow(Modifier.fillMaxWidth().padding(vertical = 4.dp).alpha(1f - pageExpansion * 2f))
             // ── Compact list / parent context directly below the date ──────────────────────
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Row(

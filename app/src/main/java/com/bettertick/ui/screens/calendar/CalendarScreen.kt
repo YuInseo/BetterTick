@@ -609,7 +609,7 @@ fun CalendarScreen(
                             val pullScope = androidx.compose.runtime.rememberCoroutineScope()
                             var pull by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
                             val pullThreshold = with(density) { 72.dp.toPx() }
-                            val maxPull = with(density) { 160.dp.toPx() }
+                            val maxPull = with(density) { 252.dp.toPx() }
                             val releasePull: () -> Unit = {
                                 if (pull > pullThreshold) viewModel.clearSelection()
                                 val from = pull
@@ -634,7 +634,7 @@ fun CalendarScreen(
                                                               source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
                                         // The list is at its top and the finger keeps going down.
                                         if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag && available.y > 0f) {
-                                            pull = (pull + available.y * 0.5f).coerceAtMost(maxPull)
+                                            pull = (pull + available.y * 0.8f).coerceAtMost(maxPull)
                                             return androidx.compose.ui.geometry.Offset(0f, available.y)
                                         }
                                         return androidx.compose.ui.geometry.Offset.Zero
@@ -645,10 +645,42 @@ fun CalendarScreen(
                                     }
                                 }
                             }
+                            Box(Modifier.weight(1f).fillMaxWidth()) {
+                            // While pulling, the next weeks unroll in the gap above the
+                            // list — the month calendar growing out of this week.
+                            if (pull > 0f) {
+                                val upcoming = remember(selectedWeek) {
+                                    (1..3).map { n -> selectedWeek.map { it.plusWeeks(n.toLong()) } }
+                                }
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .height(with(density) { pull.toDp() })
+                                        .clipToBounds()
+                                        .padding(horizontal = 8.dp)
+                                        .graphicsLayer { alpha = (pull / pullThreshold).coerceIn(0f, 1f) }
+                                ) {
+                                    androidx.compose.runtime.CompositionLocalProvider(
+                                        com.bettertick.ui.screens.calendar.LocalChipShowTime provides false
+                                    ) {
+                                        upcoming.forEach { weekDays ->
+                                            WeekRow(
+                                                week = weekDays,
+                                                weekIdx = 0,
+                                                allWeeks = listOf(weekDays),
+                                                today = today,
+                                                selectedDate = currentDate,
+                                                lookup = displayLookup,
+                                                onDateSelected = onDatePick,
+                                                height = 84.dp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                             Box(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxWidth()
+                                    .fillMaxSize()
                                     .nestedScroll(pullConnection)
                                     // A day whose list doesn't scroll (empty, short) still pulls.
                                     .pointerInput(Unit) {
@@ -657,14 +689,13 @@ fun CalendarScreen(
                                             onDragCancel = { latestRelease() },
                                             onVerticalDrag = { change, delta ->
                                                 if (delta > 0f || pull > 0f) {
-                                                    pull = (pull + delta * 0.5f).coerceIn(0f, maxPull)
+                                                    pull = (pull + delta * 0.8f).coerceIn(0f, maxPull)
                                                     change.consume()
                                                 }
                                             }
                                         )
                                     }
                                     .offset { IntOffset(0, pull.roundToInt()) }
-                                    .graphicsLayer { alpha = 1f - (pull / maxPull) * 0.35f }
                             ) {
                             SelectedDatePanel(
                                 tasks = lookup.tasksOn(currentDate),
@@ -724,6 +755,7 @@ fun CalendarScreen(
                                     .fillMaxSize()
                                     .padding(vertical = 6.dp)
                             )
+                            }
                             }
                         }
 
