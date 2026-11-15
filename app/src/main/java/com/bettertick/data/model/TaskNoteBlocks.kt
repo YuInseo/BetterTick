@@ -8,7 +8,33 @@ object NoteBlockKind {
     const val DIVIDER = "divider"
     const val IMAGE = "image"
     const val FILE = "file"
+    const val HEADING2 = "heading2"
+    const val HEADING3 = "heading3"
+    const val BULLET = "bullet"
+    const val NUMBERED = "numbered"
+    const val TOGGLE = "toggle"
+    const val TOGGLE_H1 = "toggle_h1"
+    const val TOGGLE_H2 = "toggle_h2"
+    const val TOGGLE_H3 = "toggle_h3"
+    const val QUOTE = "quote"
+    const val CALLOUT = "callout"
+    const val CODE = "code"
+    const val EMBED = "embed"
+    const val TOC = "toc"
+
+    /** Blocks without editable text. */
+    fun isStatic(kind: String) = kind == DIVIDER || kind == TOC || kind == IMAGE || kind == FILE
+    fun isToggle(kind: String) = kind == TOGGLE || kind == TOGGLE_H1 || kind == TOGGLE_H2 || kind == TOGGLE_H3
+    /** 1..3 for headings (toggle headings included), 0 otherwise. */
+    fun headingLevel(kind: String) = when (kind) {
+        HEADING, TOGGLE_H1 -> 1
+        HEADING2, TOGGLE_H2 -> 2
+        HEADING3, TOGGLE_H3 -> 3
+        else -> 0
+    }
 }
+
+const val MAX_NOTE_INDENT = 4
 
 /** Lossless lazy migration; hidden dates are kept in the document, not just the selected page. */
 fun Task.noteBlocks(): List<TaskMemo> {
@@ -55,17 +81,24 @@ fun attachmentNoteBlock(entry: String, id: String = java.util.UUID.randomUUID().
 }
 
 fun List<TaskMemo>.savedNoteBlocks(): List<TaskMemo> = filter {
-    it.kind == NoteBlockKind.DIVIDER || it.text.isNotBlank() || it.attachment.isNotBlank()
+    it.kind == NoteBlockKind.DIVIDER || it.kind == NoteBlockKind.TOC || it.text.isNotBlank() || it.attachment.isNotBlank()
 }
 
 /** A plain markdown projection keeps search, exports and calendar previews compatible. */
 fun List<TaskMemo>.commonNoteText(): String = filter { it.day.isBlank() }.mapNotNull {
+    val pad = "  ".repeat(it.indent.coerceIn(0, MAX_NOTE_INDENT))
     when (it.kind) {
-        NoteBlockKind.IMAGE, NoteBlockKind.FILE -> null
+        NoteBlockKind.IMAGE, NoteBlockKind.FILE, NoteBlockKind.TOC -> null
         NoteBlockKind.DIVIDER -> "---"
-        NoteBlockKind.HEADING -> "# ${it.text}"
-        NoteBlockKind.TODO -> "- [${if (it.checked) "x" else " "}] ${it.text}"
-        else -> it.text
+        NoteBlockKind.HEADING, NoteBlockKind.TOGGLE_H1 -> "# ${it.text}"
+        NoteBlockKind.HEADING2, NoteBlockKind.TOGGLE_H2 -> "## ${it.text}"
+        NoteBlockKind.HEADING3, NoteBlockKind.TOGGLE_H3 -> "### ${it.text}"
+        NoteBlockKind.TODO -> "$pad- [${if (it.checked) "x" else " "}] ${it.text}"
+        NoteBlockKind.BULLET, NoteBlockKind.TOGGLE -> "$pad- ${it.text}"
+        NoteBlockKind.NUMBERED -> "${pad}1. ${it.text}"
+        NoteBlockKind.QUOTE, NoteBlockKind.CALLOUT -> "> ${it.text}"
+        NoteBlockKind.CODE -> "```\n${it.text}\n```"
+        else -> pad + it.text
     }
 }.joinToString("\n").take(200000)
 

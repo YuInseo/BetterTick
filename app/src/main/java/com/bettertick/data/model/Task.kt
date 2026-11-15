@@ -72,7 +72,10 @@ data class TaskMemo(
     // Empty kind denotes a legacy memo. New documents store ordered native blocks here.
     val kind: String = "",
     val checked: Boolean = false,
-    val attachment: String = ""
+    val attachment: String = "",
+    // Notion-style nesting (0..4) and block colour ("red", "bg_blue", …; empty = default).
+    val indent: Int = 0,
+    val color: String = ""
 )
 
 /** Memos to show on [day]: the shared ones plus that day's (all when [day] is null). */

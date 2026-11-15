@@ -78,17 +78,21 @@ class EditorImeRegressionTest {
         }
         if (imeBounds() == null) fail("keyboard never opened after tapping the block; " + imeDiagnostics())
         compose.waitForIdle()
-        try {
+        // The bar right above the keyboard is the Notion-style block bar now
+        // (the old bottom toolbar is gone).
+        fun bar() = runCatching { compose.onNodeWithTag("block-keyboard-bar").fetchSemanticsNode().boundsInRoot }.getOrNull()
+        val settled = runCatching {
             compose.waitUntil(15_000) {
                 val keyboard = imeBounds()
-                val footer = runCatching { compose.onNodeWithTag("task-detail-actions").fetchSemanticsNode().boundsInRoot }.getOrNull()
+                val footer = bar()
                 keyboard != null && footer != null && keyboard.top - (footer.bottom + appBounds().top) in (-2f * density)..(24f * density)
             }
-        } finally {
-            val footer = compose.onNodeWithTag("task-detail-actions").fetchSemanticsNode().boundsInRoot
-            println("UI_GEOMETRY mode=$page ime=${imeBounds()} window=${appBounds()} footer=$footer")
-            capture("${if (page) "page" else "drawer"}_keyboard")
-        }
+        }.isSuccess
+        val geometry = "mode=$page ime=${imeBounds()} window=${appBounds()} bar=${bar()} " +
+            "actions=${runCatching { compose.onNodeWithTag("task-detail-actions").fetchSemanticsNode().boundsInRoot }.getOrNull()} density=$density"
+        println("UI_GEOMETRY $geometry")
+        capture("${if (page) "page" else "drawer"}_keyboard")
+        assertTrue("block bar must sit right above the keyboard: $geometry", settled)
         val ime = requireNotNull(imeBounds())
         val appWindow = instrumentation.uiAutomation.windows.firstOrNull {
             it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isFocused
@@ -97,7 +101,7 @@ class EditorImeRegressionTest {
         assertTrue("dialog must not pan above the display: $windowBounds", windowBounds.top >= 0)
         val header = compose.onNodeWithTag("task-detail-header").fetchSemanticsNode().boundsInRoot
         assertTrue("keyboard must not move the header", abs(header.top + windowBounds.top - beforeTop) <= 2f * density)
-        val footer = compose.onNodeWithTag("task-detail-actions").fetchSemanticsNode().boundsInRoot
+        val footer = compose.onNodeWithTag("block-keyboard-bar").fetchSemanticsNode().boundsInRoot
         val footerBottom = footer.bottom + windowBounds.top
         assertTrue("toolbar must stay above keyboard: $footerBottom vs ${ime.top}", footerBottom <= ime.top + 2f * density)
         assertTrue("no calendar-sized gap above keyboard: ${ime.top - footerBottom}", ime.top - footerBottom <= 24f * density)
@@ -109,7 +113,14 @@ class EditorImeRegressionTest {
         assertTrue("flag and more share the date row",
             abs((flag.top + flag.bottom) / 2 - (more.top + more.bottom) / 2) <= 2f * density)
         compose.onNodeWithTag("note-block-third").performTextInput(" edited")
-        compose.onNodeWithText("저장", useUnmergedTree = true).performClick()
+        // No 저장 button any more: closing the sheet saves. Back first hides the
+        // keyboard, the next one dismisses the editor.
+        repeat(3) {
+            if (saved == null) {
+                instrumentation.sendKeyDownUpSync(android.view.KeyEvent.KEYCODE_BACK)
+                compose.waitForIdle()
+            }
+        }
         compose.runOnIdle { assertTrue(saved?.memos?.any { it.id == "third" && it.text.contains("edited") } == true) }
     }
 
