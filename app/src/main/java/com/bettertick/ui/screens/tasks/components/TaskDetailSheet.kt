@@ -590,6 +590,7 @@ fun TaskDetailSheet(
     }
 
     shiftDetection?.let { detection ->
+        val shiftViewModel: ShiftRotationViewModel = androidx.hilt.navigation.compose.hiltViewModel()
         ShiftRotationDialog(
             detection = detection,
             onDismiss = {

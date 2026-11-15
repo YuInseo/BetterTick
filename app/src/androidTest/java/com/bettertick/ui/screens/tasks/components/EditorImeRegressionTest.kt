@@ -71,6 +71,11 @@ class EditorImeRegressionTest {
         compose.onNodeWithTag("note-block-third").performClick()
         compose.waitUntil(15_000) { imeBounds() != null }
         compose.waitForIdle()
+        compose.waitUntil(15_000) {
+            val keyboard = imeBounds()
+            val footer = runCatching { compose.onNodeWithTag("task-detail-actions").fetchSemanticsNode().boundsInRoot }.getOrNull()
+            keyboard != null && footer != null && keyboard.top - footer.bottom in (-2f * density)..(24f * density)
+        }
         capture("${if (page) "page" else "drawer"}_keyboard")
         val ime = requireNotNull(imeBounds())
         val appWindow = instrumentation.uiAutomation.windows.firstOrNull {
