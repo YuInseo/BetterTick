@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -55,6 +56,9 @@ internal fun TaskNoteEditor(
     var scopeOpen by remember { mutableStateOf(false) }
     var addingDay by remember(day) { mutableStateOf(day.orEmpty()) }
     var removed by remember { mutableStateOf<Pair<Int, TaskMemo>?>(null) }
+    // Caret to place after Backspace merges/deletes: (block id, offset), bumped by tick.
+    var cursorRequest by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    var cursorTick by remember { mutableIntStateOf(0) }
     val visible = blocks.filter { it.day.isBlank() || day == null || it.day == day }
     val hidden = blocks.size - visible.size
     Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
@@ -102,6 +106,32 @@ internal fun TaskNoteEditor(
                     onRemove = { val at = blocks.indexOfFirst { it.id == block.id }; if (at >= 0) { removed = at to block; blocks.removeAt(at) } },
                     selectedDay = day,
                     canInsert = blocks.size < 1000,
+                    cursorRequest = cursorRequest?.takeIf { it.first == block.id }?.second,
+                    cursorTick = cursorTick,
+                    onBackspaceAtStart = {
+                        val prev = visible.getOrNull(index - 1)
+                        val at = blocks.indexOfFirst { it.id == block.id }
+                        if (at >= 0) when (noteBackspaceAtStart(block, prev)) {
+                            NoteBackspace.TO_TEXT -> blocks[at] = block.copy(kind = NoteBlockKind.TEXT, checked = false)
+                            NoteBackspace.DELETE_FOCUS_PREVIOUS -> {
+                                blocks.removeAt(at)
+                                prev?.let { cursorRequest = it.id to it.text.length; cursorTick++; onFocusBlock(it.id) }
+                            }
+                            NoteBackspace.MERGE_INTO_PREVIOUS -> prev?.let { p ->
+                                val pAt = blocks.indexOfFirst { it.id == p.id }
+                                if (pAt >= 0) {
+                                    blocks[pAt] = p.copy(text = p.text + block.text)
+                                    blocks.removeAt(blocks.indexOfFirst { it.id == block.id })
+                                    cursorRequest = p.id to p.text.length; cursorTick++; onFocusBlock(p.id)
+                                }
+                            }
+                            NoteBackspace.REMOVE_PREVIOUS -> prev?.let { p ->
+                                blocks.indexOfFirst { it.id == p.id }.takeIf { it >= 0 }?.let { blocks.removeAt(it) }
+                            }
+                            NoteBackspace.DELETE -> blocks.removeAt(at)
+                            NoteBackspace.NONE -> Unit
+                        }
+                    },
                     onInsertAfter = { kind, text ->
                         val at = blocks.indexOfFirst { it.id == block.id }
                         if (at >= 0 && blocks.size < 1000) {
@@ -132,22 +162,38 @@ private fun NoteBlockRow(
     block: TaskMemo, focus: Boolean, onChange: (TaskMemo) -> Unit,
     onMove: (Int) -> Unit, canMoveUp: Boolean, canMoveDown: Boolean,
     onDuplicate: () -> Unit, onRemove: () -> Unit, selectedDay: String?,
-    canInsert: Boolean, onInsertAfter: (kind: String, text: String) -> Unit
+    canInsert: Boolean,
+    cursorRequest: Int?, cursorTick: Int, onBackspaceAtStart: () -> Unit,
+    onInsertAfter: (kind: String, text: String) -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val media = block.attachment.isNotBlank()
-    var fieldValue by remember(block.id) { mutableStateOf(TextFieldValue(block.text, TextRange(if (focus) 0 else block.text.length))) }
+    // The field holds an invisible sentinel before the text, so Backspace at the
+    // start (even in an empty block, where keyboards send nothing) deletes it and
+    // we can see it. Everything outside the field works on the text without it.
+    var fieldValue by remember(block.id) {
+        mutableStateOf(withSentinel(TextFieldValue(block.text, TextRange(if (focus) 0 else block.text.length))))
+    }
+    var focused by remember { mutableStateOf(false) }
     var softBreak by remember { mutableStateOf(false) }
     var dismissedSlash by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(block.text) {
         if (!block.text.startsWith("/")) dismissedSlash = null
-        if (fieldValue.text != block.text) fieldValue = TextFieldValue(block.text,
-            TextRange(fieldValue.selection.end.coerceIn(0, block.text.length)))
+        val shown = withoutSentinel(fieldValue)
+        if (shown.text != block.text) fieldValue = withSentinel(TextFieldValue(block.text,
+            TextRange(shown.selection.end.coerceIn(0, block.text.length))))
     }
     val slashQuery = block.text.takeIf { it.startsWith("/") && '\n' !in it && it.length <= 40 }
     val slashItems = noteSlashItems(slashQuery?.drop(1).orEmpty())
     LaunchedEffect(focus) { if (focus && !media && block.kind != NoteBlockKind.DIVIDER) focusRequester.requestFocus() }
+    // After Backspace merged into / deleted toward this block: caret at the join.
+    LaunchedEffect(cursorTick) {
+        val at = cursorRequest ?: return@LaunchedEffect
+        if (media || block.kind == NoteBlockKind.DIVIDER) return@LaunchedEffect
+        fieldValue = withSentinel(TextFieldValue(block.text, TextRange(at.coerceIn(0, block.text.length))))
+        focusRequester.requestFocus()
+    }
     Row(Modifier.fillMaxWidth().padding(top = if (block.kind == NoteBlockKind.HEADING) 6.dp else 0.dp,
         bottom = if (block.kind == NoteBlockKind.HEADING) 2.dp else 0.dp), verticalAlignment = Alignment.Top) {
         Box {
@@ -185,11 +231,19 @@ private fun NoteBlockRow(
                 else -> Box(Modifier.fillMaxWidth()) {
                     BasicTextField(
                     value = fieldValue,
-                    onValueChange = { next ->
+                    onValueChange = { raw ->
+                        if (!raw.text.startsWith(NOTE_SENTINEL)) {
+                            // Sentinel gone = Backspace at the very start of the block.
+                            fieldValue = withSentinel(withoutSentinel(fieldValue).copy(selection = TextRange(0)))
+                            onBackspaceAtStart()
+                            return@BasicTextField
+                        }
+                        val previous = withoutSentinel(fieldValue)
+                        val next = withoutSentinel(raw)
                         val split = if (!softBreak && canInsert)
-                            splitNoteOnEnter(fieldValue.text, next.text, next.selection.end,
+                            splitNoteOnEnter(previous.text, next.text, next.selection.end,
                                 next.composition?.let { it.min until it.max }) else null
-                        fieldValue = if (split == null) next else TextFieldValue(split.first, TextRange(split.first.length))
+                        fieldValue = withSentinel(if (split == null) next else TextFieldValue(split.first, TextRange(split.first.length)))
                         if (split != null) {
                             if (block.kind == NoteBlockKind.TODO && split.first.isEmpty() && split.second.isEmpty()) {
                                 onChange(block.copy(kind = NoteBlockKind.TEXT, text = "", checked = false))
@@ -206,14 +260,16 @@ private fun NoteBlockRow(
                         fontWeight = if (block.kind == NoteBlockKind.HEADING) FontWeight.SemiBold else FontWeight.Normal,
                         textDecoration = if (block.checked && block.kind == NoteBlockKind.TODO) TextDecoration.LineThrough else null),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.testTag("note-block-${block.id}").focusRequester(focusRequester).onPreviewKeyEvent { event ->
+                    modifier = Modifier.testTag("note-block-${block.id}").focusRequester(focusRequester)
+                        .onFocusChanged { focused = it.isFocused }.onPreviewKeyEvent { event ->
                         if (event.key == Key.Enter) softBreak = event.type == KeyEventType.KeyDown && event.isShiftPressed
                         false
                     }.fillMaxWidth().heightIn(min = if (block.kind == NoteBlockKind.HEADING) 36.dp else 26.dp, max = 240.dp)
                         .padding(vertical = 2.dp),
                     decorationBox = { inner ->
                         Box {
-                            if (block.text.isEmpty()) Text(when (block.kind) {
+                            // Placeholder only in the block being edited (like BlockNote).
+                            if (block.text.isEmpty() && focused) Text(when (block.kind) {
                                 NoteBlockKind.HEADING -> "제목"; NoteBlockKind.TODO -> "할 일"; else -> "내용 입력, / 로 블록 선택"
                             }, color = TextTertiary, fontSize = if (block.kind == NoteBlockKind.HEADING) 21.sp else 15.sp)
                             inner()
@@ -280,3 +336,24 @@ private fun NoteMediaBlock(block: TaskMemo) {
 private fun dateLabel(day: String): String = runCatching {
     java.time.LocalDate.parse(day).let { "${it.monthValue}월 ${it.dayOfMonth}일" }
 }.getOrDefault(day)
+
+/** Invisible first character of every block field — see [NoteBlockRow]. */
+private const val NOTE_SENTINEL = '\u200B'
+
+private fun TextRange.shift(by: Int, max: Int) =
+    TextRange((start + by).coerceIn(0, max), (end + by).coerceIn(0, max))
+
+/** Field value → plain block value (sentinel stripped, ranges moved left). */
+private fun withoutSentinel(v: TextFieldValue): TextFieldValue {
+    if (!v.text.startsWith(NOTE_SENTINEL)) return v
+    val text = v.text.substring(1)
+    return TextFieldValue(text, v.selection.shift(-1, text.length), v.composition?.shift(-1, text.length))
+}
+
+/** Plain block value → field value (sentinel added, caret never before it). */
+private fun withSentinel(v: TextFieldValue): TextFieldValue {
+    val text = NOTE_SENTINEL + v.text
+    return TextFieldValue(text, v.selection.shift(1, text.length).let {
+        TextRange(it.start.coerceAtLeast(1), it.end.coerceAtLeast(1))
+    }, v.composition?.shift(1, text.length))
+}
