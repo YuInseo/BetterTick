@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import com.bettertick.data.model.isShiftTask
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.LinkOff
@@ -296,6 +297,10 @@ fun SelectedDatePanel(
                                 )
                         ) {
                         if (lineAbove) ReorderLine(nestUnder = dropParent?.title, indent = !nestedRow)
+                        // 하위 할일 접기: a chevron just left of the parent's title (in the
+                        // empty slot of a 근무 row, beside the checkbox otherwise).
+                        val familySize = descendantCount(task)
+                        Box {
                         androidx.compose.runtime.CompositionLocalProvider(
                             com.bettertick.ui.screens.tasks.components.LocalCompactTaskRow provides nestedRow
                         ) {
@@ -355,30 +360,27 @@ fun SelectedDatePanel(
                             onStatusAction = { action -> onStatusAction(task, action) }
                         )
                         }
-                        // 하위 할일 접기 / 펼치기 under a parent row.
-                        val familySize = descendantCount(task)
                         if (familySize > 0 && localDrag == null) {
                             val isCollapsed = task.id in collapsed
-                            Row(
+                            val shiftRow = task.isShiftTask()
+                            Box(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { com.bettertick.ui.screens.calendar.CalendarPrefs.toggleCollapsed(task.id) }
-                                    .padding(start = 48.dp, top = 2.dp, bottom = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(start = if (shiftRow) 14.dp else 0.dp, top = 14.dp)
+                                    .size(width = if (shiftRow) 30.dp else 18.dp, height = 24.dp)
+                                    .clickable(onClickLabel = if (isCollapsed) "하위 할일 ${familySize}개 펼치기" else "하위 할일 접기") {
+                                        com.bettertick.ui.screens.calendar.CalendarPrefs.toggleCollapsed(task.id)
+                                    },
+                                contentAlignment = Alignment.Center
                             ) {
                                 Icon(
                                     Icons.Outlined.ExpandMore,
-                                    contentDescription = null,
+                                    contentDescription = if (isCollapsed) "하위 할일 펼치기" else "하위 할일 접기",
                                     tint = TextSecondary,
-                                    modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = if (isCollapsed) -90f else 0f }
-                                )
-                                Spacer(Modifier.size(4.dp))
-                                Text(
-                                    text = if (isCollapsed) "하위 할일 ${familySize}개" else "하위 할일 접기",
-                                    fontSize = 12.sp,
-                                    color = TextSecondary
+                                    modifier = Modifier.size(if (shiftRow) 20.dp else 16.dp)
+                                        .graphicsLayer { rotationZ = if (isCollapsed) -90f else 0f }
                                 )
                             }
+                        }
                         }
                         if (isNestTarget) {
                             Text(
