@@ -21,6 +21,15 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -38,7 +47,8 @@ internal fun TaskNoteEditor(
     day: String?,
     focusId: String?,
     onAdd: (kind: String, day: String) -> Unit,
-    onAttach: (String) -> Unit
+    onAttach: (String) -> Unit,
+    onFocusBlock: (String) -> Unit
 ) {
     var addOpen by remember { mutableStateOf(false) }
     var scopeOpen by remember { mutableStateOf(false) }
@@ -89,7 +99,16 @@ internal fun TaskNoteEditor(
                         if (at >= 0 && blocks.size < 1000) blocks.add(at + 1, block.copy(id = java.util.UUID.randomUUID().toString()))
                     },
                     onRemove = { val at = blocks.indexOfFirst { it.id == block.id }; if (at >= 0) { removed = at to block; blocks.removeAt(at) } },
-                    selectedDay = day)
+                    selectedDay = day,
+                    canInsert = blocks.size < 1000,
+                    onInsertAfter = { kind, text ->
+                        val at = blocks.indexOfFirst { it.id == block.id }
+                        if (at >= 0 && blocks.size < 1000) {
+                            val next = TaskMemo(kind = kind, text = text, day = block.day)
+                            blocks.add(at + 1, next)
+                            onFocusBlock(next.id)
+                        }
+                    })
             }
         }
         if (visible.isEmpty()) {
@@ -111,11 +130,22 @@ internal fun TaskNoteEditor(
 private fun NoteBlockRow(
     block: TaskMemo, focus: Boolean, onChange: (TaskMemo) -> Unit,
     onMove: (Int) -> Unit, canMoveUp: Boolean, canMoveDown: Boolean,
-    onDuplicate: () -> Unit, onRemove: () -> Unit, selectedDay: String?
+    onDuplicate: () -> Unit, onRemove: () -> Unit, selectedDay: String?,
+    canInsert: Boolean, onInsertAfter: (kind: String, text: String) -> Unit
 ) {
     var menu by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val media = block.attachment.isNotBlank()
+    var fieldValue by remember(block.id) { mutableStateOf(TextFieldValue(block.text, TextRange(block.text.length))) }
+    var softBreak by remember { mutableStateOf(false) }
+    var dismissedSlash by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(block.text) {
+        if (!block.text.startsWith("/")) dismissedSlash = null
+        if (fieldValue.text != block.text) fieldValue = TextFieldValue(block.text,
+            TextRange(fieldValue.selection.end.coerceIn(0, block.text.length)))
+    }
+    val slashQuery = block.text.takeIf { it.startsWith("/") && '\n' !in it && it.length <= 40 }
+    val slashItems = noteSlashItems(slashQuery?.drop(1).orEmpty())
     LaunchedEffect(focus) { if (focus && !media && block.kind != NoteBlockKind.DIVIDER) focusRequester.requestFocus() }
     Row(Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.Top) {
         Box {
@@ -123,6 +153,8 @@ private fun NoteBlockRow(
                 Icon(Icons.Outlined.DragIndicator, "블록 메뉴", tint = TextTertiary, modifier = Modifier.size(17.dp))
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                DropdownMenuItem(text = { Text("아래에 글 추가") }, enabled = canInsert,
+                    onClick = { onInsertAfter(NoteBlockKind.TEXT, ""); menu = false })
                 if (!media) {
                     listOf(NoteBlockKind.TEXT to "글로 바꾸기", NoteBlockKind.HEADING to "제목으로 바꾸기",
                         NoteBlockKind.TODO to "체크리스트로 바꾸기", NoteBlockKind.DIVIDER to "구분선으로 바꾸기").forEach { (kind, label) ->
@@ -148,8 +180,22 @@ private fun NoteBlockRow(
                 media -> NoteMediaBlock(block)
                 block.kind == NoteBlockKind.DIVIDER -> HorizontalDivider(
                     modifier = Modifier.padding(vertical = 22.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
-                else -> BasicTextField(
-                    value = block.text, onValueChange = { onChange(block.copy(text = it)) },
+                else -> Box(Modifier.fillMaxWidth()) {
+                    BasicTextField(
+                    value = fieldValue,
+                    onValueChange = { next ->
+                        val split = if (next.composition == null && !softBreak && canInsert)
+                            splitNoteOnEnter(fieldValue.text, next.text, next.selection.end) else null
+                        fieldValue = next
+                        if (split != null) {
+                            if (block.kind == NoteBlockKind.TODO && split.first.isEmpty() && split.second.isEmpty()) {
+                                onChange(block.copy(kind = NoteBlockKind.TEXT, text = "", checked = false))
+                            } else {
+                                onChange(block.copy(text = split.first))
+                                onInsertAfter(nextNoteBlockKind(block.kind), split.second)
+                            }
+                        } else onChange(block.copy(text = next.text))
+                    },
                     textStyle = TextStyle(
                         color = if (block.checked && block.kind == NoteBlockKind.TODO) TextSecondary else TextPrimary,
                         fontSize = if (block.kind == NoteBlockKind.HEADING) 21.sp else 15.sp,
@@ -157,16 +203,32 @@ private fun NoteBlockRow(
                         fontWeight = if (block.kind == NoteBlockKind.HEADING) FontWeight.SemiBold else FontWeight.Normal,
                         textDecoration = if (block.checked && block.kind == NoteBlockKind.TODO) TextDecoration.LineThrough else null),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.focusRequester(focusRequester).fillMaxWidth().heightIn(min = 44.dp, max = 240.dp).padding(vertical = 10.dp),
+                    modifier = Modifier.focusRequester(focusRequester).onPreviewKeyEvent { event ->
+                        if (event.key == Key.Enter) softBreak = event.type == KeyEventType.KeyDown && event.isShiftPressed
+                        false
+                    }.fillMaxWidth().heightIn(min = 44.dp, max = 240.dp).padding(vertical = 10.dp),
                     decorationBox = { inner ->
                         Box {
                             if (block.text.isEmpty()) Text(when (block.kind) {
-                                NoteBlockKind.HEADING -> "제목"; NoteBlockKind.TODO -> "할 일"; else -> "내용을 입력하세요"
+                                NoteBlockKind.HEADING -> "제목"; NoteBlockKind.TODO -> "할 일"; else -> "내용 입력, / 로 블록 선택"
                             }, color = TextTertiary, fontSize = if (block.kind == NoteBlockKind.HEADING) 21.sp else 15.sp)
                             inner()
                         }
                     }
                 )
+                    DropdownMenu(expanded = slashQuery != null && slashQuery != dismissedSlash,
+                        onDismissRequest = { dismissedSlash = block.text }, properties = PopupProperties(focusable = false)) {
+                        if (slashItems.isEmpty()) DropdownMenuItem(text = { Text("일치하는 블록이 없어요") }, enabled = false, onClick = {})
+                        slashItems.forEach { item ->
+                            DropdownMenuItem(text = { Text(item.label) }, onClick = {
+                                onChange(block.copy(kind = item.kind, text = "", checked = false))
+                                dismissedSlash = block.text
+                                if (item.kind == NoteBlockKind.DIVIDER && canInsert) onInsertAfter(NoteBlockKind.TEXT, "")
+                                else focusRequester.requestFocus()
+                            })
+                        }
+                    }
+                }
             }
         }
     }

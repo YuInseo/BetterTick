@@ -3,16 +3,6 @@ package com.bettertick.ui.screens.tasks.components
 import com.bettertick.ui.theme.TextPrimary
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.OpenInFull
-import androidx.compose.material.icons.outlined.CloseFullscreen
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.ScrollState
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
@@ -24,7 +14,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -71,7 +60,6 @@ import androidx.compose.material.icons.outlined.PhotoCamera
 import com.bettertick.ui.components.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.automirrored.outlined.Notes
-import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.DropdownMenuItem
@@ -79,11 +67,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -226,11 +212,8 @@ fun TaskDetailSheet(
     var showTagPicker by remember { mutableStateOf(false) }
     var priorityMenuOpen by remember { mutableStateOf(false) }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var fullPage by remember(task.id) { mutableStateOf(false) }
-    // Keep document scroll and all edit state outside the presentation containers.
+    // A single editor stays composed while its container follows the drag.
     val contentScroll = rememberScrollState()
-    val drawerMaxHeight = LocalConfiguration.current.screenHeightDp.dp * 0.78f
 
     fun commitAndClose() {
         val newMemos = blocks.toList().savedNoteBlocks()
@@ -284,17 +267,12 @@ fun TaskDetailSheet(
         onDismiss()
     }
 
-    val editorContent: @Composable (Boolean) -> Unit = { page ->
-        BoxWithConstraints(Modifier.fillMaxWidth().then(
-            if (page) Modifier.fillMaxHeight() else Modifier.heightIn(max = drawerMaxHeight)
-        )) {
+    ExpandableTaskDetail(onClose = { commitAndClose() }) {
         val scrollbarColor = TextSecondary.copy(alpha = 0.45f)
-        Column(Modifier.fillMaxWidth().heightIn(max = maxHeight)
-            .then(if (page) Modifier.fillMaxHeight() else Modifier)
-            .padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
         Column(
             modifier = Modifier
-                .weight(1f, fill = page)
+                .weight(1f)
                 .fillMaxWidth()
                 .detailScrollbar(contentScroll, scrollbarColor)
                 .verticalScroll(contentScroll)
@@ -539,6 +517,7 @@ fun TaskDetailSheet(
 
             TaskNoteEditor(blocks = blocks, day = dayKey, focusId = focusBlockId,
                 onAdd = ::addBlock,
+                onFocusBlock = { focusBlockId = it },
                 onAttach = { day -> attachmentDay = day; requestAttachment = true })
         }
             DetailDivider()
@@ -561,66 +540,6 @@ fun TaskDetailSheet(
             )
 
         }
-        }
-    }
-
-    if (fullPage) {
-        Dialog(
-            onDismissRequest = { commitAndClose() },
-            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
-        ) {
-            Surface(modifier = Modifier.fillMaxSize(), color = DarkSurface, tonalElevation = 0.dp) {
-                Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().imePadding()) {
-                    Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { commitAndClose() }) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, "저장하고 뒤로", tint = TextPrimary)
-                        }
-                        Text("페이지", fontSize = 14.sp, color = TextSecondary, modifier = Modifier.weight(1f))
-                        IconButton(onClick = { focusBlockId = null; fullPage = false }) {
-                            Icon(Icons.Outlined.CloseFullscreen, "작은 창으로 보기", tint = TextSecondary)
-                        }
-                    }
-                    Box(Modifier.weight(1f).fillMaxWidth()) { editorContent(true) }
-                }
-            }
-        }
-    } else {
-        ModalBottomSheet(
-            onDismissRequest = { commitAndClose() },
-            sheetState = sheetState,
-            containerColor = DarkSurface,
-            tonalElevation = 0.dp,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            dragHandle = {
-                // An intentional upward handle drag promotes the sheet to a real full-window page.
-                Row(Modifier.fillMaxWidth().height(48.dp).pointerInput(task.id) {
-                    var distance = 0f
-                    detectVerticalDragGestures(
-                        onDragStart = { distance = 0f },
-                        onDragCancel = { distance = 0f },
-                        onDragEnd = {
-                            when {
-                                distance <= -56.dp.toPx() -> { focusBlockId = null; fullPage = true }
-                                distance >= 96.dp.toPx() -> commitAndClose()
-                            }
-                            distance = 0f
-                        },
-                        onVerticalDrag = { change, delta -> change.consume(); distance += delta }
-                    )
-                }, verticalAlignment = Alignment.CenterVertically) {
-                    Spacer(Modifier.width(48.dp))
-                    Box(Modifier.weight(1f).height(48.dp).clickable { focusBlockId = null; fullPage = true },
-                        contentAlignment = Alignment.Center) {
-                        Box(Modifier.size(width = 32.dp, height = 4.dp).clip(RoundedCornerShape(2.dp))
-                            .background(TextTertiary.copy(alpha = 0.5f)))
-                    }
-                    IconButton(onClick = { focusBlockId = null; fullPage = true }) {
-                        Icon(Icons.Outlined.OpenInFull, "전체 페이지로 열기", tint = TextSecondary, modifier = Modifier.size(18.dp))
-                    }
-                }
-            }
-        ) { editorContent(false) }
     }
 
     if (showDatePicker) {
