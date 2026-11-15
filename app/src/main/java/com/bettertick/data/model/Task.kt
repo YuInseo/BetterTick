@@ -75,7 +75,9 @@ data class TaskMemo(
     val attachment: String = "",
     // Notion-style nesting (0..4) and block colour ("red", "bg_blue", …; empty = default).
     val indent: Int = 0,
-    val color: String = ""
+    val color: String = "",
+    // 페이지 블록: id of the 하위 할일 this block opens.
+    val pageId: String = ""
 )
 
 /** Memos to show on [day]: the shared ones plus that day's (all when [day] is null). */

@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo   BetterTick - Clean Build and Install
+echo   Daydrift - Clean Build and Install
 echo ========================================
 echo.
 echo [1/2] Clean building...

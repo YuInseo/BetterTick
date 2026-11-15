@@ -39,7 +39,7 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                 if (!shown) {
                     notify(
                         context,
-                        "BetterTick 업데이트 준비 완료",
+                        "Daydrift 업데이트 준비 완료",
                         "v$version — 탭하여 설치",
                         PendingIntent.getActivity(
                             context, 0, confirm,
@@ -53,14 +53,14 @@ class UpdateInstallReceiver : BroadcastReceiver() {
             else -> {
                 val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "status $status"
                 Log.w("UpdateInstall", "install failed: $msg")
-                notify(context, "BetterTick 업데이트 설치 실패", msg, openApp(context))
+                notify(context, "Daydrift 업데이트 설치 실패", msg, openApp(context))
             }
         }
     }
 
     private fun notifyDone(context: Context) {
         val name = runCatching { AppUpdater.currentVersionName(context) }.getOrDefault("")
-        notify(context, "BetterTick 업데이트 완료", "v$name — 탭하여 열기", openApp(context))
+        notify(context, "Daydrift 업데이트 완료", "v$name — 탭하여 열기", openApp(context))
     }
 
     private fun openApp(context: Context): PendingIntent = PendingIntent.getActivity(

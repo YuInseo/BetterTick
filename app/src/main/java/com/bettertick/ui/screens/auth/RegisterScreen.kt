@@ -82,7 +82,7 @@ fun RegisterScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "BetterTick 계정을 만드세요",
+                text = "Daydrift 계정을 만드세요",
                 style = MaterialTheme.typography.bodyMedium,
                 color = TextSecondary
             )

@@ -820,7 +820,7 @@ private fun HabitShareView(
                 )
                 Spacer(Modifier.width(8.dp))
                 Column {
-                    Text("BetterTick", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text("Daydrift", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     Text("자기관리적인 삶으로의 초대", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
                 }
             }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">BetterTick</string>
+    <string name="app_name">Daydrift</string>
 
     <string name="widget_reminder_label">리마인더</string>
     <string name="widget_reminder_description">이번 주 일정과 오늘의 할일을 한눈에 확인하세요.</string>

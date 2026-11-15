@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "BetterTick"
+rootProject.name = "Daydrift"
 include(":app")

@@ -23,6 +23,7 @@ internal val NoteSlashCatalog = listOf(
     NoteSlashItem(NoteBlockKind.BULLET, "글머리 기호 목록", "bullet list ul 글머리 목록 불릿"),
     NoteSlashItem(NoteBlockKind.NUMBERED, "번호 매기기 목록", "numbered list ol 번호 목록"),
     NoteSlashItem(NoteBlockKind.TOGGLE, "토글 목록", "toggle 토글 접기"),
+    NoteSlashItem(NoteBlockKind.PAGE, "페이지", "page subpage 페이지 하위 문서"),
     NoteSlashItem(NoteBlockKind.TOGGLE_H1, "토글 제목1", "toggle heading 토글 제목1"),
     NoteSlashItem(NoteBlockKind.TOGGLE_H2, "토글 제목2", "toggle heading2 토글 제목2"),
     NoteSlashItem(NoteBlockKind.TOGGLE_H3, "토글 제목3", "toggle heading3 토글 제목3"),
@@ -95,7 +96,7 @@ internal fun noteBackspaceAtStart(current: TaskMemo, previous: TaskMemo?): NoteB
     current.indent > 0 -> NoteBackspace.OUTDENT
     previous == null -> NoteBackspace.NONE
     previous.kind == NoteBlockKind.DIVIDER || previous.kind == NoteBlockKind.TOC -> NoteBackspace.REMOVE_PREVIOUS
-    previous.attachment.isNotBlank() || previous.kind == NoteBlockKind.EMBED ->
+    previous.attachment.isNotBlank() || previous.kind == NoteBlockKind.EMBED || previous.kind == NoteBlockKind.PAGE ->
         if (current.text.isEmpty()) NoteBackspace.DELETE else NoteBackspace.NONE
     current.text.isEmpty() -> NoteBackspace.DELETE_FOCUS_PREVIOUS
     else -> NoteBackspace.MERGE_INTO_PREVIOUS

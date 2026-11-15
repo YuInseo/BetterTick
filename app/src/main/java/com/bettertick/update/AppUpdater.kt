@@ -12,9 +12,9 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Polls the BetterTick repo's `latest-debug` Release, compares its
+ * Polls the Daydrift repo's `latest-debug` Release, compares its
  * versionCode (from the version.json asset) against the installed APK's
- * versionCode, and if newer downloads BetterTick.apk and launches the
+ * versionCode, and if newer downloads Daydrift.apk and launches the
  * system installer prompt. Network + disk I/O on IO dispatcher.
  */
 object AppUpdater {
@@ -252,14 +252,14 @@ object AppUpdater {
     }
 
     /**
-     * Downloads [release] to updates/BetterTick-<code>.apk and checks it is a
+     * Downloads [release] to updates/Daydrift-<code>.apk and checks it is a
      * whole APK of this app (size + the package manager can read it). A file
      * already downloaded for that version is reused. Two tries.
      */
     private suspend fun downloadVerified(context: Context, release: Release): File? =
         withContext(Dispatchers.IO) {
             val dir = File(context.cacheDir, "updates").apply { mkdirs() }
-            val file = File(dir, "BetterTick-${release.versionCode}.apk")
+            val file = File(dir, "Daydrift-${release.versionCode}.apk")
             dir.listFiles()?.forEach { if (it != file) it.delete() }
             if (file.exists() && verify(context, file, release) == null) {
                 lastDownloadError = null
@@ -311,7 +311,7 @@ object AppUpdater {
                 connectTimeout = 10000
                 readTimeout = 60000
                 instanceFollowRedirects = false
-                setRequestProperty("User-Agent", "BetterTick-AppUpdater")
+                setRequestProperty("User-Agent", "Daydrift-AppUpdater")
                 setRequestProperty("Cache-Control", "no-cache")
             }
             try {

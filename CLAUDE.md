@@ -1,4 +1,4 @@
-# BetterTick — Claude 작업 규칙
+# Daydrift — Claude 작업 규칙
 
 ## 작업 끝나면 자동 머지 (저장소 주인 요청)
 

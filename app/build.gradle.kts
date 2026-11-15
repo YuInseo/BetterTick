@@ -60,7 +60,7 @@ android {
     }
 
     buildTypes {
-        // 테스트용 작은 APK (BetterTick-small.apk): debug와 같은 서명·패키지라
+        // 테스트용 작은 APK (Daydrift-small.apk): debug와 같은 서명·패키지라
         // 그 위에 바로 설치된다. R8로 쓰지 않는 코드·리소스를 빼서 크기를 줄인다.
         // 기기에서 이상 없음이 확인되기 전까지는 자동 업데이트에 쓰지 않는다.
         create("small") {

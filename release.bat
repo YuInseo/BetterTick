@@ -3,7 +3,7 @@ chcp 65001 > nul
 setlocal enabledelayedexpansion
 
 REM =====================================================
-REM  BetterTick - Push to main → 자동 debug APK 빌드 → latest-debug Release
+REM  Daydrift - Push to main → 자동 debug APK 빌드 → latest-debug Release
 REM
 REM  사용: 더블클릭, 또는 cmd창에서 release.bat
 REM  (레거시 로컬빌드+Empty업로드 흐름은 release-local.bat 사용)
@@ -12,7 +12,7 @@ REM =====================================================
 cd /d "%~dp0"
 echo.
 echo ==================================================
-echo  BetterTick — Push to main (auto debug release)
+echo  Daydrift — Push to main (auto debug release)
 echo ==================================================
 echo.
 
@@ -73,7 +73,7 @@ echo  진행 상황:
 echo    https://github.com/YuInseo/BetterTick/actions
 echo.
 echo  APK 다운로드 (5~8분 후):
-echo    https://github.com/YuInseo/BetterTick/releases/download/latest-debug/BetterTick.apk
+echo    https://github.com/YuInseo/BetterTick/releases/download/latest-debug/Daydrift.apk
 echo.
 echo  *이 링크는 항상 최신 빌드를 가리킵니다 — 즐겨찾기 추천*
 echo.

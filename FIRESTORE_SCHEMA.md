@@ -1,4 +1,4 @@
-# BetterTick Firestore Database Schema
+# Daydrift Firestore Database Schema
 
 ## Collection Structure
 

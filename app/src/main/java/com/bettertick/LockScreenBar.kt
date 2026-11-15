@@ -73,7 +73,7 @@ object LockScreenBar {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_bettertick)
             .setColor(0xFF4772FA.toInt())
-            .setContentTitle("BetterTick")
+            .setContentTitle("Daydrift")
             .setContentText("+ 할일 버튼으로 잠금화면에서 바로 추가")
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setPriority(NotificationCompat.PRIORITY_LOW)

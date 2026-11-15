@@ -161,7 +161,10 @@ class ReminderWidget : GlanceAppWidget() {
                 settings.accepts(it) &&
                     (settings.showCompleted || (!it.isCompleted && !it.isAbandoned))
             }
-            val datesWithEvents = weekDates.associateWith { d -> visible.any { it.occursOn(d) } }
+            // How many (non-shift) tasks each day has, for the little dots (max 3).
+            val taskCount = weekDates.associateWith { d ->
+                visible.count { !it.isShiftTask() && it.occursOn(d) }.coerceAtMost(3)
+            }
             // 근무 그 날의 종류 (주간/야간/비번/휴무) — shown as a small chip under each date.
             val shiftOn = weekDates.associateWith { d ->
                 visible.firstOrNull { it.isShiftTask() && it.occursOn(d) }?.shiftKindOn(d)?.takeIf { it.isNotBlank() }
@@ -201,7 +204,7 @@ class ReminderWidget : GlanceAppWidget() {
                 .groupedUnderParents()
 
             androidx.compose.runtime.CompositionLocalProvider(LocalWidgetId provides widgetId) {
-                ReminderContent(today, selectedDate, weekDates, datesWithEvents, shiftOn, dayTasks, listById, settings, menuOpen)
+                ReminderContent(today, selectedDate, weekDates, taskCount, shiftOn, dayTasks, listById, settings, menuOpen)
             }
         }
     }
@@ -219,7 +222,7 @@ class ReminderWidget : GlanceAppWidget() {
         today: LocalDate,
         selectedDate: LocalDate,
         weekDates: List<LocalDate>,
-        datesWithEvents: Map<LocalDate, Boolean>,
+        taskCount: Map<LocalDate, Int>,
         shiftOn: Map<LocalDate, String?>,
         tasks: List<Task>,
         listById: Map<String, TaskList>,
@@ -262,7 +265,7 @@ class ReminderWidget : GlanceAppWidget() {
                         Spacer(GlanceModifier.height(4.dp))
                         DatesRow(today, selectedDate, weekDates, pal, fs)
                         Spacer(GlanceModifier.height(4.dp))
-                        DotsRow(weekDates, datesWithEvents, shiftOn, fs)
+                        DotsRow(weekDates, taskCount, shiftOn, selectedDate, fs)
                         Spacer(GlanceModifier.height(8.dp))
                     }
                 }
@@ -575,41 +578,51 @@ class ReminderWidget : GlanceAppWidget() {
     @androidx.compose.runtime.Composable
     private fun DotsRow(
         weekDates: List<LocalDate>,
-        datesWithEvents: Map<LocalDate, Boolean>,
+        taskCount: Map<LocalDate, Int>,
         shiftOn: Map<LocalDate, String?>,
+        selectedDate: LocalDate,
         fs: Float
     ) {
-        // Under each date: that day's shift as a tinted chip (like the app's
-        // calendar), or a small dot when there are only tasks.
+        // Under each date: that day's shift chip (주·야·비·휴), then up to three
+        // small dots for its other tasks.
         Row(modifier = GlanceModifier.fillMaxWidth()) {
             weekDates.forEach { date ->
-                Box(
-                    modifier = GlanceModifier.defaultWeight().height(18.dp),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = GlanceModifier.defaultWeight().height(26.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     val kind = shiftOn[date]
-                    if (kind != null) {
-                        val tint = com.bettertick.ui.screens.tasks.components.shiftColor(kind) ?: WidgetColorValues.accent
-                        Box(
-                            modifier = GlanceModifier
-                                .padding(horizontal = 6.dp, vertical = 1.dp)
-                                .background(ColorProvider(tint.copy(alpha = 0.22f)))
-                                .cornerRadius(7.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = kind.take(2),
-                                style = TextStyle(color = ColorProvider(tint), fontSize = (9 * fs).sp, fontWeight = FontWeight.Bold),
-                                maxLines = 1
-                            )
+                    Box(modifier = GlanceModifier.height(16.dp), contentAlignment = Alignment.Center) {
+                        if (kind != null) {
+                            val tint = com.bettertick.ui.screens.tasks.components.shiftColor(kind) ?: WidgetColorValues.accent
+                            Box(
+                                modifier = GlanceModifier
+                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                                    .background(ColorProvider(tint.copy(alpha = 0.22f)))
+                                    .cornerRadius(7.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = kind.take(1),
+                                    style = TextStyle(color = ColorProvider(tint), fontSize = (9 * fs).sp, fontWeight = FontWeight.Bold),
+                                    maxLines = 1
+                                )
+                            }
                         }
-                    } else if (datesWithEvents[date] == true) {
-                        Box(
-                            modifier = GlanceModifier
-                                .size(5.dp)
-                                .background(ColorProvider(WidgetColorValues.blue.copy(alpha = 0.8f)))
-                                .cornerRadius(3.dp)
-                        ) {}
+                    }
+                    Spacer(GlanceModifier.height(4.dp))
+                    val n = taskCount[date] ?: 0
+                    if (n > 0) Row(verticalAlignment = Alignment.CenterVertically) {
+                        val dot = if (date == selectedDate) WidgetColorValues.accent else WidgetColorValues.accent.copy(alpha = 0.55f)
+                        repeat(n) { i ->
+                            if (i > 0) Spacer(GlanceModifier.width(3.dp))
+                            Box(
+                                modifier = GlanceModifier
+                                    .size(4.dp)
+                                    .background(ColorProvider(dot))
+                                    .cornerRadius(2.dp)
+                            ) {}
+                        }
                     }
                 }
             }
