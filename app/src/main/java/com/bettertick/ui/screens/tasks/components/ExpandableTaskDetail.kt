@@ -93,11 +93,8 @@ internal fun ExpandableTaskDetail(
                 w.statusBarColor = android.graphics.Color.TRANSPARENT
                 @Suppress("DEPRECATION")
                 w.navigationBarColor = android.graphics.Color.TRANSPARENT
-                androidx.core.view.WindowCompat.setDecorFitsSystemWindows(w, false)
-                androidx.core.view.WindowCompat.getInsetsController(w, w.decorView).apply {
-                    isAppearanceLightStatusBars = false
-                    isAppearanceLightNavigationBars = false
-                }
+                // (The dialog is already edge-to-edge via decorFitsSystemWindows = false;
+                // re-applying it here stopped the keyboard from attaching.)
             }
             onDispose { window?.setDimAmount(oldDim); window?.setSoftInputMode(oldInputMode) }
         }
