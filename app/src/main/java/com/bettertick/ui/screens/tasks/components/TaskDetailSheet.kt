@@ -85,6 +85,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -177,6 +178,8 @@ fun TaskDetailSheet(
     breadcrumb: List<String> = emptyList(),
     /** Sub-page swiped down: close the pages above it too (the whole stack). */
     onSwipeDismiss: (() -> Unit)? = null,
+    /** Open as the full page (the page this sub-page was opened from was full). */
+    startAsPage: Boolean = false,
     onUnnest: (() -> Unit)? = null
 ) {
     // Local edit state — keyed by task.id so re-opening a different task
@@ -268,6 +271,8 @@ fun TaskDetailSheet(
     val pageScope = androidx.compose.runtime.rememberCoroutineScope()
     val subPages = remember { lazy { SubPages(context) } }
     var openPage by remember { mutableStateOf<Task?>(null) }
+    // Whether this sheet is the full page right now (sub-pages open the same way).
+    var isFullPage by remember { mutableStateOf(false) }
     fun createPage(replaceBlockId: String?) {
         pageScope.launch {
             val parent = task.copy(title = title)
@@ -588,6 +593,9 @@ fun TaskDetailSheet(
     ExpandableTaskDetail(onClose = { commitAndClose() },
         onSwipeClose = if (onSwipeDismiss != null) ({ swipeCloseAll() }) else null,
         swipeCloseTick = swipeCloseTick,
+        hidden = openPage != null,
+        animateBackClose = onSwipeDismiss == null,
+        startAsPage = startAsPage,
         pageTitle = title.ifBlank { "제목 없음" }, pageSubtitle = shownListName,
         titleScrolledAway = titleScrolledAway,
         pageBar = { dateRow(Modifier.fillMaxWidth()) }) {
@@ -605,6 +613,7 @@ fun TaskDetailSheet(
             // 아이콘은 모두 같은 크기 · 같은 간격.
             // In page mode this row moves up beside the back button (pinned bar).
             val pageExpansion = LocalDetailExpansion.current
+            SideEffect { isFullPage = pageExpansion > 0.5f }
             if (pageExpansion < 0.5f) dateRow(Modifier.fillMaxWidth().padding(vertical = 4.dp).alpha(1f - pageExpansion * 2f))
             // 페이지 안의 페이지: the pages above it, in a row (비 › 저녁 › …).
             if (breadcrumb.isNotEmpty()) {
@@ -886,7 +895,9 @@ fun TaskDetailSheet(
             // Swiped down in the sub-page: remember it, and close this page too.
             onSwipeDismiss = {
                 com.bettertick.ui.theme.AppPrefs.setLastSubPage(task.id, page.id)
-                swipeCloseTick++
+                // This page is hidden behind the sub-page, so it closes at once —
+                // the sub-page's slide is the only animation.
+                swipeCloseAll()
             },
             onUpdateTask = { updated ->
                 pageScope.launch { runCatching { subPages.value.update(updated) } }
@@ -899,7 +910,9 @@ fun TaskDetailSheet(
             onCreateTag = onCreateTag,
             lists = lists,
             // Shown as the page path under the date instead of "/ 부모".
-            breadcrumb = breadcrumb + title
+            breadcrumb = breadcrumb + title,
+            // From a full page the sub-page opens full too; back returns to this page.
+            startAsPage = isFullPage
         )
     }
 
