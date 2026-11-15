@@ -70,9 +70,11 @@ internal fun ExpandableTaskDetail(
     /** Back / ← / tap outside slide the sheet away; a sub-page instead switches
      *  straight back to the page under it (which is waiting, hidden). */
     animateBackClose: Boolean = true,
+    /** Open already as the full page (a sub-page opened from a full page). */
+    startAsPage: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    var position by remember { mutableStateOf(DetailDragPosition()) }
+    var position by remember { mutableStateOf(DetailDragPosition(expansion = if (startAsPage) 1f else 0f)) }
     var settleJob by remember { mutableStateOf<Job?>(null) }
     val latestClose by rememberUpdatedState(onClose)
     val latestSwipeClose by rememberUpdatedState(onSwipeClose)
