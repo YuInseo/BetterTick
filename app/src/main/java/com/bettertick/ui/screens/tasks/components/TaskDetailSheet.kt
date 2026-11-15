@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,6 +53,8 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.PhotoCamera
 import com.bettertick.ui.components.DropdownMenu
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.ui.text.style.TextOverflow
@@ -171,6 +174,8 @@ fun TaskDetailSheet(
     var listMode by remember(task.id) {
         mutableStateOf(inferListMode(task.notes))
     }
+    var descriptionOpen by remember(task.id) { mutableStateOf(task.notes.isNotBlank()) }
+    var focusDescription by remember(task.id) { mutableStateOf(false) }
     val items = remember(task.id) {
         androidx.compose.runtime.mutableStateListOf<ChecklistItem>().apply {
             addAll(parseChecklistItems(task.notes))
@@ -268,7 +273,8 @@ fun TaskDetailSheet(
         onDismissRequest = { commitAndClose() },
         sheetState = sheetState,
         containerColor = DarkSurface,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+        tonalElevation = 0.dp,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = { BottomSheetDefaults.DragHandle(color = TextTertiary.copy(alpha = 0.5f)) }
     ) {
         Column(
@@ -283,9 +289,8 @@ fun TaskDetailSheet(
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp))
-                        .background(TextTertiary.copy(alpha = 0.08f))
                         .clickable { showListPicker = true }
-                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                        .padding(vertical = 12.dp)
                 ) {
                     Icon(Icons.Outlined.Folder, null, tint = TextSecondary, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(6.dp))
@@ -296,7 +301,7 @@ fun TaskDetailSheet(
                         color = TextSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.widthIn(max = 110.dp)
+                        modifier = Modifier.widthIn(max = 90.dp)
                     )
                     Spacer(Modifier.width(4.dp))
                     Icon(
@@ -307,29 +312,11 @@ fun TaskDetailSheet(
                     )
                 }
 
-                Spacer(Modifier.weight(1f))
-
-                // 근무 일정: 근무 · 휴가 dropdown chips, top right.
-                val asShift = task.copy(title = title, leaves = leaves, dayShifts = dayShifts)
-                if (asShift.isShiftTask()) {
-                    val day = asShift.shiftDay(occurrenceDate)
-                    ShiftDayPickers(
-                        day = day,
-                        kind = asShift.shiftKindOn(day),
-                        onPickKind = if (day != null) {
-                            { kind -> dayShifts = asShift.withDayShift(day, kind).dayShifts }
-                        } else null,
-                        used = asShift.leaveOn(day),
-                        savedUsed = task.leaveOn(day),
-                        onToggleLeave = if (day != null) {
-                            { type ->
-                                val t = asShift.withLeaveToggled(day, type)
-                                title = t.title
-                                leaves = t.leaves
-                            }
-                        } else null
-                    )
-                }
+                if (!parentTitle.isNullOrBlank()) {
+                    Text(" / ", fontSize = 12.sp, color = TextTertiary)
+                    Text(parentTitle, color = TextSecondary, fontSize = 12.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                } else Spacer(Modifier.weight(1f))
 
                 Box {
                     val flagTint = priorityColor(priority)
@@ -455,48 +442,68 @@ fun TaskDetailSheet(
                 }
             }
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(4.dp))
 
-            if (!parentTitle.isNullOrBlank()) {
-                Text("↳ $parentTitle", color = TextSecondary, fontSize = 12.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(bottom = 10.dp))
-            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (!task.copy(title = title).isShiftTask()) {
                     Box(Modifier.size(44.dp).clip(CircleShape).clickable { onToggleComplete() },
                         contentAlignment = Alignment.Center) {
-                        TickCheckbox(priority, task.isCompleted, isAbandoned, size = 23.dp, rounded = true)
+                        TickCheckbox(priority, task.isCompleted, isAbandoned, size = 21.dp, rounded = true)
                     }
                     Spacer(Modifier.width(6.dp))
                 }
                 BasicTextField(
                     value = title,
                     onValueChange = { title = it },
-                    textStyle = TextStyle(color = TextPrimary, fontSize = 26.sp, lineHeight = 34.sp,
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 24.sp, lineHeight = 32.sp,
                         fontWeight = FontWeight.SemiBold,
                         textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                     modifier = Modifier.weight(1f).padding(vertical = 6.dp)
                 )
             }
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(6.dp))
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
-                    .background(DetailAccent.copy(alpha = 0.08f))
-                    .clickable { showDatePicker = true }.padding(horizontal = 14.dp, vertical = 13.dp)
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                    .clickable { showDatePicker = true }.padding(vertical = 12.dp)
             ) {
-                Icon(Icons.Outlined.CalendarToday, null, tint = DetailAccent, modifier = Modifier.size(17.dp))
+                Icon(Icons.Outlined.CalendarToday, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
                 Text(formatDueLabel(dueTimestamp, duration, occurrenceDate.takeIf {
                     !repeatRule.isNullOrBlank() && dueTimestamp == task.dueDate
-                }), color = DetailAccent, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                }), color = if (dueTimestamp == null) TextSecondary else TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
                     modifier = Modifier.weight(1f))
-                if (!repeatRule.isNullOrBlank()) Icon(Icons.Outlined.Repeat, "반복 일정", tint = DetailAccent, modifier = Modifier.size(16.dp))
+                if (!repeatRule.isNullOrBlank()) Icon(Icons.Outlined.Repeat, "반복 일정", tint = TextSecondary, modifier = Modifier.size(16.dp))
                 if (reminders.isNotEmpty()) Icon(Icons.Outlined.NotificationsActive, "알림 설정됨", tint = DetailAccent, modifier = Modifier.size(16.dp))
             }
-            Spacer(Modifier.height(22.dp))
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // 근무 일정: 근무 · 휴가 dropdown chips, top right.
+                val asShift = task.copy(title = title, leaves = leaves, dayShifts = dayShifts)
+                if (asShift.isShiftTask()) {
+                    val day = asShift.shiftDay(occurrenceDate)
+                    ShiftDayPickers(
+                        day = day,
+                        kind = asShift.shiftKindOn(day),
+                        onPickKind = if (day != null) {
+                            { kind -> dayShifts = asShift.withDayShift(day, kind).dayShifts }
+                        } else null,
+                        used = asShift.leaveOn(day),
+                        savedUsed = task.leaveOn(day),
+                        onToggleLeave = if (day != null) {
+                            { type ->
+                                val t = asShift.withLeaveToggled(day, type)
+                                title = t.title
+                                leaves = t.leaves
+                            }
+                        } else null
+                    )
+                }
+
+            }
+            Spacer(Modifier.height(8.dp))
+            DetailDivider()
+
 
             // ── 근무 일정: 지휴 · 병가 · 연차 (one straight row) ────────────
             // ── Selected-tag chips ───────────────────────────────────────
@@ -516,39 +523,41 @@ fun TaskDetailSheet(
             // Plain markdown when listMode is None, otherwise an interactive
             // checklist / bullet editor. The list-button in the bottom bar
             // cycles between the two modes and keeps `notes` in sync.
-            NoteSectionLabel("설명")
-            if (listMode == ListMode.None) {
-                MarkdownNotesEditor(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    minHeight = 48.dp
-                )
+            if (descriptionOpen || notes.isNotBlank() || listMode != ListMode.None) {
+                Spacer(Modifier.height(12.dp))
+                NoteSectionLabel("설명")
+                if (listMode == ListMode.None) {
+                    MarkdownNotesEditor(value = notes, onValueChange = { notes = it },
+                        modifier = Modifier.fillMaxWidth(), minHeight = 32.dp, requestFocus = focusDescription)
+                } else {
+                    ChecklistEditor(items = items, mode = listMode,
+                        onItemsMutated = { syncNotesFromItems() },
+                        onExitListMode = { syncNotesFromItems(); listMode = ListMode.None })
+                }
+                Spacer(Modifier.height(12.dp))
             } else {
-                ChecklistEditor(
-                    items = items,
-                    mode = listMode,
-                    onItemsMutated = { syncNotesFromItems() },
-                    onExitListMode = {
-                        syncNotesFromItems()
-                        listMode = ListMode.None
-                    }
-                )
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { descriptionOpen = true; focusDescription = true },
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.AutoMirrored.Outlined.Notes, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+                    Text("설명 추가", color = TextSecondary, fontSize = 13.sp)
+                }
             }
-            // ── 메모장: + 로 메모를 하나씩 추가 ──────────────────────────
-            Spacer(Modifier.height(12.dp))
+            DetailDivider()
             MemoSection(
                 memos = memos,
                 dayKey = dayKey,
                 dayLabel = occurrenceDate?.let { "${it.monthValue}월 ${it.dayOfMonth}일" }
             )
 
-            Spacer(Modifier.height(8.dp))
+            DetailDivider()
+            Spacer(Modifier.height(4.dp))
 
             // ── Bottom toolbar ───────────────────────────────────────────
             BottomToolbar(
                 onTagClick = { showTagPicker = true },
+                onDone = { commitAndClose() },
                 onListClick = {
+                    descriptionOpen = true
                     val next = when (listMode) {
                         ListMode.None -> ListMode.Checklist
                         ListMode.Checklist -> ListMode.Bullet
@@ -793,7 +802,9 @@ private fun MemoSection(
     var addMenu by remember { mutableStateOf(false) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("메모", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+            Icon(Icons.AutoMirrored.Outlined.Notes, null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text("메모", fontSize = 13.sp, color = TextSecondary)
             if (shown.isNotEmpty()) Text("  ${shown.size}", fontSize = 12.sp, color = TextTertiary)
             Spacer(Modifier.weight(1f))
             Box {
@@ -814,8 +825,6 @@ private fun MemoSection(
                 }
             }
         }
-        if (shown.isEmpty()) Text("필요한 내용을 메모로 남겨보세요", fontSize = 13.sp, color = TextTertiary,
-            modifier = Modifier.padding(bottom = 12.dp))
         shown.forEach { memo ->
             val idx = memos.indexOfFirst { it.id == memo.id }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
@@ -860,8 +869,11 @@ private fun MarkdownNotesEditor(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     placeholder: String = "설명을 추가하세요",
-    minHeight: androidx.compose.ui.unit.Dp = 160.dp
+    minHeight: androidx.compose.ui.unit.Dp = 160.dp,
+    requestFocus: Boolean = false
 ) {
+    val noteFocus = remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(requestFocus) { if (requestFocus) noteFocus.requestFocus() }
     val transformation = remember { MarkdownInlineTransformation() }
 
     // TickTick style: no box or label — the notes read as a continuation of
@@ -886,6 +898,7 @@ private fun MarkdownNotesEditor(
             cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
             visualTransformation = transformation,
             modifier = Modifier
+                .focusRequester(noteFocus)
                 .fillMaxWidth()
                 .heightIn(min = minHeight)
         )
@@ -898,6 +911,7 @@ private fun MarkdownNotesEditor(
 private fun BottomToolbar(
     onTagClick: () -> Unit,
     onListClick: () -> Unit,
+    onDone: () -> Unit,
     onAttachmentPicked: (entry: String) -> Unit
 ) {
     var attachMenuOpen by remember { mutableStateOf(false) }
@@ -958,27 +972,18 @@ private fun BottomToolbar(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
     ) {
-        IconButton(onClick = onTagClick) {
-            Icon(
-                Icons.AutoMirrored.Outlined.Label,
-                contentDescription = "태그",
-                tint = TextSecondary
-            )
+        TextButton(onClick = onTagClick, contentPadding = PaddingValues(horizontal = 8.dp)) {
+            Icon(Icons.AutoMirrored.Outlined.Label, null, tint = TextSecondary, modifier = Modifier.size(17.dp))
+            Spacer(Modifier.width(4.dp)); Text("태그", fontSize = 12.sp, color = TextSecondary)
         }
-        IconButton(onClick = onListClick) {
-            Icon(
-                Icons.AutoMirrored.Outlined.ViewList,
-                contentDescription = "하위 할 일",
-                tint = TextSecondary
-            )
+        TextButton(onClick = onListClick, contentPadding = PaddingValues(horizontal = 8.dp)) {
+            Icon(Icons.AutoMirrored.Outlined.ViewList, null, tint = TextSecondary, modifier = Modifier.size(17.dp))
+            Spacer(Modifier.width(4.dp)); Text("체크", fontSize = 12.sp, color = TextSecondary)
         }
         Box {
-            IconButton(onClick = { attachMenuOpen = true }) {
-                Icon(
-                    Icons.Outlined.AttachFile,
-                    contentDescription = "첨부",
-                    tint = TextSecondary
-                )
+            TextButton(onClick = { attachMenuOpen = true }, contentPadding = PaddingValues(horizontal = 8.dp)) {
+                Icon(Icons.Outlined.AttachFile, null, tint = TextSecondary, modifier = Modifier.size(17.dp))
+                Spacer(Modifier.width(4.dp)); Text("첨부", fontSize = 12.sp, color = TextSecondary)
             }
             com.bettertick.ui.components.DropdownMenu(
                 expanded = attachMenuOpen,
@@ -1022,8 +1027,13 @@ private fun BottomToolbar(
                 }
             }
         }
+        Spacer(Modifier.weight(1f))
+        TextButton(onClick = onDone, contentPadding = PaddingValues(horizontal = 8.dp)) {
+            Text("저장", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
+
 
 @Composable
 private fun AttachMenuItem(
@@ -1686,4 +1696,9 @@ private fun DetailMenuItem(
         leadingIcon = { Icon(icon, contentDescription = null, tint = if (tint == TextPrimary) TextSecondary else tint) },
         onClick = onClick
     )
+}
+
+@Composable
+private fun DetailDivider() {
+    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 }
