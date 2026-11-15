@@ -433,7 +433,7 @@ fun TaskDetailSheet(
                 }
             }
             // ── Compact list / parent context directly below the date ──────────────────────
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.clip(RoundedCornerShape(8.dp))
@@ -465,25 +465,7 @@ fun TaskDetailSheet(
                     Text(parentTitle, color = TextSecondary, fontSize = 11.sp,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 } else Spacer(Modifier.weight(1f))
-
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            // 제목만 — 완료는 목록의 체크박스나 ⋯ 메뉴에서.
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BasicTextField(
-                    value = title,
-                    onValueChange = { title = it },
-                    textStyle = TextStyle(color = TextPrimary, fontSize = 24.sp, lineHeight = 32.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null),
-                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.weight(1f).padding(vertical = 6.dp)
-                )
-            }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                // 근무 일정: 근무 · 휴가 dropdown chips, top right.
+                // 근무 일정: 근무 · 휴가 칩을 목록 줄 오른쪽에.
                 val asShift = task.copy(title = title, leaves = leaves, dayShifts = dayShifts)
                 if (asShift.isShiftTask()) {
                     val day = asShift.shiftDay(occurrenceDate)
@@ -505,6 +487,21 @@ fun TaskDetailSheet(
                     )
                 }
 
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            // 제목만 — 완료는 목록의 체크박스나 ⋯ 메뉴에서.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BasicTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 24.sp, lineHeight = 32.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    modifier = Modifier.weight(1f).padding(vertical = 6.dp)
+                )
             }
             Spacer(Modifier.height(8.dp))
             DetailDivider()
