@@ -54,11 +54,6 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.CheckBox
-import androidx.compose.material.icons.outlined.HorizontalRule
-import androidx.compose.material.icons.outlined.KeyboardHide
-import androidx.compose.material.icons.outlined.TextFields
-import androidx.compose.material.icons.outlined.Title
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.NotificationsActive
@@ -78,6 +73,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -181,25 +179,56 @@ fun TaskDetailSheet(
     var attachmentDay by remember(task.id, dayKey) { mutableStateOf(dayKey.orEmpty()) }
     // 키보드 위 블록 바 (노션처럼): 편집 중인 블록과 블록 고르기 패널.
     var activeBlockId by remember(task.id) { mutableStateOf<String?>(null) }
-    var blockPanel by remember { mutableStateOf(false) }
+    var notePanel by remember { mutableStateOf(NotePanel.NONE) }
+    val blockPanel = notePanel != NotePanel.NONE
+    var formatRequest by remember { mutableStateOf<Pair<String, InlineMark>?>(null) }
+    var formatTick by remember { mutableIntStateOf(0) }
+    // 실행 취소 / 다시 실행: snapshots of the document, taken after typing pauses.
+    val undoStack = remember(task.id) { androidx.compose.runtime.mutableStateListOf<List<TaskMemo>>() }
+    val redoStack = remember(task.id) { androidx.compose.runtime.mutableStateListOf<List<TaskMemo>>() }
+    var lastSnapshot by remember(task.id) { mutableStateOf<List<TaskMemo>>(emptyList()) }
+    LaunchedEffect(task.id) {
+        lastSnapshot = blocks.toList()
+        snapshotFlow { blocks.toList() }.collectLatest { now ->
+            kotlinx.coroutines.delay(500)
+            if (now != lastSnapshot) {
+                undoStack.add(lastSnapshot)
+                if (undoStack.size > 100) undoStack.removeAt(0)
+                redoStack.clear()
+                lastSnapshot = now
+            }
+        }
+    }
+    fun restoreDocument(from: MutableList<List<TaskMemo>>, to: MutableList<List<TaskMemo>>) {
+        val now = blocks.toList()
+        if (now != lastSnapshot) { undoStack.add(lastSnapshot); redoStack.clear(); lastSnapshot = now }
+        val target = from.removeLastOrNull() ?: return
+        to.add(blocks.toList())
+        lastSnapshot = target
+        blocks.clear(); blocks.addAll(target)
+    }
     /** Notion-style: an empty block becomes [kind]; otherwise [kind] goes right below it. */
     fun applyBlockKind(kind: String) {
         val at = blocks.indexOfFirst { it.id == activeBlockId }
         val current = blocks.getOrNull(at)
         val day = current?.day ?: dayKey.orEmpty()
-        if (current != null && current.text.isEmpty() && current.attachment.isBlank() && kind != NoteBlockKind.DIVIDER) {
-            blocks[at] = current.copy(kind = kind, checked = false)
+        val static = NoteBlockKind.isStatic(kind)
+        if (current != null && current.text.isEmpty() && current.attachment.isBlank() &&
+            !NoteBlockKind.isStatic(current.kind) && !static) {
+            blocks[at] = current.copy(kind = kind, checked = NoteBlockKind.isToggle(kind))
             return
         }
         if (blocks.size >= 999) {
             android.widget.Toast.makeText(context, "블록은 최대 1,000개까지 추가할 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
-        val block = TaskMemo(kind = kind, day = day)
-        val insertAt = if (at >= 0) at + 1 else blocks.size
+        val indent = current?.indent ?: 0
+        val block = TaskMemo(kind = kind, day = day, indent = indent, checked = NoteBlockKind.isToggle(kind))
+        var insertAt = if (at >= 0) at + 1 else blocks.size
+        if (at >= 0) while (insertAt < blocks.size && blocks[insertAt].indent > indent) insertAt++
         blocks.add(insertAt, block)
-        if (kind == NoteBlockKind.DIVIDER) {
-            val after = TaskMemo(kind = NoteBlockKind.TEXT, day = day)
+        if (static) {
+            val after = TaskMemo(kind = NoteBlockKind.TEXT, day = day, indent = indent)
             blocks.add(insertAt + 1, after)
             focusBlockId = after.id
         } else focusBlockId = block.id
@@ -209,9 +238,23 @@ fun TaskDetailSheet(
             android.widget.Toast.makeText(context, "블록은 최대 1,000개까지 추가할 수 있어요", android.widget.Toast.LENGTH_SHORT).show()
             return
         }
-        val block = TaskMemo(kind = kind, day = day)
+        val block = TaskMemo(kind = kind, day = day, checked = NoteBlockKind.isToggle(kind))
         blocks.add(block)
         focusBlockId = block.id
+        if (NoteBlockKind.isStatic(kind) && blocks.size < 1000) {
+            val after = TaskMemo(kind = NoteBlockKind.TEXT, day = day)
+            blocks.add(after)
+            focusBlockId = after.id
+        }
+    }
+    /** Aa: the edited block becomes [kind], text kept. */
+    fun turnActiveInto(kind: String) {
+        val at = blocks.indexOfFirst { it.id == activeBlockId }
+        val current = blocks.getOrNull(at) ?: return
+        if (current.attachment.isNotBlank() || NoteBlockKind.isStatic(current.kind)) return
+        blocks[at] = current.copy(kind = kind, checked = if (NoteBlockKind.isToggle(kind)) true else
+            current.checked && kind == NoteBlockKind.TODO)
+        focusBlockId = current.id
     }
     // 근무 할일: leave and per-day shift edits remain task properties.
     var leaves by remember(task.id) { mutableStateOf(task.leaves) }
@@ -591,31 +634,52 @@ fun TaskDetailSheet(
                 onActiveBlock = { id, focused ->
                     if (focused) activeBlockId = id
                     else if (activeBlockId == id && !blockPanel) activeBlockId = null
-                })
+                },
+                formatRequest = formatRequest, formatTick = formatTick)
         }
             // ── 키보드 위 블록 바 + 블록 고르기 패널 (편집 중일 때만) ─────────
             val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
             if (activeBlockId != null || blockPanel) {
+                fun closePanel() { notePanel = NotePanel.NONE; keyboard?.show() }
+                fun pickAttachment() {
+                    attachmentDay = blocks.firstOrNull { it.id == activeBlockId }?.day ?: dayKey.orEmpty()
+                    requestAttachment = true; notePanel = NotePanel.NONE
+                }
                 BlockKeyboardBar(
-                    panelOpen = blockPanel,
-                    onTogglePanel = {
-                        if (blockPanel) { blockPanel = false; keyboard?.show() }
-                        else { blockPanel = true; keyboard?.hide() }
+                    panel = notePanel,
+                    canUndo = undoStack.isNotEmpty() || blocks.toList() != lastSnapshot,
+                    canRedo = redoStack.isNotEmpty(),
+                    onPanel = { p ->
+                        if (notePanel == p) closePanel()
+                        else { notePanel = p; keyboard?.hide() }
                     },
-                    onQuick = { kind -> applyBlockKind(kind); blockPanel = false; keyboard?.show() },
-                    onImage = {
-                        attachmentDay = blocks.firstOrNull { it.id == activeBlockId }?.day ?: dayKey.orEmpty()
-                        requestAttachment = true; blockPanel = false
+                    onFormat = { mark ->
+                        activeBlockId?.let { formatRequest = it to mark; formatTick++ }
                     },
-                    onDone = { blockPanel = false; keyboard?.hide(); activeBlockId = null }
+                    onIndent = { delta ->
+                        activeBlockId?.let { id ->
+                            shiftNoteIndent(blocks.toList(), id, delta)?.let { blocks.clear(); blocks.addAll(it) }
+                        }
+                    },
+                    onUndo = { restoreDocument(undoStack, redoStack) },
+                    onRedo = { restoreDocument(redoStack, undoStack) },
+                    onQuick = { kind -> applyBlockKind(kind); closePanel() },
+                    onImage = ::pickAttachment,
+                    onDone = { notePanel = NotePanel.NONE; keyboard?.hide(); activeBlockId = null }
                 )
-                if (blockPanel) BlockPickerPanel(
-                    onPick = { kind -> applyBlockKind(kind); blockPanel = false; keyboard?.show() },
-                    onAttach = {
-                        attachmentDay = blocks.firstOrNull { it.id == activeBlockId }?.day ?: dayKey.orEmpty()
-                        requestAttachment = true; blockPanel = false
-                    }
-                )
+                when (notePanel) {
+                    NotePanel.ADD -> BlockPickerPanel(turnInto = false,
+                        onPick = { kind -> applyBlockKind(kind); closePanel() }, onAttach = ::pickAttachment)
+                    NotePanel.TURN -> BlockPickerPanel(turnInto = true,
+                        onPick = { kind -> turnActiveInto(kind); closePanel() }, onAttach = ::pickAttachment)
+                    NotePanel.COLOR -> BlockColorPanel(
+                        current = blocks.firstOrNull { it.id == activeBlockId }?.color.orEmpty(),
+                        onPick = { color ->
+                            val at = blocks.indexOfFirst { it.id == activeBlockId }
+                            if (at >= 0) blocks[at] = blocks[at].copy(color = color)
+                        })
+                    NotePanel.NONE -> Unit
+                }
             }
             // ── No visible bottom toolbar: closing the sheet saves, 태그 sits by
             // the list, check/attach live in 블록 추가. This keeps only the
@@ -1322,82 +1386,5 @@ private fun Modifier.detailScrollbar(state: ScrollState, tint: Color): Modifier 
         val top = (height - thumb) * state.value / range
         drawRoundRect(tint, topLeft = Offset(size.width - 3.dp.toPx(), top),
             size = Size(2.dp.toPx(), thumb), cornerRadius = CornerRadius(1.dp.toPx()))
-    }
-}
-
-
-/** Bar that sits right above the keyboard while a block is edited (Notion style). */
-@Composable
-private fun BlockKeyboardBar(
-    panelOpen: Boolean,
-    onTogglePanel: () -> Unit,
-    onQuick: (kind: String) -> Unit,
-    onImage: () -> Unit,
-    onDone: () -> Unit
-) {
-    Column(Modifier.fillMaxWidth().testTag("block-keyboard-bar")) {
-        HorizontalDivider(color = TextTertiary.copy(alpha = 0.2f))
-        Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-            @Composable
-            fun BarButton(desc: String, selected: Boolean = false, onClick: () -> Unit, content: @Composable () -> Unit) {
-                Box(
-                    Modifier.size(40.dp).clip(RoundedCornerShape(8.dp))
-                        .background(if (selected) TextTertiary.copy(alpha = 0.18f) else Color.Transparent)
-                        .clickable(onClickLabel = desc) { onClick() },
-                    contentAlignment = Alignment.Center
-                ) { content() }
-            }
-            BarButton("블록 추가", selected = panelOpen, onClick = onTogglePanel) {
-                Icon(Icons.Default.Add, "블록 추가", tint = TextPrimary, modifier = Modifier.size(22.dp))
-            }
-            BarButton("제목", onClick = { onQuick(NoteBlockKind.HEADING) }) {
-                Text("H", color = TextSecondary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            }
-            BarButton("체크리스트", onClick = { onQuick(NoteBlockKind.TODO) }) {
-                Icon(Icons.Outlined.CheckBox, "체크리스트", tint = TextSecondary, modifier = Modifier.size(20.dp))
-            }
-            BarButton("구분선", onClick = { onQuick(NoteBlockKind.DIVIDER) }) {
-                Icon(Icons.Outlined.HorizontalRule, "구분선", tint = TextSecondary, modifier = Modifier.size(20.dp))
-            }
-            BarButton("이미지 · 파일", onClick = onImage) {
-                Icon(Icons.Outlined.Image, "이미지 · 파일", tint = TextSecondary, modifier = Modifier.size(20.dp))
-            }
-            Spacer(Modifier.weight(1f))
-            BarButton("키보드 닫기", onClick = onDone) {
-                Icon(Icons.Outlined.KeyboardHide, "키보드 닫기", tint = TextSecondary, modifier = Modifier.size(20.dp))
-            }
-        }
-    }
-}
-
-/** Block choices shown in place of the keyboard when + is tapped. */
-@Composable
-private fun BlockPickerPanel(onPick: (kind: String) -> Unit, onAttach: () -> Unit) {
-    val items = listOf(
-        Triple("텍스트", NoteBlockKind.TEXT, Icons.Outlined.TextFields),
-        Triple("제목", NoteBlockKind.HEADING, Icons.Outlined.Title),
-        Triple("체크리스트", NoteBlockKind.TODO, Icons.Outlined.CheckBox),
-        Triple("구분선", NoteBlockKind.DIVIDER, Icons.Outlined.HorizontalRule),
-        Triple("이미지 · 파일", "", Icons.Outlined.Image)
-    )
-    Column(Modifier.fillMaxWidth().heightIn(min = 220.dp).padding(vertical = 8.dp).testTag("block-picker-panel")) {
-        Text("기본 블록", fontSize = 12.sp, color = TextTertiary, modifier = Modifier.padding(start = 4.dp, bottom = 6.dp))
-        items.chunked(2).forEach { row ->
-            Row(Modifier.fillMaxWidth()) {
-                row.forEach { (label, kind, icon) ->
-                    Row(
-                        Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
-                            .clickable { if (kind.isEmpty()) onAttach() else onPick(kind) }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(icon, null, tint = TextSecondary, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Text(label, fontSize = 15.sp, color = TextPrimary)
-                    }
-                }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
     }
 }
