@@ -3,12 +3,18 @@ package com.bettertick.ui.screens.tasks.components
 import com.bettertick.ui.theme.TextPrimary
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.ScrollState
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -277,12 +283,17 @@ fun TaskDetailSheet(
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         dragHandle = { BottomSheetDefaults.DragHandle(color = TextTertiary.copy(alpha = 0.5f)) }
     ) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val contentScroll = rememberScrollState()
+        val scrollbarColor = TextSecondary.copy(alpha = 0.45f)
+        Column(Modifier.fillMaxWidth().heightIn(max = maxHeight).padding(horizontal = 20.dp, vertical = 8.dp)) {
         Column(
             modifier = Modifier
+                .weight(1f, fill = false)
                 .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .padding(top = 0.dp, bottom = 16.dp)
+                .detailScrollbar(contentScroll, scrollbarColor)
+                .verticalScroll(contentScroll)
+                .padding(bottom = 12.dp)
         ) {
             // ── Header: list selector + flag + more ──────────────────────
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -549,6 +560,15 @@ fun TaskDetailSheet(
                 dayLabel = occurrenceDate?.let { "${it.monthValue}월 ${it.dayOfMonth}일" }
             )
 
+            if (attachments.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                AttachmentGrid(
+                    entries = attachments,
+                    onRemove = { idx -> if (idx in attachments.indices) attachments.removeAt(idx) }
+                )
+            }
+
+        }
             DetailDivider()
             Spacer(Modifier.height(4.dp))
 
@@ -584,15 +604,7 @@ fun TaskDetailSheet(
                 }
             )
 
-            if (attachments.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                AttachmentGrid(
-                    entries = attachments,
-                    onRemove = { idx -> if (idx in attachments.indices) attachments.removeAt(idx) }
-                )
-            }
-
-            Spacer(Modifier.height(8.dp))
+        }
         }
     }
 
@@ -844,7 +856,7 @@ private fun MemoSection(
                         onValueChange = { v -> if (idx >= 0) memos[idx] = memo.copy(text = v) },
                         textStyle = TextStyle(color = TextPrimary, fontSize = 14.sp, lineHeight = 22.sp),
                         cursorBrush = SolidColor(DetailAccent),
-                        modifier = Modifier.fillMaxWidth().padding(end = 6.dp))
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp, max = 160.dp).padding(end = 6.dp))
                 }
             }
         }
@@ -1701,4 +1713,17 @@ private fun DetailMenuItem(
 @Composable
 private fun DetailDivider() {
     HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+}
+
+/** A small visible thumb makes the bounded sheet body discoverably scrollable. */
+private fun Modifier.detailScrollbar(state: ScrollState, tint: Color): Modifier = drawWithContent {
+    drawContent()
+    val range = state.maxValue
+    if (range > 0 && range < Int.MAX_VALUE && size.height > 0f) {
+        val height = size.height
+        val thumb = (height * height / (height + range)).coerceIn(24.dp.toPx().coerceAtMost(height), height)
+        val top = (height - thumb) * state.value / range
+        drawRoundRect(tint, topLeft = Offset(size.width - 3.dp.toPx(), top),
+            size = Size(2.dp.toPx(), thumb), cornerRadius = CornerRadius(1.dp.toPx()))
+    }
 }
