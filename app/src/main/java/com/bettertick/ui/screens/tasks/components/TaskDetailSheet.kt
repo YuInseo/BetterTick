@@ -27,6 +27,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInParent
+import kotlinx.coroutines.flow.first
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -344,9 +353,15 @@ fun TaskDetailSheet(
         onDismiss()
     }
 
-    ExpandableTaskDetail(onClose = { commitAndClose() }) {
+    // Where the big title ends inside the scrolling content (px), for the pinned page bar.
+    var titleBottomPx by remember { mutableIntStateOf(0) }
+    // derivedStateOf: scrolling only recomposes when the answer flips, not every frame.
+    val titleScrolledAway by remember { androidx.compose.runtime.derivedStateOf { titleBottomPx > 0 && contentScroll.value > titleBottomPx } }
+    ExpandableTaskDetail(onClose = { commitAndClose() },
+        pageTitle = title.ifBlank { "제목 없음" }, pageSubtitle = shownListName,
+        titleScrolledAway = titleScrolledAway) {
         val scrollbarColor = TextSecondary.copy(alpha = 0.45f)
-        Column(Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 8.dp)) {
         Column(
             modifier = Modifier
                 .weight(1f)
@@ -598,7 +613,9 @@ fun TaskDetailSheet(
             Spacer(Modifier.height(4.dp))
 
             // 제목만 — 완료는 목록의 체크박스나 ⋯ 메뉴에서.
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.onGloballyPositioned {
+                titleBottomPx = (it.positionInParent().y + it.size.height).toInt()
+            }) {
                 BasicTextField(
                     value = title,
                     onValueChange = { title = it },
@@ -638,20 +655,60 @@ fun TaskDetailSheet(
                 formatRequest = formatRequest, formatTick = formatTick)
         }
             // ── 키보드 위 블록 바 + 블록 고르기 패널 (편집 중일 때만) ─────────
+            // Like Notion, the panel takes exactly the keyboard's place: while the
+            // keyboard slides away the panel grows by the same amount (and the
+            // other way round), so the bar never jumps.
             val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val imeInsets = WindowInsets.ime
+            val navInsets = WindowInsets.navigationBars
+            val imePx = (imeInsets.getBottom(density) - navInsets.getBottom(density)).coerceAtLeast(0)
+            var keyboardPx by remember { mutableIntStateOf(0) }
+            if (imePx > keyboardPx) keyboardPx = imePx
+            val panelPx = if (keyboardPx > 0) keyboardPx else with(density) { 280.dp.roundToPx() }
+            // Panel last shown, kept on screen while the keyboard comes back over it.
+            var lastPanel by remember { mutableStateOf(NotePanel.NONE) }
+            var restoring by remember { mutableStateOf(false) }
+            if (notePanel != NotePanel.NONE) lastPanel = notePanel
+            LaunchedEffect(restoring) {
+                if (restoring) {
+                    val target = panelPx - 2
+                    kotlinx.coroutines.withTimeoutOrNull(700) {
+                        snapshotFlow { imeInsets.getBottom(density) - navInsets.getBottom(density) }.first { it >= target }
+                    }
+                    restoring = false
+                }
+            }
+            // Tapping a block while a panel is open brings the keyboard back: then the
+            // panel gives way to it (otherwise both would show).
+            LaunchedEffect(notePanel) {
+                if (notePanel == NotePanel.NONE) return@LaunchedEffect
+                val keyboardNow = { imeInsets.getBottom(density) - navInsets.getBottom(density) }
+                kotlinx.coroutines.withTimeoutOrNull(1_000) { snapshotFlow { keyboardNow() }.first { it <= 0 } }
+                snapshotFlow { keyboardNow() }.first { it > 0 }
+                restoring = true
+                notePanel = NotePanel.NONE
+            }
             if (activeBlockId != null || blockPanel) {
-                fun closePanel() { notePanel = NotePanel.NONE; keyboard?.show() }
+                fun closePanel() { restoring = notePanel != NotePanel.NONE; notePanel = NotePanel.NONE; keyboard?.show() }
                 fun pickAttachment() {
                     attachmentDay = blocks.firstOrNull { it.id == activeBlockId }?.day ?: dayKey.orEmpty()
-                    requestAttachment = true; notePanel = NotePanel.NONE
+                    requestAttachment = true; notePanel = NotePanel.NONE; restoring = false
                 }
+                // Full-bleed (past the sheet's side padding) and flush with the keyboard.
+                Column(Modifier.layout { measurable, constraints ->
+                    val extra = 40.dp.roundToPx()
+                    val width = constraints.maxWidth + extra
+                    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+                    layout(constraints.maxWidth, placeable.height) { placeable.place(-extra / 2, 0) }
+                }.background(DarkSurfaceVariant.copy(alpha = 0.35f))) {
                 BlockKeyboardBar(
                     panel = notePanel,
                     canUndo = undoStack.isNotEmpty() || blocks.toList() != lastSnapshot,
                     canRedo = redoStack.isNotEmpty(),
                     onPanel = { p ->
                         if (notePanel == p) closePanel()
-                        else { notePanel = p; keyboard?.hide() }
+                        else { notePanel = p; restoring = false; keyboard?.hide() }
                     },
                     onFormat = { mark ->
                         activeBlockId?.let { formatRequest = it to mark; formatTick++ }
@@ -665,20 +722,30 @@ fun TaskDetailSheet(
                     onRedo = { restoreDocument(redoStack, undoStack) },
                     onQuick = { kind -> applyBlockKind(kind); closePanel() },
                     onImage = ::pickAttachment,
-                    onDone = { notePanel = NotePanel.NONE; keyboard?.hide(); activeBlockId = null }
+                    onDone = { notePanel = NotePanel.NONE; restoring = false; keyboard?.hide(); activeBlockId = null }
                 )
-                when (notePanel) {
-                    NotePanel.ADD -> BlockPickerPanel(turnInto = false,
-                        onPick = { kind -> applyBlockKind(kind); closePanel() }, onAttach = ::pickAttachment)
-                    NotePanel.TURN -> BlockPickerPanel(turnInto = true,
-                        onPick = { kind -> turnActiveInto(kind); closePanel() }, onAttach = ::pickAttachment)
-                    NotePanel.COLOR -> BlockColorPanel(
-                        current = blocks.firstOrNull { it.id == activeBlockId }?.color.orEmpty(),
-                        onPick = { color ->
-                            val at = blocks.indexOfFirst { it.id == activeBlockId }
-                            if (at >= 0) blocks[at] = blocks[at].copy(color = color)
-                        })
-                    NotePanel.NONE -> Unit
+                val shown = if (notePanel != NotePanel.NONE) notePanel else if (restoring) lastPanel else NotePanel.NONE
+                if (shown != NotePanel.NONE) {
+                    val visiblePx = (panelPx - imePx).coerceAtLeast(0)
+                    Box(Modifier.fillMaxWidth().height(with(density) { visiblePx.toDp() }).clipToBounds()) {
+                        Box(Modifier.fillMaxWidth().requiredHeight(with(density) { panelPx.toDp() })
+                            .align(Alignment.TopCenter).padding(horizontal = 12.dp)) {
+                            when (shown) {
+                                NotePanel.ADD -> BlockPickerPanel(turnInto = false,
+                                    onPick = { kind -> applyBlockKind(kind); closePanel() }, onAttach = ::pickAttachment)
+                                NotePanel.TURN -> BlockPickerPanel(turnInto = true,
+                                    onPick = { kind -> turnActiveInto(kind); closePanel() }, onAttach = ::pickAttachment)
+                                NotePanel.COLOR -> BlockColorPanel(
+                                    current = blocks.firstOrNull { it.id == activeBlockId }?.color.orEmpty(),
+                                    onPick = { color ->
+                                        val at = blocks.indexOfFirst { it.id == activeBlockId }
+                                        if (at >= 0) blocks[at] = blocks[at].copy(color = color)
+                                    })
+                                NotePanel.NONE -> Unit
+                            }
+                        }
+                    }
+                }
                 }
             }
             // ── No visible bottom toolbar: closing the sheet saves, 태그 sits by
