@@ -136,6 +136,7 @@ fun TabBarScreen(
         enabledTabs.none { it.id == tab.id }
     }
     var showMaxTabsDialog by remember { mutableStateOf(false) }
+    var showTemplates by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -215,15 +216,7 @@ fun TabBarScreen(
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .background(GroupedCard)
-                    .clickable {
-                        val n = com.bettertick.ui.screens.custom.CustomTabsPrefs.tabs.size + 1
-                        val created = com.bettertick.ui.screens.custom.CustomTabsPrefs.create("내 탭 $n", "dashboard")
-                        val item = TabItem(created.id, created.name, "내가 만든 탭",
-                            com.bettertick.ui.screens.custom.customTabIcon(created.icon))
-                        enabledTabs.add((maxTabs - 2).coerceIn(0, enabledTabs.size), item)
-                        commit()
-                        onOpenCustomTab(created.id)
-                    }
+                    .clickable { showTemplates = true }
                     .padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -241,7 +234,7 @@ fun TabBarScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "오늘 할 일·근무·가계부·메모·바로가기를 골라 원하는 순서로 배치해요",
+                        text = "템플릿으로 시작해서 할 일·습관·달력·디데이 등 블록을 끌어서 배치해요",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
@@ -288,6 +281,58 @@ fun TabBarScreen(
         TabBarPreview(
             enabled = enabledTabs,
             maxTabs = maxTabs
+        )
+    }
+
+    if (showTemplates) {
+        AlertDialog(
+            onDismissRequest = { showTemplates = false },
+            title = { Text("어떤 탭으로 시작할까요?", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    com.bettertick.ui.screens.custom.CustomTabTemplates.forEach { template ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(DarkSurfaceVariant)
+                                .clickable {
+                                    showTemplates = false
+                                    val prefs = com.bettertick.ui.screens.custom.CustomTabsPrefs
+                                    val name = if (template.blocks.isEmpty()) "내 탭 ${prefs.tabs.size + 1}" else template.name
+                                    val created = prefs.create(name, template.icon, template)
+                                    val item = TabItem(created.id, created.name, "내가 만든 탭",
+                                        com.bettertick.ui.screens.custom.customTabIcon(created.icon))
+                                    enabledTabs.add((maxTabs - 2).coerceIn(0, enabledTabs.size), item)
+                                    commit()
+                                    onOpenCustomTab(created.id)
+                                }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                com.bettertick.ui.screens.custom.customTabIcon(template.icon),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(template.name, fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onBackground)
+                                Text(template.description, style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showTemplates = false }) {
+                    Text("취소", color = MaterialTheme.colorScheme.primary)
+                }
+            },
+            containerColor = GroupedCard
         )
     }
 

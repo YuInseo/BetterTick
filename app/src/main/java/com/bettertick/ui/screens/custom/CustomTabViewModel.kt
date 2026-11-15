@@ -2,27 +2,79 @@ package com.bettertick.ui.screens.custom
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.bettertick.data.model.DiaryEntry
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.TaskList
+import com.bettertick.data.repository.DiaryRepository
+import com.bettertick.data.repository.HabitRepository
+import com.bettertick.data.repository.ListRepository
 import com.bettertick.data.repository.TaskRepository
+import com.bettertick.ui.screens.habits.isDueOn
+import com.bettertick.ui.screens.tasks.HabitTodayItem
+import com.google.firebase.Timestamp
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.ZoneId
+import java.util.Date
 import javax.inject.Inject
 
-/** Tasks for the blocks on a user-made tab. */
+/** Data for the blocks on a user-made tab. */
 @HiltViewModel
 class CustomTabViewModel @Inject constructor(
-    private val repository: TaskRepository
+    private val repository: TaskRepository,
+    private val habitRepository: HabitRepository,
+    listRepository: ListRepository,
+    diaryRepository: DiaryRepository
 ) : ViewModel() {
+    private val today = LocalDate.now()
+
     val tasks: StateFlow<List<Task>> = repository.observeAllTasks()
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val lists: StateFlow<List<TaskList>> = listRepository.observeLists()
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val habits: StateFlow<List<HabitTodayItem>> = combine(
+        habitRepository.observeHabits(),
+        habitRepository.observeHabitLogs(today.toString(), today.toString())
+    ) { habits, logs ->
+        val done = logs.filter { it.isCompleted }.map { it.habitId }.toSet()
+        habits.filter { !it.isArchived && it.isDueOn(today) }.map { HabitTodayItem(it, it.id in done) }
+    }.catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val diary: StateFlow<DiaryEntry?> = diaryRepository.observeEntryForDate(today.toString())
+        .catch { emit(null) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
     fun toggle(task: Task, day: LocalDate) {
         viewModelScope.launch { runCatching { repository.toggleCompleteOn(task, day) } }
+    }
+
+    fun toggleHabit(habitId: String) {
+        viewModelScope.launch { runCatching { habitRepository.toggleHabitLog(habitId, today.toString()) } }
+    }
+
+    /** 빠른 추가: a task for today (in [listId] when the block has one). */
+    fun addToday(title: String, listId: String = "") {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            runCatching {
+                repository.addTask(Task(
+                    title = title.trim(),
+                    listId = listId,
+                    dueDate = Timestamp(Date.from(today.atStartOfDay(ZoneId.systemDefault()).toInstant())),
+                    sortOrder = System.currentTimeMillis()
+                ))
+            }
+        }
     }
 }

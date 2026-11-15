@@ -26,8 +26,12 @@ import org.json.JSONObject
 data class DashBlock(
     val id: String = java.util.UUID.randomUUID().toString().take(8),
     val type: String,
-    /** 메모 text, or the route of a 바로가기 block. */
-    val text: String = ""
+    /** Per-type data: 메모 text, 바로가기 target, 목록 id, 디데이 "yyyy-MM-dd|제목". */
+    val text: String = "",
+    /** The user's own heading; blank = the type's default. */
+    val title: String = "",
+    /** Half width: two half blocks in a row sit side by side. */
+    val half: Boolean = false
 )
 
 /** A tab the user built: a name, an icon and blocks in the order they arranged. */
@@ -48,17 +52,56 @@ object DashBlockType {
     const val MONEY = "money"
     const val MEMO = "memo"
     const val SHORTCUT = "shortcut"
+    const val HABITS = "habits"
+    const val MINI_CALENDAR = "mini_calendar"
+    const val DIARY = "diary"
+    const val DDAY = "dday"
+    const val LIST_TASKS = "list_tasks"
+    const val QUICK_ADD = "quick_add"
+    const val STATS = "stats"
 
     /** What the "블록 추가" sheet offers, in order. */
     val catalog = listOf(
         TODAY to "오늘 (날짜·근무)",
         TODAY_TASKS to "오늘 할 일",
+        QUICK_ADD to "빠른 할 일 추가",
+        LIST_TASKS to "목록 할 일",
+        HABITS to "오늘 습관",
+        MINI_CALENDAR to "이번 달 달력",
         WEEK_SHIFTS to "이번 주 근무",
         UPCOMING to "다가오는 일정",
+        DDAY to "디데이",
+        STATS to "이번 주 달성률",
+        DIARY to "오늘 일기",
         MONEY to "이번 달 가계부",
         MEMO to "메모",
         SHORTCUT to "바로가기 버튼"
     )
+
+    /** One-line explanation under each entry in the add sheet. */
+    fun hint(type: String) = when (type) {
+        TODAY -> "날짜, 남은 할 일 수, 오늘 근무"
+        TODAY_TASKS -> "오늘 할 일을 바로 체크"
+        QUICK_ADD -> "입력하고 엔터 → 오늘 할 일로 추가"
+        LIST_TASKS -> "고른 목록의 남은 할 일"
+        HABITS -> "오늘 할 습관을 탭해서 체크"
+        MINI_CALENDAR -> "근무 색과 일정 점이 찍힌 이번 달"
+        WEEK_SHIFTS -> "월~일 근무 한눈에"
+        UPCOMING -> "2주 안의 일정"
+        DDAY -> "날짜까지 남은 날 (D-12)"
+        STATS -> "이번 주 할 일 완료 비율"
+        DIARY -> "오늘 쓴 일기 미리보기"
+        MONEY -> "수입·지출·남은 돈"
+        MEMO -> "자유롭게 적는 메모"
+        SHORTCUT -> "다른 화면으로 바로 이동"
+        else -> ""
+    }
+
+    /** Blocks that need a choice before they can show anything. */
+    fun needsSetup(type: String) = type == DDAY || type == LIST_TASKS || type == SHORTCUT
+
+    /** Blocks that read well at half width by default. */
+    fun halfByDefault(type: String) = type == DDAY || type == STATS || type == SHORTCUT
 
     fun label(type: String) = catalog.firstOrNull { it.first == type }?.second ?: type
 }
@@ -115,13 +158,13 @@ object CustomTabsPrefs {
 
     fun tab(id: String): CustomTab? = tabs.firstOrNull { it.id == id }
 
-    /** Creates a tab with a few useful blocks to start from; returns it. */
-    fun create(name: String, icon: String): CustomTab {
+    /** Creates a tab from [template]'s blocks; returns it. */
+    fun create(name: String, icon: String, template: CustomTabTemplate = CustomTabTemplates.first()): CustomTab {
         val tab = CustomTab(
             id = ID_PREFIX + java.util.UUID.randomUUID().toString().take(8),
             name = name.ifBlank { "내 탭" },
             icon = icon,
-            blocks = listOf(DashBlock(type = DashBlockType.TODAY), DashBlock(type = DashBlockType.TODAY_TASKS))
+            blocks = template.blocks.map { (type, half) -> DashBlock(type = type, half = half) }
         )
         save(tabs + tab)
         justCreated = tab.id
@@ -142,7 +185,12 @@ object CustomTabsPrefs {
             put(JSONObject().apply {
                 put("id", t.id); put("name", t.name); put("icon", t.icon)
                 put("blocks", JSONArray().apply {
-                    t.blocks.forEach { b -> put(JSONObject().apply { put("id", b.id); put("type", b.type); put("text", b.text) }) }
+                    t.blocks.forEach { b ->
+                        put(JSONObject().apply {
+                            put("id", b.id); put("type", b.type); put("text", b.text)
+                            put("title", b.title); put("half", b.half)
+                        })
+                    }
                 })
             })
         }
@@ -159,9 +207,29 @@ object CustomTabsPrefs {
                 icon = o.optString("icon", "dashboard"),
                 blocks = (0 until blocks.length()).map { j ->
                     val b = blocks.getJSONObject(j)
-                    DashBlock(id = b.optString("id"), type = b.optString("type"), text = b.optString("text"))
+                    DashBlock(id = b.optString("id"), type = b.optString("type"), text = b.optString("text"),
+                        title = b.optString("title"), half = b.optBoolean("half"))
                 }
             )
         }
     }
 }
+
+/** Starting points offered by "내 탭 만들기". */
+data class CustomTabTemplate(val name: String, val icon: String, val description: String,
+                             val blocks: List<Pair<String, Boolean>>)
+
+val CustomTabTemplates = listOf(
+    CustomTabTemplate("오늘 한눈에", "dashboard", "오늘 · 할 일 · 습관 · 다가오는 일정", listOf(
+        DashBlockType.TODAY to false, DashBlockType.TODAY_TASKS to false,
+        DashBlockType.HABITS to false, DashBlockType.UPCOMING to false)),
+    CustomTabTemplate("근무자용", "work", "오늘 근무 · 이번 주 근무 · 이번 달 달력 · 가계부", listOf(
+        DashBlockType.TODAY to false, DashBlockType.WEEK_SHIFTS to false,
+        DashBlockType.MINI_CALENDAR to false, DashBlockType.MONEY to false)),
+    CustomTabTemplate("집중 모드", "bolt", "빠른 추가 · 할 일 · 달성률 · 집중 바로가기", listOf(
+        DashBlockType.QUICK_ADD to false, DashBlockType.TODAY_TASKS to false,
+        DashBlockType.STATS to true, DashBlockType.HABITS to true)),
+    CustomTabTemplate("기록장", "book", "오늘 일기 · 메모 · 습관", listOf(
+        DashBlockType.DIARY to false, DashBlockType.MEMO to false, DashBlockType.HABITS to false)),
+    CustomTabTemplate("빈 탭", "star", "블록 없이 직접 채우기", emptyList())
+)
