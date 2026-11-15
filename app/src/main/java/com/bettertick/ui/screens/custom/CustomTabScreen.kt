@@ -115,7 +115,9 @@ private class DashData(
     val lists: List<TaskList>,
     val habits: List<HabitTodayItem>,
     val diary: DiaryEntry?
-)
+) {
+    val ctx = DashContext(tasks, lists, habits, diary)
+}
 
 /** Saves a change to one block of [tabId], reading the latest copy of the tab. */
 private fun updateBlock(tabId: String, blockId: String, change: (DashBlock) -> DashBlock) {
@@ -148,6 +150,10 @@ fun CustomTabScreen(
     val habits by viewModel.habits.collectAsState()
     val diary by viewModel.diary.collectAsState()
     val data = DashData(tasks, lists, habits, diary)
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.runtime.LaunchedEffect(viewModel) {
+        viewModel.messages.collect { android.widget.Toast.makeText(context, it, android.widget.Toast.LENGTH_SHORT).show() }
+    }
 
     var editing by rememberSaveable(tabId) {
         mutableStateOf((CustomTabsPrefs.justCreated == tabId).also { if (it) CustomTabsPrefs.justCreated = null })
@@ -235,7 +241,13 @@ fun CustomTabScreen(
                         showAdd = false
                         val fresh = CustomTabsPrefs.tab(tab.id) ?: return@clickable
                         val block = DashBlock(type = type, half = DashBlockType.halfByDefault(type),
-                            text = if (type == DashBlockType.SHORTCUT) ShortcutTargets.first().first else "")
+                            text = when (type) {
+                                DashBlockType.SHORTCUT -> ShortcutTargets.first().first
+                                DashBlockType.VALUE -> ValueConfig().encode()
+                                DashBlockType.TEMPLATE -> TemplateConfig().encode()
+                                DashBlockType.MACRO -> MacroConfig().encode()
+                                else -> ""
+                            })
                         CustomTabsPrefs.update(fresh.copy(blocks = fresh.blocks + block))
                         editing = true
                         if (DashBlockType.needsSetup(type)) settingsFor = block.id
@@ -250,7 +262,7 @@ fun CustomTabScreen(
     settingsFor?.let { id ->
         val block = tab.blocks.firstOrNull { it.id == id }
         if (block == null) settingsFor = null
-        else BlockSettingsSheet(tab.id, block, lists, onDismiss = { settingsFor = null })
+        else BlockSettingsSheet(tab.id, block, lists, data.ctx, onDismiss = { settingsFor = null })
     }
     if (confirmDelete) {
         androidx.compose.material3.AlertDialog(
@@ -284,6 +296,9 @@ private fun blockName(block: DashBlock, lists: List<TaskList>): String = block.t
         DashBlockType.SHORTCUT -> "바로가기 · " + (ShortcutTargets.firstOrNull { it.first == block.text }?.second ?: block.text)
         DashBlockType.LIST_TASKS -> lists.firstOrNull { it.id == block.text }?.name ?: "목록 할 일"
         DashBlockType.DDAY -> parseDday(block.text)?.second?.ifBlank { null } ?: "디데이"
+        DashBlockType.VALUE -> "값 · " + (DashVars.find(ValueConfig.decode(block.text).variable, lists)?.label ?: "변수")
+        DashBlockType.MACRO -> "매크로 · " + MacroConfig.decode(block.text).label
+        DashBlockType.TEMPLATE -> "템플릿 · " + TemplateConfig.decode(block.text).text.take(20)
         else -> DashBlockType.label(block.type)
     }
 }
@@ -411,7 +426,7 @@ private fun ArrangeBlocks(tab: CustomTab, lists: List<TaskList>, onSettings: (St
 /** ⚙ for one block: its heading, width, and what it shows (list, date, target). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BlockSettingsSheet(tabId: String, block: DashBlock, lists: List<TaskList>, onDismiss: () -> Unit) {
+private fun BlockSettingsSheet(tabId: String, block: DashBlock, lists: List<TaskList>, ctx: DashContext, onDismiss: () -> Unit) {
     var showDate by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = DarkSurface) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
@@ -479,6 +494,9 @@ private fun BlockSettingsSheet(tabId: String, block: DashBlock, lists: List<Task
                         )
                     }
                 }
+                DashBlockType.VALUE -> ValueSettings(tabId, block, ctx)
+                DashBlockType.TEMPLATE -> TemplateSettings(tabId, block, ctx)
+                DashBlockType.MACRO -> MacroSettings(tabId, block, ctx)
                 else -> Unit
             }
             Spacer(Modifier.height(12.dp))
@@ -811,6 +829,9 @@ private fun DashBlockView(
                 Text("›", color = MaterialTheme.colorScheme.primary, fontSize = 20.sp)
             }
         }
+        DashBlockType.VALUE -> ValueBlockView(block, data.ctx, fill, onNavigate)
+        DashBlockType.TEMPLATE -> TemplateBlockView(block, data.ctx, fill)
+        DashBlockType.MACRO -> MacroBlockView(block, fill) { cfg -> viewModel.runMacro(tab.id, cfg, data.ctx, onNavigate) }
         else -> Unit
     }
 }
