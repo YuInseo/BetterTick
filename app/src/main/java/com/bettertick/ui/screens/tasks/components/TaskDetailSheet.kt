@@ -39,6 +39,7 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DoNotDisturbOn
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Repeat
 import androidx.compose.material.icons.automirrored.outlined.Label
@@ -365,6 +366,15 @@ fun TaskDetailSheet(
                         DetailMenuItem(if (isPinned) "고정 해제" else "고정", Icons.Outlined.PushPin) {
                             isPinned = !isPinned; moreMenuOpen = false
                         }
+                        if (!task.copy(title = title).isShiftTask()) {
+                            DetailMenuItem(
+                                if (task.isCompleted) "완료 취소" else "완료",
+                                Icons.Outlined.CheckCircle
+                            ) {
+                                moreMenuOpen = false
+                                onToggleComplete()
+                            }
+                        }
                         DetailMenuItem(if (isAbandoned) "하지 않음 취소" else "하지 않음", Icons.Outlined.DoNotDisturbOn) {
                             isAbandoned = !isAbandoned; moreMenuOpen = false
                         }
@@ -460,14 +470,8 @@ fun TaskDetailSheet(
 
             Spacer(Modifier.height(4.dp))
 
+            // 제목만 — 완료는 목록의 체크박스나 ⋯ 메뉴에서.
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (!task.copy(title = title).isShiftTask()) {
-                    Box(Modifier.size(44.dp).clip(CircleShape).clickable { onToggleComplete() },
-                        contentAlignment = Alignment.Center) {
-                        TickCheckbox(priority, task.isCompleted, isAbandoned, size = 21.dp, rounded = true)
-                    }
-                    Spacer(Modifier.width(6.dp))
-                }
                 BasicTextField(
                     value = title,
                     onValueChange = { title = it },
