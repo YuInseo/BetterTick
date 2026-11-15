@@ -148,6 +148,7 @@ private val BasicItems = listOf(
     PanelItem("글머리 기호 목록", NoteBlockKind.BULLET, Icons.AutoMirrored.Outlined.FormatListBulleted),
     PanelItem("번호 매기기 목록", NoteBlockKind.NUMBERED, Icons.Outlined.FormatListNumbered),
     PanelItem("토글 목록", NoteBlockKind.TOGGLE, Icons.Outlined.ArrowRight),
+    PanelItem("페이지", NoteBlockKind.PAGE, Icons.Outlined.Description),
     PanelItem("인용", NoteBlockKind.QUOTE, Icons.Outlined.FormatQuote),
     PanelItem("콜아웃", NoteBlockKind.CALLOUT, Icons.Outlined.Lightbulb),
     PanelItem("코드", NoteBlockKind.CODE, Icons.Outlined.Code),
@@ -187,7 +188,7 @@ internal fun BlockPickerPanel(turnInto: Boolean, onPick: (kind: String) -> Unit,
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
         .padding(vertical = 8.dp).testTag("block-picker-panel")) {
         if (turnInto) {
-            PanelSection("블록 종류 바꾸기", BasicItems, onPick, onAttach)
+            PanelSection("블록 종류 바꾸기", BasicItems.filter { it.kind != NoteBlockKind.PAGE }, onPick, onAttach)
         } else {
             PanelSection("기본 블록", BasicItems, onPick, onAttach)
             PanelSection("미디어", MediaItems, onPick, onAttach)

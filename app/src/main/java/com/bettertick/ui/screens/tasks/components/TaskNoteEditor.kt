@@ -64,7 +64,10 @@ internal fun TaskNoteEditor(
     onActiveBlock: (id: String, focused: Boolean) -> Unit = { _, _ -> },
     /** Inline style to apply to a block's selection (from the keyboard bar), bumped by [formatTick]. */
     formatRequest: Pair<String, InlineMark>? = null,
-    formatTick: Int = 0
+    formatTick: Int = 0,
+    /** 페이지 블록: create a sub-page in place of block id (null = when none). Null hides pages. */
+    onCreatePage: ((replaceBlockId: String?) -> Unit)? = null,
+    onOpenPage: (pageId: String) -> Unit = {}
 ) {
     var scopeOpen by remember { mutableStateOf(false) }
     var addingDay by remember(day) { mutableStateOf(day.orEmpty()) }
@@ -104,6 +107,8 @@ internal fun TaskNoteEditor(
                     onJump = onFocusBlock,
                     formatRequest = formatRequest?.takeIf { it.first == block.id }?.second,
                     formatTick = formatTick,
+                    onCreatePage = onCreatePage?.let { create -> { create(block.id) } },
+                    onOpenPage = onOpenPage,
                     onFocused = { f -> onActiveBlock(block.id, f) },
                     onChange = { changed -> val at = blocks.indexOfFirst { it.id == block.id }; if (at >= 0) blocks[at] = changed },
                     onMove = { direction -> val moved = blocks.toList().moveNoteBlock(block.id, direction, day); blocks.clear(); blocks.addAll(moved) },
@@ -186,6 +191,7 @@ private fun NoteBlockRow(
     block: TaskMemo, focus: Boolean,
     number: Int, headings: List<TaskMemo>, onJump: (String) -> Unit,
     formatRequest: InlineMark?, formatTick: Int,
+    onCreatePage: (() -> Unit)?, onOpenPage: (String) -> Unit,
     onFocused: (Boolean) -> Unit, onChange: (TaskMemo) -> Unit,
     onMove: (Int) -> Unit, onIndent: (Int) -> Unit, canMoveUp: Boolean, canMoveDown: Boolean,
     onDuplicate: () -> Unit, onRemove: () -> Unit, selectedDay: String?,
@@ -218,6 +224,7 @@ private fun NoteBlockRow(
     }
     val slashQuery = block.text.takeIf { !isCode && it.startsWith("/") && '\n' !in it && it.length <= 40 }
     val slashItems = noteSlashItems(slashQuery?.drop(1).orEmpty())
+        .filter { it.kind != NoteBlockKind.PAGE || onCreatePage != null }
     LaunchedEffect(focus) { if (focus && !static) focusRequester.requestFocus() }
     // After Backspace merged into / deleted toward this block: caret at the join.
     LaunchedEffect(cursorTick) {
@@ -310,6 +317,18 @@ private fun NoteBlockRow(
                 media -> NoteMediaBlock(block)
                 block.kind == NoteBlockKind.DIVIDER -> HorizontalDivider(
                     modifier = Modifier.padding(vertical = 15.dp), color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f))
+                block.kind == NoteBlockKind.PAGE -> Row(
+                    Modifier.fillMaxWidth().padding(vertical = 2.dp).clip(RoundedCornerShape(6.dp))
+                        .clickable { if (block.pageId.isNotBlank()) onOpenPage(block.pageId) }
+                        .padding(vertical = 4.dp, horizontal = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Outlined.Description, null, tint = TextSecondary, modifier = Modifier.size(19.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text(block.text.ifBlank { "제목 없음" }, fontSize = 15.sp, fontWeight = FontWeight.Medium,
+                        color = if (block.text.isBlank()) TextTertiary else textColor,
+                        textDecoration = TextDecoration.Underline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
                 block.kind == NoteBlockKind.TOC -> Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                     if (headings.isEmpty()) Text("제목 블록을 추가하면 여기에 목차가 생겨요", fontSize = 13.sp, color = TextTertiary,
                         modifier = Modifier.padding(vertical = 4.dp))
@@ -412,6 +431,12 @@ private fun NoteBlockRow(
                         if (slashItems.isEmpty()) DropdownMenuItem(text = { Text("일치하는 블록이 없어요") }, enabled = false, onClick = {})
                         slashItems.forEach { item ->
                             DropdownMenuItem(text = { Text(item.label) }, onClick = {
+                                if (item.kind == NoteBlockKind.PAGE) {
+                                    dismissedSlash = block.text
+                                    onChange(block.copy(text = ""))
+                                    onCreatePage?.invoke()
+                                    return@DropdownMenuItem
+                                }
                                 onChange(block.copy(kind = item.kind, text = "", checked = NoteBlockKind.isToggle(item.kind)))
                                 dismissedSlash = block.text
                                 if (NoteBlockKind.isStatic(item.kind) && canInsert) onInsertAfter(NoteBlockKind.TEXT, "", block.indent)

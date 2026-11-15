@@ -21,9 +21,10 @@ object NoteBlockKind {
     const val CODE = "code"
     const val EMBED = "embed"
     const val TOC = "toc"
+    const val PAGE = "page"
 
     /** Blocks without editable text. */
-    fun isStatic(kind: String) = kind == DIVIDER || kind == TOC || kind == IMAGE || kind == FILE
+    fun isStatic(kind: String) = kind == DIVIDER || kind == TOC || kind == IMAGE || kind == FILE || kind == PAGE
     fun isToggle(kind: String) = kind == TOGGLE || kind == TOGGLE_H1 || kind == TOGGLE_H2 || kind == TOGGLE_H3
     /** 1..3 for headings (toggle headings included), 0 otherwise. */
     fun headingLevel(kind: String) = when (kind) {
@@ -81,7 +82,8 @@ fun attachmentNoteBlock(entry: String, id: String = java.util.UUID.randomUUID().
 }
 
 fun List<TaskMemo>.savedNoteBlocks(): List<TaskMemo> = filter {
-    it.kind == NoteBlockKind.DIVIDER || it.kind == NoteBlockKind.TOC || it.text.isNotBlank() || it.attachment.isNotBlank()
+    it.kind == NoteBlockKind.DIVIDER || it.kind == NoteBlockKind.TOC || it.pageId.isNotBlank() ||
+        it.text.isNotBlank() || it.attachment.isNotBlank()
 }
 
 /** A plain markdown projection keeps search, exports and calendar previews compatible. */
@@ -98,6 +100,7 @@ fun List<TaskMemo>.commonNoteText(): String = filter { it.day.isBlank() }.mapNot
         NoteBlockKind.NUMBERED -> "${pad}1. ${it.text}"
         NoteBlockKind.QUOTE, NoteBlockKind.CALLOUT -> "> ${it.text}"
         NoteBlockKind.CODE -> "```\n${it.text}\n```"
+        NoteBlockKind.PAGE -> "$pad📄 ${it.text.ifBlank { "제목 없음" }}"
         else -> pad + it.text
     }
 }.joinToString("\n").take(200000)

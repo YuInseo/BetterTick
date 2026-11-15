@@ -258,6 +258,39 @@ fun TaskDetailSheet(
             focusBlockId = after.id
         }
     }
+    // 페이지 블록 (하위 페이지): a 하위 할일 opened as its own page on top.
+    val pageScope = androidx.compose.runtime.rememberCoroutineScope()
+    val subPages = remember { lazy { SubPages(context) } }
+    var openPage by remember { mutableStateOf<Task?>(null) }
+    fun createPage(replaceBlockId: String?) {
+        pageScope.launch {
+            val parent = task.copy(title = title)
+            val page = runCatching { subPages.value.create(parent) }.getOrNull()
+            if (page == null) {
+                android.widget.Toast.makeText(context, "페이지를 만들지 못했어요", android.widget.Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val at = blocks.indexOfFirst { it.id == replaceBlockId }
+            val current = blocks.getOrNull(at)
+            val block = TaskMemo(kind = NoteBlockKind.PAGE, pageId = page.id,
+                day = current?.day ?: dayKey.orEmpty(), indent = current?.indent ?: 0)
+            when {
+                // An empty text block becomes the page (like Notion's /페이지).
+                current != null && current.text.isEmpty() && !NoteBlockKind.isStatic(current.kind) &&
+                    current.attachment.isBlank() -> blocks[at] = block
+                at >= 0 -> blocks.add(at + 1, block)
+                else -> blocks.add(block)
+            }
+            openPage = page
+        }
+    }
+    fun openPageById(id: String) {
+        pageScope.launch {
+            val page = runCatching { subPages.value.load(id) }.getOrNull()
+            if (page == null) android.widget.Toast.makeText(context, "삭제된 페이지예요", android.widget.Toast.LENGTH_SHORT).show()
+            else openPage = page
+        }
+    }
     /** Aa: the edited block becomes [kind], text kept. */
     fun turnActiveInto(kind: String) {
         val at = blocks.indexOfFirst { it.id == activeBlockId }
@@ -661,7 +694,9 @@ fun TaskDetailSheet(
                     if (focused) activeBlockId = id
                     else if (activeBlockId == id && !blockPanel) activeBlockId = null
                 },
-                formatRequest = formatRequest, formatTick = formatTick)
+                formatRequest = formatRequest, formatTick = formatTick,
+                onCreatePage = ::createPage,
+                onOpenPage = ::openPageById)
         }
             // ── 키보드 위 블록 바 + 블록 고르기 패널 (편집 중일 때만) ─────────
             // Like Notion, the panel takes exactly the keyboard's place: while the
@@ -748,7 +783,10 @@ fun TaskDetailSheet(
                             .align(Alignment.TopCenter).padding(horizontal = 12.dp)) {
                             when (shown) {
                                 NotePanel.ADD -> BlockPickerPanel(turnInto = false,
-                                    onPick = { kind -> applyBlockKind(kind); closePanel() }, onAttach = ::pickAttachment)
+                                    onPick = { kind ->
+                                        if (kind == NoteBlockKind.PAGE) { notePanel = NotePanel.NONE; createPage(activeBlockId) }
+                                        else { applyBlockKind(kind); closePanel() }
+                                    }, onAttach = ::pickAttachment)
                                 NotePanel.TURN -> BlockPickerPanel(turnInto = true,
                                     onPick = { kind -> turnActiveInto(kind); closePanel() }, onAttach = ::pickAttachment)
                                 NotePanel.COLOR -> BlockColorPanel(
@@ -783,6 +821,26 @@ fun TaskDetailSheet(
             )
 
         }
+    }
+
+    // 하위 페이지 — the same sheet, for the child; its title flows back into the block.
+    openPage?.let { page ->
+        TaskDetailSheet(
+            task = page,
+            listName = listName,
+            onDismiss = { openPage = null },
+            onUpdateTask = { updated ->
+                pageScope.launch { runCatching { subPages.value.update(updated) } }
+                for (i in blocks.indices) if (blocks[i].pageId == updated.id && blocks[i].text != updated.title) {
+                    blocks[i] = blocks[i].copy(text = updated.title)
+                }
+            },
+            onToggleComplete = { pageScope.launch { runCatching { subPages.value.toggle(page) } } },
+            tags = tags,
+            onCreateTag = onCreateTag,
+            lists = lists,
+            parentTitle = title
+        )
     }
 
     if (showDatePicker) {
