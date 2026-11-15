@@ -99,9 +99,13 @@ class WidgetActionDispatcher : ComponentActivity() {
         CoroutineScope(SupervisorJob() + Dispatchers.Main).launch {
             try {
                 val mgr = GlanceAppWidgetManager(appContext)
-                val ids = mgr.getGlanceIds(ReminderWidget::class.java).filter { gid ->
+                val all = mgr.getGlanceIds(ReminderWidget::class.java)
+                val matching = all.filter { gid ->
                     widgetId <= 0 || runCatching { mgr.getAppWidgetId(gid) }.getOrNull() == widgetId
                 }
+                // A widget id that no longer matches (widget re-placed, launcher
+                // restored) must not swallow the tap: then every widget follows it.
+                val ids = matching.ifEmpty { all }
                 Log.i(TAG, "writing state for ${ids.size} widget(s)")
                 val widget = ReminderWidget()
                 for (id in ids) {
