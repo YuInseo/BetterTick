@@ -68,12 +68,17 @@ data class Task(
 data class TaskMemo(
     val id: String = java.util.UUID.randomUUID().toString(),
     val text: String = "",
-    val day: String = ""
+    val day: String = "",
+    // Empty kind denotes a legacy memo. New documents store ordered native blocks here.
+    val kind: String = "",
+    val checked: Boolean = false,
+    val attachment: String = ""
 )
 
 /** Memos to show on [day]: the shared ones plus that day's (all when [day] is null). */
 fun Task.memosOn(day: java.time.LocalDate?): List<TaskMemo> {
     val key = day?.toString()
     val legacy = dayNotes.map { (d, t) -> TaskMemo(id = "day-$d", text = t, day = d) }
-    return (memos + legacy).filter { it.text.isNotBlank() && (it.day.isBlank() || key == null || it.day == key) }
+    return (memos + legacy).filter { it.text.isNotBlank() && (it.kind.isBlank() || it.day.isNotBlank()) &&
+        (it.day.isBlank() || key == null || it.day == key) }
 }
