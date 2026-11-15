@@ -522,11 +522,20 @@ fun CalendarScreen(
 
             // Week strip + day list ↔ whole month: the month unrolls downward from the
             // week row while the list slides away (and back), instead of a crossfade.
-            CalendarViewMode.MONTH -> androidx.compose.animation.AnimatedContent(
+            CalendarViewMode.MONTH -> {
+            // Pulled down into the month: the coming weeks are already on screen,
+            // so the switch is a short cross-fade instead of a second unroll.
+            var monthFromPull by remember { mutableStateOf(false) }
+            androidx.compose.runtime.LaunchedEffect(date) { if (date != null) monthFromPull = false }
+            androidx.compose.animation.AnimatedContent(
                 targetState = date,
                 contentKey = { it == null },
                 transitionSpec = {
                     val toMonth = targetState == null
+                    if (toMonth && monthFromPull) {
+                        return@AnimatedContent androidx.compose.animation.fadeIn(tween(180)) togetherWith
+                            androidx.compose.animation.fadeOut(tween(180))
+                    }
                     val enter = if (toMonth)
                         androidx.compose.animation.fadeIn(tween(200)) +
                             androidx.compose.animation.expandVertically(tween(320), expandFrom = Alignment.Top)
@@ -610,11 +619,20 @@ fun CalendarScreen(
                             var pull by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
                             val pullThreshold = with(density) { 72.dp.toPx() }
                             val maxPull = with(density) { 252.dp.toPx() }
+                            // Enough pulled → keep going on our own until the next weeks fill
+                            // the screen, then hand over to the month (no jump, one motion).
+                            val monthPx = with(density) { (84 * 5).dp.toPx() }
                             val releasePull: () -> Unit = {
-                                if (pull > pullThreshold) viewModel.clearSelection()
                                 val from = pull
                                 pullScope.launch {
-                                    androidx.compose.animation.core.animate(from, 0f, animationSpec = tween(220)) { v, _ -> pull = v }
+                                    if (from > pullThreshold) {
+                                        androidx.compose.animation.core.animate(from, monthPx,
+                                            animationSpec = tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { v, _ -> pull = v }
+                                        monthFromPull = true
+                                        viewModel.clearSelection()
+                                    } else {
+                                        androidx.compose.animation.core.animate(from, 0f, animationSpec = tween(220)) { v, _ -> pull = v }
+                                    }
                                 }
                             }
                             val latestRelease by androidx.compose.runtime.rememberUpdatedState(releasePull)
@@ -650,7 +668,7 @@ fun CalendarScreen(
                             // list — the month calendar growing out of this week.
                             if (pull > 0f) {
                                 val upcoming = remember(selectedWeek) {
-                                    (1..3).map { n -> selectedWeek.map { it.plusWeeks(n.toLong()) } }
+                                    (1..5).map { n -> selectedWeek.map { it.plusWeeks(n.toLong()) } }
                                 }
                                 Column(
                                     Modifier
@@ -799,6 +817,7 @@ fun CalendarScreen(
                         }
                     }
                 }
+            }
             }
         }
 
