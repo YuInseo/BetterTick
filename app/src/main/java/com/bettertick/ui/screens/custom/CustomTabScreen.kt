@@ -41,6 +41,33 @@ import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.material.icons.outlined.AccountBalanceWallet
+import androidx.compose.material.icons.outlined.AddTask
+import androidx.compose.material.icons.outlined.Book
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.IosShare
+import androidx.compose.material.icons.outlined.Dashboard
+import androidx.compose.material.icons.outlined.DonutLarge
+import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.FilterList
+import androidx.compose.material.icons.outlined.Flag
+import androidx.compose.material.icons.outlined.Functions
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
+import androidx.compose.material.icons.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.PlayCircle
+import androidx.compose.material.icons.outlined.Repeat
+import androidx.compose.material.icons.outlined.StickyNote2
+import androidx.compose.material.icons.outlined.TextFields
+import androidx.compose.material.icons.outlined.Today
+import androidx.compose.material.icons.outlined.ViewColumn
+import androidx.compose.material.icons.outlined.Work
+import kotlinx.coroutines.launch
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -114,16 +141,15 @@ private class DashData(
     val tasks: List<Task>,
     val lists: List<TaskList>,
     val habits: List<HabitTodayItem>,
-    val diary: DiaryEntry?
+    val diary: DiaryEntry?,
+    val today: LocalDate
 ) {
-    val ctx = DashContext(tasks, lists, habits, diary)
+    val ctx = DashContext(tasks, lists, habits, diary, today)
 }
 
 /** Saves a change to one block of [tabId], reading the latest copy of the tab. */
-private fun updateBlock(tabId: String, blockId: String, change: (DashBlock) -> DashBlock) {
-    val tab = CustomTabsPrefs.tab(tabId) ?: return
-    CustomTabsPrefs.update(tab.copy(blocks = tab.blocks.map { if (it.id == blockId) change(it) else it }))
-}
+private fun updateBlock(tabId: String, blockId: String, change: (DashBlock) -> DashBlock) =
+    CustomTabsPrefs.updateBlock(tabId, blockId, change)
 
 /**
  * 내 탭: a tab the user built out of blocks. "편집" switches to arrange mode, where
@@ -149,7 +175,34 @@ fun CustomTabScreen(
     val lists by viewModel.lists.collectAsState()
     val habits by viewModel.habits.collectAsState()
     val diary by viewModel.diary.collectAsState()
-    val data = DashData(tasks, lists, habits, diary)
+    // "오늘" follows the clock: a tab left open past midnight moves on to the new day.
+    val today by androidx.compose.runtime.produceState(LocalDate.now()) {
+        while (true) {
+            val now = java.time.LocalDateTime.now()
+            val next = now.toLocalDate().plusDays(1).atStartOfDay()
+            kotlinx.coroutines.delay(java.time.Duration.between(now, next).toMillis() + 1_000)
+            value = LocalDate.now()
+        }
+    }
+    val data = DashData(tasks, lists, habits, diary, today)
+    val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val snackbar = remember { androidx.compose.material3.SnackbarHostState() }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    /** Checks a task off; "되돌리기" in the snackbar unchecks it again. */
+    val toggleWithUndo: (Task, LocalDate) -> Unit = { t, day ->
+        val wasDone = t.completedOn(day)
+        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+        viewModel.toggle(t, day)
+        if (!wasDone) scope.launch {
+            snackbar.currentSnackbarData?.dismiss()
+            val r = snackbar.showSnackbar("'${t.title.take(20)}' 완료", actionLabel = "되돌리기",
+                duration = androidx.compose.material3.SnackbarDuration.Short)
+            if (r == androidx.compose.material3.SnackbarResult.ActionPerformed) {
+                viewModel.toggle(t.copy(isCompleted = true, completedDates = t.completedDates + day.toString()), day)
+            }
+        }
+    }
+    var menuFor by remember { mutableStateOf<String?>(null) }
     val context = androidx.compose.ui.platform.LocalContext.current
     // 이벤트: 이 탭을 열 때.
     androidx.compose.runtime.LaunchedEffect(tabId) {
@@ -166,6 +219,7 @@ fun CustomTabScreen(
     var openTask by remember { mutableStateOf<Pair<String, LocalDate?>?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
 
+    Box(Modifier.fillMaxSize()) {
     Column(Modifier.fillMaxSize().background(GroupedBackground).statusBarsPadding()) {
         Row(
             Modifier.fillMaxWidth().height(56.dp).padding(start = 20.dp, end = 8.dp),
@@ -187,7 +241,8 @@ fun CustomTabScreen(
 
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp).padding(bottom = 24.dp)
+                // Room for the floating + button so the last block is never covered.
+                .padding(horizontal = 16.dp).padding(bottom = 104.dp)
                 .animateContentSize(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -198,6 +253,22 @@ fun CustomTabScreen(
                 ArrangeBlocks(tab, lists, onSettings = { settingsFor = it })
                 AddRow("블록 추가") { showAdd = true }
                 Spacer(Modifier.height(8.dp))
+                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(GroupedCard)) {
+                    TabActionRow("탭 복제", "블록·설정 그대로 새 탭으로", Icons.Outlined.ContentCopy) {
+                        CustomTabsPrefs.duplicate(tab.id)?.let { copy ->
+                            viewModel.addToTabBar(copy.id)
+                            CustomTabsPrefs.justCreated = copy.id
+                            onNavigate(copy.id)
+                        }
+                    }
+                    TabActionRow("공유용으로 복사", "다른 폰에서 탭 바 › 내 탭 만들기 › 붙여넣기", Icons.Outlined.IosShare) {
+                        CustomTabsPrefs.export(tab.id)?.let { text ->
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
+                            android.widget.Toast.makeText(context, "탭을 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(GroupedCard)
                         .clickable { confirmDelete = true }.padding(16.dp),
@@ -216,22 +287,37 @@ fun CustomTabScreen(
                     }
                 }
                 // Half blocks next to each other share a row; a lone half block keeps its half.
+                val showBlock: @Composable (DashBlock, Boolean) -> Unit = { b, fill ->
+                    BlockFrame(b, data.lists, onLongPress = {
+                        haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        menuFor = b.id
+                    }, onExpand = { CustomTabsPrefs.updateBlock(tab.id, b.id) { it.copy(collapsed = false) } }) {
+                        DashBlockView(tab, b, data, viewModel, onNavigate, fill = fill,
+                            onOpenTask = { t, d -> openTask = t.id to d }, onToggle = toggleWithUndo)
+                    }
+                }
                 blockRows(tab.blocks).forEach { row ->
                     key(row.first().id) {
                         if (row.size == 1 && !row[0].half) {
-                            DashBlockView(tab, row[0], data, viewModel, onNavigate, onOpenTask = { t, d -> openTask = t.id to d })
+                            showBlock(row[0], false)
                         } else {
                             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 row.forEach { b ->
-                                    Box(Modifier.weight(1f).fillMaxHeight()) { DashBlockView(tab, b, data, viewModel, onNavigate, fill = true, onOpenTask = { t, d -> openTask = t.id to d }) }
+                                    Box(Modifier.weight(1f).fillMaxHeight()) { showBlock(b, !b.collapsed) }
                                 }
                                 if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
                         }
                     }
                 }
+                if (tab.blocks.isNotEmpty()) {
+                    Text("블록을 길게 누르면 설정 · 이동 · 복제 · 접기", color = TextSecondary.copy(alpha = 0.6f), fontSize = 11.sp,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp), textAlign = TextAlign.Center)
+                }
             }
         }
+    }
+    androidx.compose.material3.SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = 88.dp))
     }
 
     if (showAdd) {
@@ -240,24 +326,25 @@ fun CustomTabScreen(
                 .windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 12.dp)) {
                 Text("블록 추가", style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-                DashBlockType.catalog.forEach { (type, label) ->
-                    Column(Modifier.fillMaxWidth().clickable {
-                        showAdd = false
-                        val fresh = CustomTabsPrefs.tab(tab.id) ?: return@clickable
-                        val block = DashBlock(type = type, half = DashBlockType.halfByDefault(type),
-                            text = when (type) {
-                                DashBlockType.SHORTCUT -> ShortcutTargets.first().first
-                                DashBlockType.VALUE -> ValueConfig().encode()
-                                DashBlockType.TEMPLATE -> TemplateConfig().encode()
-                                DashBlockType.MACRO -> MacroConfig().encode()
-                                else -> ""
-                            })
-                        CustomTabsPrefs.update(fresh.copy(blocks = fresh.blocks + block))
-                        editing = true
-                        if (DashBlockType.needsSetup(type)) settingsFor = block.id
-                    }.padding(horizontal = 20.dp, vertical = 10.dp)) {
-                        Text(label, color = MaterialTheme.colorScheme.onBackground)
-                        Text(DashBlockType.hint(type), color = TextSecondary, fontSize = 12.sp)
+                DashBlockType.sections.forEach { (section, types) ->
+                    Text(section, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 2.dp))
+                    types.forEach { type ->
+                        Row(Modifier.fillMaxWidth().clickable {
+                            showAdd = false
+                            val fresh = CustomTabsPrefs.tab(tab.id) ?: return@clickable
+                            val block = DashBlock(type = type, half = DashBlockType.halfByDefault(type),
+                                text = DashBlockType.initialText(type))
+                            CustomTabsPrefs.update(fresh.copy(blocks = fresh.blocks + block))
+                            if (DashBlockType.needsSetup(type)) settingsFor = block.id
+                        }.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(blockIcon(type), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(DashBlockType.label(type), color = MaterialTheme.colorScheme.onBackground)
+                                Text(DashBlockType.hint(type), color = TextSecondary, fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -266,7 +353,43 @@ fun CustomTabScreen(
     settingsFor?.let { id ->
         val block = tab.blocks.firstOrNull { it.id == id }
         if (block == null) settingsFor = null
-        else BlockSettingsSheet(tab.id, block, lists, data.ctx, tags, onDismiss = { settingsFor = null })
+        else BlockSettingsSheet(tab.id, block, lists, data.ctx, tags, onDismiss = { settingsFor = null }) {
+            // Live preview: the block exactly as it will look, updating with every change.
+            DashBlockView(tab, block.copy(collapsed = false), data, viewModel, onNavigate = {}, onToggle = { _, _ -> })
+        }
+    }
+    menuFor?.let { id ->
+        val block = tab.blocks.firstOrNull { it.id == id }
+        if (block == null) menuFor = null
+        else BlockMenuSheet(
+            name = blockName(block, lists),
+            block = block,
+            index = tab.blocks.indexOf(block),
+            count = tab.blocks.size,
+            onDismiss = { menuFor = null },
+            onSettings = { menuFor = null; settingsFor = id },
+            onMove = { by -> CustomTabsPrefs.moveBlock(tab.id, id, by) },
+            onToggleHalf = { CustomTabsPrefs.updateBlock(tab.id, id) { it.copy(half = !it.half) } },
+            onToggleCollapse = { menuFor = null; CustomTabsPrefs.updateBlock(tab.id, id) { it.copy(collapsed = !it.collapsed) } },
+            onDuplicate = { menuFor = null; CustomTabsPrefs.duplicateBlock(tab.id, id) },
+            onDelete = {
+                menuFor = null
+                val before = CustomTabsPrefs.tab(tab.id)
+                CustomTabsPrefs.removeBlock(tab.id, id)
+                scope.launch {
+                    val r = snackbar.showSnackbar("블록을 삭제했어요", actionLabel = "되돌리기",
+                        duration = androidx.compose.material3.SnackbarDuration.Short)
+                    if (r == androidx.compose.material3.SnackbarResult.ActionPerformed && before != null) {
+                        CustomTabsPrefs.tab(tab.id)?.let { now ->
+                            // Put it back where it was, keeping any other edits made since.
+                            val restored = before.blocks.filter { b -> b.id == id || now.blocks.any { it.id == b.id } }
+                                .map { b -> now.blocks.firstOrNull { it.id == b.id } ?: b }
+                            CustomTabsPrefs.update(now.copy(blocks = restored + now.blocks.filter { n -> restored.none { it.id == n.id } }))
+                        }
+                    }
+                }
+            }
+        )
     }
     openTask?.let { (id, day) ->
         val t = tasks.firstOrNull { it.id == id }
@@ -399,6 +522,7 @@ private fun ArrangeBlocks(tab: CustomTab, lists: List<TaskList>, onSettings: (St
                             scaleY = if (dragging) 1.02f else 1f
                         }
                         .background(if (dragging) DarkSurfaceVariant else Color.Transparent)
+                        .clickable { onSettings(block.id) }
                         .padding(horizontal = 12.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -407,10 +531,13 @@ private fun ArrangeBlocks(tab: CustomTab, lists: List<TaskList>, onSettings: (St
                             order.remove(block); commit()
                         })
                     Spacer(Modifier.width(12.dp))
+                    Icon(blockIcon(block.type), null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text(blockName(block, lists), color = MaterialTheme.colorScheme.onBackground,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(if (block.half) "절반 너비" else "전체 너비", color = TextSecondary, fontSize = 12.sp)
+                        Text(listOfNotNull(if (block.half) "절반 너비" else "전체 너비", "접힘".takeIf { block.collapsed })
+                            .joinToString(" · "), color = TextSecondary, fontSize = 12.sp)
                     }
                     Icon(Icons.Outlined.Tune, "블록 설정", tint = TextSecondary,
                         modifier = Modifier.size(36.dp).clip(CircleShape).clickable { onSettings(block.id) }.padding(7.dp))
@@ -450,13 +577,20 @@ private fun ArrangeBlocks(tab: CustomTab, lists: List<TaskList>, onSettings: (St
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BlockSettingsSheet(tabId: String, block: DashBlock, lists: List<TaskList>, ctx: DashContext,
-                               tags: List<com.bettertick.data.model.Tag>, onDismiss: () -> Unit) {
+                               tags: List<com.bettertick.data.model.Tag>, onDismiss: () -> Unit,
+                               preview: @Composable () -> Unit) {
     var showDate by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = DarkSurface) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
             .windowInsetsPadding(WindowInsets.navigationBars).padding(horizontal = 20.dp).padding(bottom = 16.dp)) {
             Text(DashBlockType.label(block.type) + " 설정", style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.padding(vertical = 8.dp))
+            SettingLabel("미리보기")
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f), RoundedCornerShape(16.dp))) {
+                // Half blocks preview at half width so the layout reads true.
+                Box(Modifier.fillMaxWidth(if (block.half) 0.5f else 1f)) { preview() }
+            }
 
             SettingLabel("제목")
             var title by remember(block.id) { mutableStateOf(block.title) }
@@ -629,9 +763,10 @@ private fun DashBlockView(
     viewModel: CustomTabViewModel,
     onNavigate: (String) -> Unit,
     fill: Boolean = false,
-    onOpenTask: (Task, LocalDate?) -> Unit = { _, _ -> }
+    onOpenTask: (Task, LocalDate?) -> Unit = { _, _ -> },
+    onToggle: (Task, LocalDate) -> Unit = viewModel::toggle
 ) {
-    val today = remember { LocalDate.now() }
+    val today = data.today
     val tasks = data.tasks
     val heading = block.title.ifBlank { null }
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -658,9 +793,10 @@ private fun DashBlockView(
         }
         DashBlockType.TODAY_TASKS, DashBlockType.LIST_TASKS -> TaskViewBlockView(
             block, tasks, data.lists, fill,
-            onToggle = viewModel::toggle,
+            onToggle = onToggle,
             onOpen = onOpenTask,
-            onAdd = { title, listId, date -> viewModel.addTask(title, listId, date) }
+            onAdd = { title, listId, date -> viewModel.addTask(title, listId, date) },
+            today = today
         )
         DashBlockType.QUICK_ADD -> Card(heading, fill) {
             var text by remember { mutableStateOf("") }
@@ -738,7 +874,7 @@ private fun DashBlockView(
             }
         }
         DashBlockType.UPCOMING -> Card(heading ?: "다가오는 일정", fill) {
-            val items = remember(tasks) {
+            val items = remember(tasks, today) {
                 (1L..14L).flatMap { d ->
                     val day = today.plusDays(d)
                     tasks.filter { it.isPlainTask() && it.occursOn(day) && !it.completedOn(day) }.map { day to it }
@@ -774,7 +910,7 @@ private fun DashBlockView(
         }
         DashBlockType.STATS -> Card(heading ?: "이번 주 달성률", fill) {
             val monday = remember(today) { today.with(DayOfWeek.MONDAY) }
-            val (done, total) = remember(tasks) {
+            val (done, total) = remember(tasks, today) {
                 var d = 0
                 var t = 0
                 for (i in 0L until 7L) {
@@ -813,6 +949,8 @@ private fun DashBlockView(
         }
         DashBlockType.MEMO -> Card(heading, fill) {
             var text by remember(block.id) { mutableStateOf(block.text) }
+            // A macro (메모에 기록) can add lines while the tab is open: show them.
+            androidx.compose.runtime.LaunchedEffect(block.text) { if (block.text != text) text = block.text }
             Box {
                 if (text.isEmpty()) Text("메모를 적어 두세요", color = TextSecondary)
                 BasicTextField(
@@ -895,5 +1033,166 @@ private fun MoneyStat(label: String, amount: Long, color: Color, modifier: Modif
         Text(label, color = TextSecondary, fontSize = 12.sp)
         Spacer(Modifier.height(4.dp))
         Text(won(amount), color = color, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)
+    }
+}
+
+
+/** Icon shown for a block type in the add sheet, arrange list and folded blocks. */
+internal fun blockIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
+    DashBlockType.TODAY -> Icons.Outlined.Today
+    DashBlockType.TODAY_TASKS -> Icons.Outlined.CheckBox
+    DashBlockType.LIST_TASKS -> Icons.Outlined.FilterList
+    DashBlockType.QUICK_ADD -> Icons.Outlined.AddTask
+    DashBlockType.STATS -> Icons.Outlined.DonutLarge
+    DashBlockType.MINI_CALENDAR -> Icons.Outlined.CalendarMonth
+    DashBlockType.WEEK_SHIFTS -> Icons.Outlined.Work
+    DashBlockType.UPCOMING -> Icons.Outlined.Event
+    DashBlockType.DDAY -> Icons.Outlined.Flag
+    DashBlockType.HABITS -> Icons.Outlined.Repeat
+    DashBlockType.DIARY -> Icons.Outlined.Book
+    DashBlockType.MEMO -> Icons.Outlined.StickyNote2
+    DashBlockType.MONEY -> Icons.Outlined.AccountBalanceWallet
+    DashBlockType.VALUE -> Icons.Outlined.Functions
+    DashBlockType.TEMPLATE -> Icons.Outlined.TextFields
+    DashBlockType.MACRO -> Icons.Outlined.PlayCircle
+    DashBlockType.SHORTCUT -> Icons.Outlined.OpenInNew
+    else -> Icons.Outlined.Dashboard
+}
+
+/** Blocks with a text box of their own keep long-press for text selection. */
+private fun hasOwnTextBox(type: String) = type == DashBlockType.MEMO || type == DashBlockType.QUICK_ADD
+
+/**
+ * Wraps a block in view mode: a long press anywhere opens its menu (watched in the
+ * Initial pass so the block's own taps keep working, and the click under the finger
+ * is swallowed once the menu opened). A folded block shows only its heading.
+ */
+@Composable
+private fun BlockFrame(
+    block: DashBlock,
+    lists: List<TaskList>,
+    onLongPress: () -> Unit,
+    onExpand: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    val longPressTimeout = androidx.compose.ui.platform.LocalViewConfiguration.current.longPressTimeoutMillis
+    val latestLongPress = androidx.compose.runtime.rememberUpdatedState(onLongPress)
+    val watch = if (hasOwnTextBox(block.type) && !block.collapsed) Modifier else Modifier.pointerInput(block.id) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+            val slop = viewConfiguration.touchSlop
+            var fired = false
+            val released = withTimeoutOrNull(longPressTimeout) {
+                while (true) {
+                    val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                    val c = e.changes.firstOrNull { it.id == down.id } ?: return@withTimeoutOrNull true
+                    if (!c.pressed) return@withTimeoutOrNull true
+                    if ((c.position - down.position).getDistance() > slop) return@withTimeoutOrNull true
+                }
+                true
+            }
+            if (released == null) {
+                fired = true
+                latestLongPress.value()
+            }
+            if (fired) {
+                // Swallow the rest of this touch so the row under the finger isn't also tapped.
+                while (true) {
+                    val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                    e.changes.forEach { it.consume() }
+                    if (e.changes.none { it.pressed }) break
+                }
+            }
+        }
+    }
+    if (block.collapsed) {
+        Row(
+            Modifier.fillMaxWidth().then(watch).clip(RoundedCornerShape(14.dp)).background(GroupedCard)
+                .clickable(onClick = onExpand).padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(blockIcon(block.type), null, tint = TextSecondary, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(blockName(block, lists), color = TextSecondary, fontWeight = FontWeight.Medium,
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Icon(Icons.Outlined.ExpandMore, "펼치기", tint = TextSecondary, modifier = Modifier.size(20.dp))
+        }
+    } else {
+        Box(Modifier.fillMaxWidth().then(watch)) { content() }
+    }
+}
+
+/** Long-press menu of a block. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun BlockMenuSheet(
+    name: String,
+    block: DashBlock,
+    index: Int,
+    count: Int,
+    onDismiss: () -> Unit,
+    onSettings: () -> Unit,
+    onMove: (Int) -> Unit,
+    onToggleHalf: () -> Unit,
+    onToggleCollapse: () -> Unit,
+    onDuplicate: () -> Unit,
+    onDelete: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = DarkSurface) {
+        Column(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 12.dp)) {
+            Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(blockIcon(block.type), null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(10.dp))
+                Text(name, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            // Up / down stay in the sheet so a block can be nudged several places in a row.
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MenuChip("위로", Icons.Outlined.KeyboardArrowUp, enabled = index > 0, modifier = Modifier.weight(1f)) { onMove(-1) }
+                MenuChip("아래로", Icons.Outlined.KeyboardArrowDown, enabled = index < count - 1, modifier = Modifier.weight(1f)) { onMove(1) }
+                MenuChip(if (block.half) "전체 너비" else "절반 너비", Icons.Outlined.ViewColumn, modifier = Modifier.weight(1f)) { onToggleHalf() }
+            }
+            MenuRow("블록 설정", Icons.Outlined.Tune, onSettings)
+            MenuRow(if (block.collapsed) "펼치기" else "접기", if (block.collapsed) Icons.Outlined.ExpandMore else Icons.Outlined.ExpandLess, onToggleCollapse)
+            MenuRow("복제", Icons.Outlined.ContentCopy, onDuplicate)
+            MenuRow("삭제", Icons.Outlined.Delete, onDelete, danger = true)
+        }
+    }
+}
+
+@Composable
+private fun MenuChip(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean = true,
+                     modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val tint = if (enabled) MaterialTheme.colorScheme.onBackground else TextSecondary.copy(alpha = 0.4f)
+    Column(
+        modifier.clip(RoundedCornerShape(12.dp)).background(DarkSurfaceVariant)
+            .clickable(enabled = enabled, onClick = onClick).padding(vertical = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.height(2.dp))
+        Text(label, color = tint, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun MenuRow(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, danger: Boolean = false) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = if (danger) OverdueRed else TextSecondary, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(16.dp))
+        Text(label, color = if (danger) OverdueRed else MaterialTheme.colorScheme.onBackground)
+    }
+}
+
+@Composable
+private fun TabActionRow(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(title, color = MaterialTheme.colorScheme.onBackground)
+            Text(subtitle, color = TextSecondary, fontSize = 12.sp)
+        }
     }
 }

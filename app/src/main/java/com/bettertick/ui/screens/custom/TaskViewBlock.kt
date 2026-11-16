@@ -180,11 +180,11 @@ internal fun TaskViewBlockView(
     fill: Boolean,
     onToggle: (Task, LocalDate) -> Unit,
     onOpen: (Task, LocalDate?) -> Unit,
-    onAdd: (title: String, listId: String, date: LocalDate?) -> Unit
+    onAdd: (title: String, listId: String, date: LocalDate?) -> Unit,
+    today: LocalDate = LocalDate.now()
 ) {
     val cfg = remember(block.text, block.type) { TaskViewConfig.decode(block.text, block.type) }
-    val today = remember { LocalDate.now() }
-    val rows = remember(tasks, cfg) { taskViewRows(cfg, tasks, today) }
+    val rows = remember(tasks, cfg, today) { taskViewRows(cfg, tasks, today) }
     var expanded by rememberSaveable(block.id) { mutableStateOf(false) }
     val visible = if (cfg.limit == 0 || expanded) rows else rows.take(cfg.limit)
     val title = block.title.ifBlank {
@@ -204,7 +204,16 @@ internal fun TaskViewBlockView(
             if (rows.isNotEmpty()) Text("$doneCount/${rows.size}", color = TextSecondary, fontSize = 12.sp)
         }
         Spacer(Modifier.height(8.dp))
-        if (rows.isEmpty()) Text("해당하는 할 일이 없어요", color = TextSecondary, modifier = Modifier.padding(vertical = 4.dp))
+        if (rows.isEmpty()) Text(
+            when (cfg.range) {
+                "today", "today_overdue" -> "오늘 할 일이 없어요"
+                "tomorrow" -> "내일 할 일이 없어요"
+                "overdue" -> "밀린 할 일이 없어요 👍"
+                else -> "조건에 맞는 할 일이 없어요"
+            }, color = TextSecondary, modifier = Modifier.padding(vertical = 4.dp))
+        else if (doneCount == rows.size && cfg.range in setOf("today", "today_overdue")) Text(
+            "오늘 할 일을 다 끝냈어요 🎉", color = Color(0xFF35B36A), fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 4.dp))
 
         var lastGroup: String? = null
         visible.forEach { row ->

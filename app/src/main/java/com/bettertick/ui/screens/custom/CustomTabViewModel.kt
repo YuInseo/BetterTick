@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -31,8 +32,22 @@ class CustomTabViewModel @Inject constructor(
     private val habitRepository: HabitRepository,
     listRepository: ListRepository,
     diaryRepository: DiaryRepository,
-    private val tagRepository: com.bettertick.data.repository.TagRepository
+    private val tagRepository: com.bettertick.data.repository.TagRepository,
+    private val tabBarRepository: com.bettertick.data.repository.TabBarRepository
 ) : ViewModel() {
+    /** Puts a (copied / imported) tab on the tab bar, where the bar shows it. */
+    fun addToTabBar(tabId: String) {
+        viewModelScope.launch {
+            runCatching {
+                val config = tabBarRepository.observeConfig().first()
+                if (tabId in config.enabledIds) return@runCatching
+                val ids = config.enabledIds.filter { it != "more" }.toMutableList()
+                ids.add((config.maxTabs - 2).coerceIn(0, ids.size), tabId)
+                tabBarRepository.saveConfig(config.copy(enabledIds = ids))
+            }
+        }
+    }
+
     val tags: StateFlow<List<com.bettertick.data.model.Tag>> = tagRepository.observeTags()
         .catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
