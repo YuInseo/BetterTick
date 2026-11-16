@@ -30,8 +30,46 @@ class CustomTabViewModel @Inject constructor(
     private val repository: TaskRepository,
     private val habitRepository: HabitRepository,
     listRepository: ListRepository,
-    diaryRepository: DiaryRepository
+    diaryRepository: DiaryRepository,
+    private val tagRepository: com.bettertick.data.repository.TagRepository
 ) : ViewModel() {
+    val tags: StateFlow<List<com.bettertick.data.model.Tag>> = tagRepository.observeTags()
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** A task for [date] (null = no date) in [listId]. */
+    fun addTask(title: String, listId: String, date: LocalDate?) {
+        if (title.isBlank()) return
+        viewModelScope.launch {
+            runCatching {
+                repository.addTask(Task(title = title.trim(), listId = listId,
+                    dueDate = date?.let { Timestamp(Date.from(it.atStartOfDay(ZoneId.systemDefault()).toInstant())) },
+                    sortOrder = System.currentTimeMillis()))
+            }
+        }
+    }
+
+    fun updateTask(task: Task) { viewModelScope.launch { runCatching { repository.updateTask(task) } } }
+
+    fun deleteTask(task: Task) { viewModelScope.launch { runCatching { repository.deleteTask(task.id) } } }
+
+    fun toggleFromDetail(task: Task, day: LocalDate?) {
+        viewModelScope.launch {
+            runCatching {
+                repository.applyStatus(task,
+                    if (task.isCompleted || task.isAbandoned) com.bettertick.data.model.TaskStatusAction.REOPEN
+                    else com.bettertick.data.model.TaskStatusAction.COMPLETE, day)
+            }
+        }
+    }
+
+    suspend fun createTag(name: String): String {
+        val trimmed = name.trim().removePrefix("#")
+        if (trimmed.isBlank()) return ""
+        return tags.value.firstOrNull { it.name.equals(trimmed, ignoreCase = true) }?.id
+            ?: runCatching { tagRepository.addTag(com.bettertick.data.model.Tag(name = trimmed)) }.getOrDefault("")
+    }
+
     private val today = LocalDate.now()
 
     val tasks: StateFlow<List<Task>> = repository.observeAllTasks()

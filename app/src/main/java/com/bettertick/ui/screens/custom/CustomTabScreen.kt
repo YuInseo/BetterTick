@@ -161,6 +161,9 @@ fun CustomTabScreen(
     }
     var showAdd by remember { mutableStateOf(false) }
     var settingsFor by remember { mutableStateOf<String?>(null) }
+    val tags by viewModel.tags.collectAsState()
+    // A task tapped in a 할 일 블록: opens the same detail sheet as everywhere else.
+    var openTask by remember { mutableStateOf<Pair<String, LocalDate?>?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     Column(Modifier.fillMaxSize().background(GroupedBackground).statusBarsPadding()) {
@@ -216,11 +219,11 @@ fun CustomTabScreen(
                 blockRows(tab.blocks).forEach { row ->
                     key(row.first().id) {
                         if (row.size == 1 && !row[0].half) {
-                            DashBlockView(tab, row[0], data, viewModel, onNavigate)
+                            DashBlockView(tab, row[0], data, viewModel, onNavigate, onOpenTask = { t, d -> openTask = t.id to d })
                         } else {
                             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 row.forEach { b ->
-                                    Box(Modifier.weight(1f).fillMaxHeight()) { DashBlockView(tab, b, data, viewModel, onNavigate, fill = true) }
+                                    Box(Modifier.weight(1f).fillMaxHeight()) { DashBlockView(tab, b, data, viewModel, onNavigate, fill = true, onOpenTask = { t, d -> openTask = t.id to d }) }
                                 }
                                 if (row.size == 1) Spacer(Modifier.weight(1f))
                             }
@@ -263,7 +266,23 @@ fun CustomTabScreen(
     settingsFor?.let { id ->
         val block = tab.blocks.firstOrNull { it.id == id }
         if (block == null) settingsFor = null
-        else BlockSettingsSheet(tab.id, block, lists, data.ctx, onDismiss = { settingsFor = null })
+        else BlockSettingsSheet(tab.id, block, lists, data.ctx, tags, onDismiss = { settingsFor = null })
+    }
+    openTask?.let { (id, day) ->
+        val t = tasks.firstOrNull { it.id == id }
+        if (t == null) openTask = null
+        else com.bettertick.ui.screens.tasks.components.TaskDetailSheet(
+            task = t,
+            listName = lists.firstOrNull { it.id == t.listId }?.name ?: "기본함",
+            onDismiss = { openTask = null },
+            onUpdateTask = viewModel::updateTask,
+            onToggleComplete = { viewModel.toggleFromDetail(t, day) },
+            tags = tags,
+            onCreateTag = { name -> viewModel.createTag(name) },
+            lists = lists,
+            occurrenceDate = day,
+            onDelete = { del -> viewModel.deleteTask(del); openTask = null }
+        )
     }
     if (confirmDelete) {
         androidx.compose.material3.AlertDialog(
@@ -295,7 +314,10 @@ private fun blockRows(blocks: List<DashBlock>): List<List<DashBlock>> {
 private fun blockName(block: DashBlock, lists: List<TaskList>): String = block.title.ifBlank {
     when (block.type) {
         DashBlockType.SHORTCUT -> "바로가기 · " + (ShortcutTargets.firstOrNull { it.first == block.text }?.second ?: block.text)
-        DashBlockType.LIST_TASKS -> lists.firstOrNull { it.id == block.text }?.name ?: "목록 할 일"
+        DashBlockType.LIST_TASKS, DashBlockType.TODAY_TASKS -> TaskViewConfig.decode(block.text, block.type).let { c ->
+            "할 일 · " + (TaskRanges.firstOrNull { it.first == c.range }?.second ?: "") +
+                (c.listIds.singleOrNull()?.let { id -> lists.firstOrNull { it.id == id }?.name?.let { " · $it" } } ?: "")
+        }
         DashBlockType.DDAY -> parseDday(block.text)?.second?.ifBlank { null } ?: "디데이"
         DashBlockType.VALUE -> "값 · " + (DashVars.find(ValueConfig.decode(block.text).variable, lists)?.label ?: "변수")
         DashBlockType.MACRO -> "매크로 · " + MacroConfig.decode(block.text).label
@@ -427,7 +449,8 @@ private fun ArrangeBlocks(tab: CustomTab, lists: List<TaskList>, onSettings: (St
 /** ⚙ for one block: its heading, width, and what it shows (list, date, target). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BlockSettingsSheet(tabId: String, block: DashBlock, lists: List<TaskList>, ctx: DashContext, onDismiss: () -> Unit) {
+private fun BlockSettingsSheet(tabId: String, block: DashBlock, lists: List<TaskList>, ctx: DashContext,
+                               tags: List<com.bettertick.data.model.Tag>, onDismiss: () -> Unit) {
     var showDate by remember { mutableStateOf(false) }
     ModalBottomSheet(onDismissRequest = onDismiss, containerColor = DarkSurface) {
         Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
@@ -462,10 +485,10 @@ private fun BlockSettingsSheet(tabId: String, block: DashBlock, lists: List<Task
                     SettingLabel("이동할 화면")
                     ChoiceList(ShortcutTargets, block.text) { v -> updateBlock(tabId, block.id) { it.copy(text = v) } }
                 }
-                DashBlockType.LIST_TASKS, DashBlockType.QUICK_ADD -> {
-                    SettingLabel(if (block.type == DashBlockType.QUICK_ADD) "추가할 목록" else "보여줄 목록")
-                    val choices = listOf("" to (if (block.type == DashBlockType.QUICK_ADD) "기본함" else "모든 목록")) +
-                        lists.map { it.id to it.name }
+                DashBlockType.TODAY_TASKS, DashBlockType.LIST_TASKS -> TaskViewSettings(tabId, block, lists, tags, ctx.tasks)
+                DashBlockType.QUICK_ADD -> {
+                    SettingLabel("추가할 목록")
+                    val choices = listOf("" to "기본함") + lists.map { it.id to it.name }
                     ChoiceList(choices, block.text) { v -> updateBlock(tabId, block.id) { it.copy(text = v) } }
                 }
                 DashBlockType.DDAY -> {
@@ -605,7 +628,8 @@ private fun DashBlockView(
     data: DashData,
     viewModel: CustomTabViewModel,
     onNavigate: (String) -> Unit,
-    fill: Boolean = false
+    fill: Boolean = false,
+    onOpenTask: (Task, LocalDate?) -> Unit = { _, _ -> }
 ) {
     val today = remember { LocalDate.now() }
     val tasks = data.tasks
@@ -632,29 +656,12 @@ private fun DashBlockView(
                 }
             }
         }
-        DashBlockType.TODAY_TASKS -> Card(heading ?: "오늘 할 일", fill) {
-            val list = remember(tasks) {
-                tasks.filter { it.isPlainTask() && it.occursOn(today) }
-                    .sortedWith(compareBy({ it.completedOn(today) }, { it.timeLabel() != null }, { it.dueDate?.seconds ?: 0L }))
-            }
-            if (list.isEmpty()) Text("오늘 할 일이 없어요", color = TextSecondary)
-            list.take(12).forEach { TaskCheckRow(it, today, viewModel::toggle) }
-            if (list.size > 12) Text("+${list.size - 12}개 더", color = TextSecondary, fontSize = 13.sp,
-                modifier = Modifier.clickable { onNavigate("tasks") }.padding(top = 4.dp))
-        }
-        DashBlockType.LIST_TASKS -> {
-            val listName = data.lists.firstOrNull { it.id == block.text }?.name
-            Card(heading ?: listName ?: "모든 목록", fill) {
-                val list = remember(tasks, block.text) {
-                    tasks.filter { it.isPlainTask() && !it.isCompleted && (block.text.isBlank() || it.listId == block.text) }
-                        .sortedBy { it.dueDate?.seconds ?: Long.MAX_VALUE }
-                }
-                if (list.isEmpty()) Text("남은 할 일이 없어요", color = TextSecondary)
-                list.take(10).forEach { TaskCheckRow(it, today, viewModel::toggle) }
-                if (list.size > 10) Text("+${list.size - 10}개 더", color = TextSecondary, fontSize = 13.sp,
-                    modifier = Modifier.clickable { onNavigate("tasks") }.padding(top = 4.dp))
-            }
-        }
+        DashBlockType.TODAY_TASKS, DashBlockType.LIST_TASKS -> TaskViewBlockView(
+            block, tasks, data.lists, fill,
+            onToggle = viewModel::toggle,
+            onOpen = onOpenTask,
+            onAdd = { title, listId, date -> viewModel.addTask(title, listId, date) }
+        )
         DashBlockType.QUICK_ADD -> Card(heading, fill) {
             var text by remember { mutableStateOf("") }
             Row(verticalAlignment = Alignment.CenterVertically) {
