@@ -104,6 +104,27 @@ class CustomTabViewModel @Inject constructor(
     }.catch { emit(emptyList()) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    /** 🔥 연속 기록: days in a row each habit was checked, counting only the days it was due. */
+    val streaks: StateFlow<Map<String, Int>> = combine(
+        habitRepository.observeHabits(),
+        habitRepository.observeHabitLogs(today.minusDays(120).toString(), today.toString())
+    ) { habits, logs ->
+        val done = logs.filter { it.isCompleted }.groupBy { it.habitId }.mapValues { (_, l) -> l.map { it.date }.toSet() }
+        habits.associate { h ->
+            val dates = done[h.id].orEmpty()
+            // Today not checked yet doesn't break the streak; it just isn't counted.
+            var day = if (today.toString() in dates) today else today.minusDays(1)
+            var n = 0
+            var guard = 0
+            while (guard++ < 120) {
+                if (!h.isDueOn(day)) { day = day.minusDays(1); continue }
+                if (day.toString() in dates) { n++; day = day.minusDays(1) } else break
+            }
+            h.id to n
+        }
+    }.catch { emit(emptyMap()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
     val diary: StateFlow<DiaryEntry?> = diaryRepository.observeEntryForDate(today.toString())
         .catch { emit(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)

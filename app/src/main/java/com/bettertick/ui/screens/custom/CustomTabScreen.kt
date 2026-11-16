@@ -614,6 +614,20 @@ private fun BlockSettingsSheet(tabId: String, block: DashBlock, lists: List<Task
                 Switch(checked = block.half, onCheckedChange = { on -> updateBlock(tabId, block.id) { it.copy(half = on) } })
             }
 
+            SettingLabel("블록 색")
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val accent = MaterialTheme.colorScheme.primary
+                Box(Modifier.size(30.dp).clip(CircleShape).background(GroupedCard)
+                    .border(if (block.color.isBlank()) 3.dp else 1.dp,
+                        if (block.color.isBlank()) MaterialTheme.colorScheme.onBackground else TextSecondary, CircleShape)
+                    .clickable { updateBlock(tabId, block.id) { it.copy(color = "") } })
+                DashColors.forEach { (key, _) ->
+                    Box(Modifier.size(30.dp).clip(CircleShape).background(dashColor(key, accent))
+                        .then(if (key == block.color) Modifier.border(3.dp, MaterialTheme.colorScheme.onBackground, CircleShape) else Modifier)
+                        .clickable { updateBlock(tabId, block.id) { it.copy(color = key) } })
+                }
+            }
+
             when (block.type) {
                 DashBlockType.SHORTCUT -> {
                     SettingLabel("이동할 화면")
@@ -716,12 +730,12 @@ private fun AddRow(label: String, onClick: () -> Unit) {
 private fun Card(title: String?, fill: Boolean, onClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
     Column(
         Modifier.fillMaxWidth().then(if (fill) Modifier.fillMaxHeight() else Modifier)
-            .clip(RoundedCornerShape(16.dp)).background(GroupedCard)
+            .clip(RoundedCornerShape(16.dp)).background(blockBackground())
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(16.dp)
     ) {
         if (title != null) {
-            Text(title, style = MaterialTheme.typography.labelLarge, color = TextSecondary, fontWeight = FontWeight.SemiBold,
+            Text(title, style = MaterialTheme.typography.labelLarge, color = blockHeadingColor(), fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(10.dp))
         }
@@ -765,6 +779,23 @@ private fun DashBlockView(
     fill: Boolean = false,
     onOpenTask: (Task, LocalDate?) -> Unit = { _, _ -> },
     onToggle: (Task, LocalDate) -> Unit = viewModel::toggle
+) {
+    val tint = block.color.takeIf { it.isNotBlank() }?.let { dashColor(it, MaterialTheme.colorScheme.primary) }
+    androidx.compose.runtime.CompositionLocalProvider(LocalBlockTint provides tint) {
+        DashBlockBody(tab, block, data, viewModel, onNavigate, fill, onOpenTask, onToggle)
+    }
+}
+
+@Composable
+private fun DashBlockBody(
+    tab: CustomTab,
+    block: DashBlock,
+    data: DashData,
+    viewModel: CustomTabViewModel,
+    onNavigate: (String) -> Unit,
+    fill: Boolean,
+    onOpenTask: (Task, LocalDate?) -> Unit,
+    onToggle: (Task, LocalDate) -> Unit
 ) {
     val today = data.today
     val tasks = data.tasks
@@ -823,6 +854,7 @@ private fun DashBlockView(
         }
         DashBlockType.HABITS -> Card(heading ?: "오늘 습관", fill) {
             val habits = data.habits
+            val streaks by viewModel.streaks.collectAsState()
             if (habits.isEmpty()) Text("오늘 할 습관이 없어요", color = TextSecondary,
                 modifier = Modifier.clickable { onNavigate("habits") })
             val done = habits.count { it.done }
@@ -842,13 +874,15 @@ private fun DashBlockView(
                         if (item.done) Icon(Icons.Outlined.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
                     }
                     Spacer(Modifier.width(10.dp))
-                    Text(item.habit.name, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    Text(item.habit.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                         color = if (item.done) TextSecondary else MaterialTheme.colorScheme.onBackground)
+                    val streak = streaks[item.habit.id] ?: 0
+                    if (streak >= 2) Text("🔥 ${streak}일", fontSize = 12.sp, color = Color(0xFFF2994A), fontWeight = FontWeight.SemiBold)
                 }
             }
         }
-        DashBlockType.MINI_CALENDAR -> Card(heading ?: "${today.monthValue}월", fill, onClick = { onNavigate("calendar") }) {
-            MiniMonth(today, tasks)
+        DashBlockType.MINI_CALENDAR -> Card(heading, fill) {
+            MiniMonth(today, tasks, onOpenTask = onOpenTask, onOpenCalendar = { onNavigate("calendar") })
         }
         DashBlockType.WEEK_SHIFTS -> Card(heading ?: "이번 주 근무", fill) {
             val monday = remember(today) { today.with(DayOfWeek.MONDAY) }
@@ -936,16 +970,49 @@ private fun DashBlockView(
             if (content.isEmpty()) Text("아직 오늘 일기를 안 썼어요 · 눌러서 쓰기", color = TextSecondary)
             else Text(content, color = MaterialTheme.colorScheme.onBackground, maxLines = 5, overflow = TextOverflow.Ellipsis)
         }
-        DashBlockType.MONEY -> Card(heading ?: "이번 달 가계부", fill, onClick = { onNavigate("money") }) {
+        DashBlockType.MONEY -> Card(heading ?: "이번 달 가계부", fill) {
             val month = remember(today) { YearMonth.from(today) }
             val book = MoneyPrefs.book
             val income = book.incomeIn(month) + SalaryPrefs.total(month)
             val expense = book.expenseIn(month)
-            Row(Modifier.fillMaxWidth()) {
+            val todayLines = book.linesIn(month).filter { it.date == today }
+            var adding by remember { mutableStateOf<Boolean?>(null) } // null = closed, true = 수입, false = 지출
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onNavigate("money") }) {
                 MoneyStat("수입", income, Color(0xFF4CA6F5), Modifier.weight(1f))
                 MoneyStat("지출", expense, OverdueRed, Modifier.weight(1f))
                 MoneyStat("남은 돈", income - expense, MaterialTheme.colorScheme.onBackground, Modifier.weight(1f))
             }
+            if (income > 0) {
+                Spacer(Modifier.height(10.dp))
+                LinearProgressIndicator(progress = { (expense.toFloat() / income).coerceIn(0f, 1f) },
+                    color = if (expense > income) OverdueRed else MaterialTheme.colorScheme.primary,
+                    trackColor = DarkSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)))
+                Text("수입의 ${(expense * 100 / income)}% 사용", color = TextSecondary, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            if (todayLines.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Text("오늘", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                todayLines.take(4).forEach { l ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                        Text(l.title, color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text((if (l.signed > 0) "+" else "") + won(l.signed), fontSize = 13.sp,
+                            color = if (l.signed > 0) Color(0xFF4CA6F5) else MaterialTheme.colorScheme.onBackground)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("− 지출 기록", color = OverdueRed, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(OverdueRed.copy(alpha = 0.12f))
+                        .clickable { adding = false }.padding(horizontal = 12.dp, vertical = 7.dp))
+                Text("+ 수입 기록", color = Color(0xFF4CA6F5), fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(RoundedCornerShape(16.dp)).background(Color(0xFF4CA6F5).copy(alpha = 0.12f))
+                        .clickable { adding = true }.padding(horizontal = 12.dp, vertical = 7.dp))
+            }
+            adding?.let { isIncome -> QuickMoneyDialog(isIncome, today, onDismiss = { adding = null }) }
         }
         DashBlockType.MEMO -> Card(heading, fill) {
             var text by remember(block.id) { mutableStateOf(block.text) }
@@ -985,12 +1052,33 @@ private fun DashBlockView(
 
 /** This month as a small grid: shift colour behind the day, a dot when tasks are due. */
 @Composable
-private fun MiniMonth(today: LocalDate, tasks: List<Task>) {
-    val month = YearMonth.from(today)
+private fun MiniMonth(
+    today: LocalDate,
+    tasks: List<Task>,
+    onOpenTask: (Task, LocalDate?) -> Unit = { _, _ -> },
+    onOpenCalendar: () -> Unit = {}
+) {
+    // ‹ › change the month; tapping a day lists that day right inside the block.
+    var month by remember(today) { mutableStateOf(YearMonth.from(today)) }
+    var selected by remember(today) { mutableStateOf<LocalDate?>(null) }
     val shifts = remember(tasks) { tasks.filter { it.isShiftTask() } }
     val plain = remember(tasks) { tasks.filter { it.isPlainTask() } }
     val lead = month.atDay(1).dayOfWeek.value % 7 // Sunday first
     val cells = lead + month.lengthOfMonth()
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("${month.year}년 ${month.monthValue}월", color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+        Text("‹", fontSize = 20.sp, color = TextSecondary,
+            modifier = Modifier.clip(CircleShape).clickable { month = month.minusMonths(1); selected = null }.padding(horizontal = 10.dp))
+        if (month != YearMonth.from(today)) {
+            Text("오늘", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { month = YearMonth.from(today); selected = null }
+                    .padding(horizontal = 6.dp, vertical = 4.dp))
+        }
+        Text("›", fontSize = 20.sp, color = TextSecondary,
+            modifier = Modifier.clip(CircleShape).clickable { month = month.plusMonths(1); selected = null }.padding(horizontal = 10.dp))
+    }
+    Spacer(Modifier.height(6.dp))
     Row(Modifier.fillMaxWidth()) {
         listOf("일", "월", "화", "수", "목", "금", "토").forEachIndexed { i, d ->
             Text(d, fontSize = 11.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f),
@@ -1008,16 +1096,26 @@ private fun MiniMonth(today: LocalDate, tasks: List<Task>) {
                         val kind = shifts.firstOrNull { it.occursOn(day) }?.shiftKindOn(day)
                         val sc = kind?.let { shiftColor(it) }
                         val isToday = day == today
+                        val isSelected = day == selected
                         Box(Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp))
-                            .background(sc?.copy(alpha = 0.18f) ?: Color.Transparent)
-                            .then(if (isToday) Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)) else Modifier),
+                            .background(when {
+                                isSelected -> MaterialTheme.colorScheme.primary
+                                sc != null -> sc.copy(alpha = 0.18f)
+                                else -> Color.Transparent
+                            })
+                            .then(if (isToday && !isSelected) Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp)) else Modifier)
+                            .clickable { selected = if (isSelected) null else day },
                             contentAlignment = Alignment.Center) {
                             Text("$dayNum", fontSize = 12.sp,
-                                fontWeight = if (isToday) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isToday) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground)
+                                fontWeight = if (isToday || isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = when {
+                                    isSelected -> Color.White
+                                    isToday -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.onBackground
+                                })
                             if (plain.any { it.occursOn(day) }) {
                                 Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).size(4.dp)
-                                    .clip(CircleShape).background(sc ?: MaterialTheme.colorScheme.primary))
+                                    .clip(CircleShape).background(if (isSelected) Color.White else sc ?: MaterialTheme.colorScheme.primary))
                             }
                         }
                     }
@@ -1025,6 +1123,84 @@ private fun MiniMonth(today: LocalDate, tasks: List<Task>) {
             }
         }
     }
+    selected?.let { day ->
+        Spacer(Modifier.height(8.dp))
+        val shift = shifts.firstOrNull { it.occursOn(day) }
+        val dayTasks = plain.filter { it.occursOn(day) }.sortedBy { it.timeLabel() ?: "" }
+        Text("${day.monthValue}월 ${day.dayOfMonth}일 " + day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.KOREAN) +
+            (shift?.let { " · " + it.shiftTitleOn(day) } ?: ""),
+            color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        if (dayTasks.isEmpty()) Text("일정 없음", color = TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+        dayTasks.take(8).forEach { t ->
+            val done = t.completedOn(day)
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { onOpenTask(t, day) }.padding(vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(t.timeLabel() ?: "종일", fontSize = 12.sp, color = TextSecondary, modifier = Modifier.width(44.dp))
+                Text(t.title, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                    color = if (done) TextSecondary else MaterialTheme.colorScheme.onBackground,
+                    textDecoration = if (done) TextDecoration.LineThrough else null)
+            }
+        }
+        if (dayTasks.size > 8) Text("+${dayTasks.size - 8}개", color = TextSecondary, fontSize = 12.sp)
+    }
+    Text("달력 열기 ›", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp,
+        modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpenCalendar).padding(vertical = 4.dp))
+}
+
+/** 지출·수입 바로 기록: amount, category and a memo, saved to 가계부 for [day]. */
+@Composable
+private fun QuickMoneyDialog(income: Boolean, day: LocalDate, onDismiss: () -> Unit) {
+    var amount by remember { mutableStateOf("") }
+    val categories = if (income) com.bettertick.ui.screens.tasks.IncomeCategories else com.bettertick.ui.screens.tasks.ExpenseCategories
+    var category by remember { mutableStateOf(categories.first()) }
+    var memo by remember { mutableStateOf("") }
+    val value = amount.filter { it.isDigit() }.toLongOrNull() ?: 0L
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (income) "수입 기록" else "지출 기록") },
+        text = {
+            Column {
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(DarkSurfaceVariant).padding(12.dp)) {
+                    if (amount.isEmpty()) Text("금액 (원)", color = TextSecondary)
+                    BasicTextField(
+                        value = amount,
+                        onValueChange = { v -> amount = v.filter { it.isDigit() }.take(10) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        textStyle = MaterialTheme.typography.titleLarge.copy(color = MaterialTheme.colorScheme.onBackground),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                if (value > 0) Text(won(value), color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    categories.forEach { c ->
+                        val on = c == category
+                        Text(c, fontSize = 13.sp, color = if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.clip(RoundedCornerShape(16.dp))
+                                .background(if (on) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else DarkSurfaceVariant)
+                                .clickable { category = c }.padding(horizontal = 12.dp, vertical = 7.dp))
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(DarkSurfaceVariant).padding(12.dp)) {
+                    if (memo.isEmpty()) Text("메모 (선택)", color = TextSecondary)
+                    BasicTextField(value = memo, onValueChange = { memo = it.take(40) }, singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = value > 0, onClick = {
+                MoneyPrefs.saveEntry(com.bettertick.ui.screens.tasks.MoneyEntry(date = day, amount = value, income = income,
+                    category = category, memo = memo.trim()))
+                onDismiss()
+            }) { Text("기록") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+    )
 }
 
 @Composable
