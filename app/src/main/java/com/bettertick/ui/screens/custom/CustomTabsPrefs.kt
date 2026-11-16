@@ -31,7 +31,9 @@ data class DashBlock(
     /** The user's own heading; blank = the type's default. */
     val title: String = "",
     /** Half width: two half blocks in a row sit side by side. */
-    val half: Boolean = false
+    val half: Boolean = false,
+    /** Folded down to its heading (long-press › 접기). */
+    val collapsed: Boolean = false
 )
 
 /** A tab the user built: a name, an icon and blocks in the order they arranged. */
@@ -114,6 +116,25 @@ object DashBlockType {
     fun halfByDefault(type: String) = type == DDAY || type == STATS || type == SHORTCUT || type == VALUE
 
     fun label(type: String) = catalog.firstOrNull { it.first == type }?.second ?: type
+
+    /** The add sheet, in sections. */
+    val sections: List<Pair<String, List<String>>> = listOf(
+        "할 일" to listOf(TODAY_TASKS, LIST_TASKS, QUICK_ADD, STATS),
+        "일정 · 근무" to listOf(TODAY, MINI_CALENDAR, WEEK_SHIFTS, UPCOMING, DDAY),
+        "습관 · 기록" to listOf(HABITS, DIARY, MEMO),
+        "돈" to listOf(MONEY),
+        "변수 · 자동화" to listOf(VALUE, TEMPLATE, MACRO),
+        "이동" to listOf(SHORTCUT)
+    )
+
+    /** Starting contents of a newly added block. */
+    fun initialText(type: String): String = when (type) {
+        SHORTCUT -> ShortcutTargets.first().first
+        VALUE -> ValueConfig().encode()
+        TEMPLATE -> TemplateConfig().encode()
+        MACRO -> MacroConfig().encode()
+        else -> ""
+    }
 }
 
 /** Screens a 바로가기 block can open. */
@@ -185,6 +206,34 @@ object CustomTabsPrefs {
 
     fun delete(id: String) = save(tabs.filterNot { it.id == id })
 
+    /** Changes one block of a tab (reads the latest copy, so concurrent edits are not lost). */
+    fun updateBlock(tabId: String, blockId: String, change: (DashBlock) -> DashBlock) {
+        val tab = tab(tabId) ?: return
+        update(tab.copy(blocks = tab.blocks.map { if (it.id == blockId) change(it) else it }))
+    }
+
+    fun removeBlock(tabId: String, blockId: String) {
+        val tab = tab(tabId) ?: return
+        update(tab.copy(blocks = tab.blocks.filterNot { it.id == blockId }))
+    }
+
+    /** A copy right below the original. */
+    fun duplicateBlock(tabId: String, blockId: String) {
+        val tab = tab(tabId) ?: return
+        val i = tab.blocks.indexOfFirst { it.id == blockId }.takeIf { it >= 0 } ?: return
+        val copy = tab.blocks[i].copy(id = java.util.UUID.randomUUID().toString().take(8))
+        update(tab.copy(blocks = tab.blocks.toMutableList().apply { add(i + 1, copy) }))
+    }
+
+    /** Moves a block one place up (-1) or down (+1). */
+    fun moveBlock(tabId: String, blockId: String, by: Int) {
+        val tab = tab(tabId) ?: return
+        val i = tab.blocks.indexOfFirst { it.id == blockId }
+        val j = i + by
+        if (i < 0 || j !in tab.blocks.indices) return
+        update(tab.copy(blocks = tab.blocks.toMutableList().apply { add(j, removeAt(i)) }))
+    }
+
     private fun save(list: List<CustomTab>) {
         val before = timeTriggerSignature(tabs)
         tabs = list
@@ -208,7 +257,7 @@ object CustomTabsPrefs {
                     t.blocks.forEach { b ->
                         put(JSONObject().apply {
                             put("id", b.id); put("type", b.type); put("text", b.text)
-                            put("title", b.title); put("half", b.half)
+                            put("title", b.title); put("half", b.half); put("collapsed", b.collapsed)
                         })
                     }
                 })
@@ -228,7 +277,7 @@ object CustomTabsPrefs {
                 blocks = (0 until blocks.length()).map { j ->
                     val b = blocks.getJSONObject(j)
                     DashBlock(id = b.optString("id"), type = b.optString("type"), text = b.optString("text"),
-                        title = b.optString("title"), half = b.optBoolean("half"))
+                        title = b.optString("title"), half = b.optBoolean("half"), collapsed = b.optBoolean("collapsed"))
                 }
             )
         }
