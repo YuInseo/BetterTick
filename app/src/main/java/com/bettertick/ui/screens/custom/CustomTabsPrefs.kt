@@ -220,7 +220,7 @@ object CustomTabsPrefs {
     fun export(id: String): String? = tab(id)?.let { EXPORT_PREFIX + encode(listOf(it)) }
 
     /** Adds a tab from [text] made by [export]; null when the text isn't one. */
-    fun import(text: String): CustomTab? {
+    fun importTab(text: String): CustomTab? {
         val raw = text.trim().substringAfter(EXPORT_PREFIX, "")
         if (raw.isBlank()) return null
         val src = runCatching { decode(raw).firstOrNull() }.getOrNull() ?: return null

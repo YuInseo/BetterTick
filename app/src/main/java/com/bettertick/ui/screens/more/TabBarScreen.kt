@@ -339,7 +339,7 @@ fun TabBarScreen(
                 TextButton(onClick = {
                     showTemplates = false
                     val pasted = clipboard.getText()?.text.orEmpty()
-                    val imported = com.bettertick.ui.screens.custom.CustomTabsPrefs.import(pasted)
+                    val imported = com.bettertick.ui.screens.custom.CustomTabsPrefs.importTab(pasted)
                     if (imported == null) {
                         android.widget.Toast.makeText(context, "클립보드에 가져올 탭이 없어요", android.widget.Toast.LENGTH_SHORT).show()
                     } else {
