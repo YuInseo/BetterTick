@@ -247,6 +247,19 @@ object MacroEngine {
             .firstOrNull { at -> at.isAfter(now) && (t.days.isBlank() || at.dayOfWeek.value.toString() in t.days) }
     }
 
+    /** "11/17(화) 07:30" — the soonest 정해진 시각 run (근무 조건 is checked when it fires). */
+    fun nextTimedRun(config: MacroConfig, now: LocalDateTime = LocalDateTime.now()): String? {
+        val at = config.triggers.filter { it.enabled && it.type == TriggerType.TIME }
+            .mapNotNull { nextFire(it, now) }.minOrNull() ?: return null
+        val day = at.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.KOREAN)
+        val label = when (at.toLocalDate()) {
+            now.toLocalDate() -> "오늘"
+            now.toLocalDate().plusDays(1) -> "내일"
+            else -> "${at.monthValue}/${at.dayOfMonth}($day)"
+        }
+        return "$label %02d:%02d".format(at.hour, at.minute)
+    }
+
     /** Re-arms an alarm for every enabled 정해진 시각 trigger; cancels the rest. */
     fun syncAlarms(context: Context) {
         val app = context.applicationContext

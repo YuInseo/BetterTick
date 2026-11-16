@@ -309,7 +309,20 @@ internal fun VariablePickerSheet(ctx: DashContext, onDismiss: () -> Unit, onPick
             .windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 12.dp)) {
             Text("변수 고르기", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
-            DashVars.all(ctx.lists).groupBy { it.group }.forEach { (group, vars) ->
+            var query by remember { mutableStateOf("") }
+            Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                .background(DarkSurfaceVariant).padding(12.dp)) {
+                if (query.isEmpty()) Text("검색 (예: 근무, 지출, 습관)", color = TextSecondary)
+                BasicTextField(value = query, onValueChange = { query = it }, singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onBackground),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary), modifier = Modifier.fillMaxWidth())
+            }
+            val q = query.trim()
+            val found = DashVars.all(ctx.lists).filter { v ->
+                q.isEmpty() || v.label.contains(q, ignoreCase = true) || v.key.contains(q, ignoreCase = true) || v.group.contains(q)
+            }
+            if (found.isEmpty()) Text("맞는 변수가 없어요", color = TextSecondary, modifier = Modifier.padding(20.dp))
+            found.groupBy { it.group }.forEach { (group, vars) ->
                 Text(group, color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(start = 20.dp, top = 12.dp, bottom = 4.dp))
                 vars.forEach { v ->
@@ -451,6 +464,24 @@ internal fun MacroSettings(tabId: String, block: DashBlock, ctx: DashContext) {
     }
     var addingStep by remember { mutableStateOf(false) }
     val memoBlocks = CustomTabsPrefs.tab(tabId)?.blocks.orEmpty().filter { it.type == DashBlockType.MEMO }
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    // Try it now: same run as the button (실행 조건 included), so what you see is what an event does.
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(12.dp))
+        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+        .clickable(enabled = cfg.steps.isNotEmpty()) { MacroEngine.fire(context, tabId, block.id, latest(), "테스트 실행", ctx) }
+        .padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Outlined.PlayArrow, null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text("지금 실행해 보기", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+            Text(if (cfg.steps.isEmpty()) "단계를 먼저 추가하세요" else "실제로 실행돼요 (할 일·가계부에 기록됨)",
+                color = TextSecondary, fontSize = 12.sp)
+        }
+    }
+    MacroEngine.nextTimedRun(cfg)?.let {
+        Text("다음 자동 실행: $it", color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+    }
 
     Label("버튼 이름")
     DashField(cfg.label, "매크로 실행", "mlabel${block.id}") { v -> save(latest().copy(label = v.ifBlank { "매크로 실행" })) }
