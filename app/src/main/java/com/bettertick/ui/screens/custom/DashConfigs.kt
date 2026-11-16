@@ -11,6 +11,19 @@ val DashColors: List<Pair<String, Color>> = listOf(
     "purple" to Color(0xFF9D68D3), "pink" to Color(0xFFD15796), "gray" to Color(0xFF9B9A97)
 )
 
+/** The colour a block was given (블록 설정 › 블록 색); null = 기본. Read by every block's card. */
+val LocalBlockTint = androidx.compose.runtime.compositionLocalOf<Color?> { null }
+
+/** A block's card background: the plain card, tinted when the block has a colour. */
+@androidx.compose.runtime.Composable
+fun blockBackground(): Color = LocalBlockTint.current
+    ?.let { androidx.compose.ui.graphics.lerp(com.bettertick.ui.theme.GroupedCard, it, 0.16f) }
+    ?: com.bettertick.ui.theme.GroupedCard
+
+/** A block's heading colour: its own colour, else the usual grey. */
+@androidx.compose.runtime.Composable
+fun blockHeadingColor(): Color = LocalBlockTint.current ?: com.bettertick.ui.theme.TextSecondary
+
 fun dashColor(key: String, accent: Color): Color =
     if (key == "accent" || key.isBlank()) accent else DashColors.firstOrNull { it.first == key }?.second ?: accent
 
@@ -21,7 +34,8 @@ object ValueDisplay {
     const val RING = "ring"
     const val TEXT = "text"
     const val CHIP = "chip"
-    val all = listOf(NUMBER to "큰 숫자", BAR to "진행 막대", RING to "원형 게이지", TEXT to "한 줄 텍스트", CHIP to "칩")
+    const val TREND = "trend"
+    val all = listOf(NUMBER to "큰 숫자", BAR to "진행 막대", RING to "원형 게이지", TREND to "7일 추이", TEXT to "한 줄 텍스트", CHIP to "칩")
 }
 
 /** "값이 [op] [threshold]이면 [color]" — first matching rule wins. */

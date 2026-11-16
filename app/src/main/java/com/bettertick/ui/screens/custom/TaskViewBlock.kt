@@ -196,10 +196,10 @@ internal fun TaskViewBlockView(
 
     Column(
         Modifier.fillMaxWidth().then(if (fill) Modifier.fillMaxHeight() else Modifier)
-            .clip(RoundedCornerShape(16.dp)).background(GroupedCard).padding(16.dp)
+            .clip(RoundedCornerShape(16.dp)).background(blockBackground()).padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, style = MaterialTheme.typography.labelLarge, color = TextSecondary, fontWeight = FontWeight.SemiBold,
+            Text(title, style = MaterialTheme.typography.labelLarge, color = blockHeadingColor(), fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (rows.isNotEmpty()) Text("$doneCount/${rows.size}", color = TextSecondary, fontSize = 12.sp)
         }

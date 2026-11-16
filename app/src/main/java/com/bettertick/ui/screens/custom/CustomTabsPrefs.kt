@@ -33,7 +33,9 @@ data class DashBlock(
     /** Half width: two half blocks in a row sit side by side. */
     val half: Boolean = false,
     /** Folded down to its heading (long-press › 접기). */
-    val collapsed: Boolean = false
+    val collapsed: Boolean = false,
+    /** 블록 색 (a [DashColors] key), "" = 기본. */
+    val color: String = ""
 )
 
 /** A tab the user built: a name, an icon and blocks in the order they arranged. */
@@ -293,7 +295,7 @@ object CustomTabsPrefs {
                     t.blocks.forEach { b ->
                         put(JSONObject().apply {
                             put("id", b.id); put("type", b.type); put("text", b.text)
-                            put("title", b.title); put("half", b.half); put("collapsed", b.collapsed)
+                            put("title", b.title); put("half", b.half); put("collapsed", b.collapsed); put("color", b.color)
                         })
                     }
                 })
@@ -313,7 +315,8 @@ object CustomTabsPrefs {
                 blocks = (0 until blocks.length()).map { j ->
                     val b = blocks.getJSONObject(j)
                     DashBlock(id = b.optString("id"), type = b.optString("type"), text = b.optString("text"),
-                        title = b.optString("title"), half = b.optBoolean("half"), collapsed = b.optBoolean("collapsed"))
+                        title = b.optString("title"), half = b.optBoolean("half"), collapsed = b.optBoolean("collapsed"),
+                        color = b.optString("color"))
                 }
             )
         }

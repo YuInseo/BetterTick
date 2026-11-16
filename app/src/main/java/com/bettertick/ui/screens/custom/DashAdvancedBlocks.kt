@@ -115,7 +115,7 @@ internal fun ValueBlockView(block: DashBlock, ctx: DashContext, fill: Boolean, o
 
     Column(
         Modifier.fillMaxWidth().then(if (fill) Modifier.fillMaxHeight() else Modifier)
-            .clip(RoundedCornerShape(16.dp)).background(GroupedCard)
+            .clip(RoundedCornerShape(16.dp)).background(blockBackground())
             .then(if (cfg.tapTarget.isNotBlank()) Modifier.clickable { onNavigate(cfg.tapTarget) } else Modifier)
             .padding(16.dp)
     ) {
@@ -152,6 +152,39 @@ internal fun ValueBlockView(block: DashBlock, ctx: DashContext, fill: Boolean, o
                     target?.let { Text("목표 " + DashVars.formatNumber(it, variable?.kind ?: VarKind.NUMBER), color = TextSecondary, fontSize = 12.sp) }
                 }
             }
+            ValueDisplay.TREND -> Column {
+                // The same variable worked out for each of the last 7 days (as if each were "today").
+                val days = (6L downTo 0L).map { ctx.today.minusDays(it) }
+                val values = days.map { d ->
+                    DashVars.value(cfg.variable, DashContext(ctx.tasks, ctx.lists, ctx.habits, ctx.diary, d)).number
+                }
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(title, color = TextSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(shown, color = color, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                }
+                Spacer(Modifier.height(10.dp))
+                if (values.all { it == null }) {
+                    Text("이 변수는 날짜별 값이 없어요", color = TextSecondary, fontSize = 12.sp)
+                } else {
+                    val max = values.filterNotNull().maxOrNull()?.takeIf { it > 0 } ?: 1.0
+                    Row(Modifier.fillMaxWidth().height(64.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.Bottom) {
+                        values.forEachIndexed { i, v ->
+                            val frac = ((v ?: 0.0) / max).toFloat().coerceIn(0.04f, 1f)
+                            Box(Modifier.weight(1f).fillMaxHeight(frac).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                                .background(if (i == values.lastIndex) color else color.copy(alpha = 0.35f)))
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        days.forEachIndexed { i, d ->
+                            Text(if (i == days.lastIndex) "오늘" else d.dayOfWeek.getDisplayName(java.time.format.TextStyle.NARROW, java.util.Locale.KOREAN),
+                                fontSize = 10.sp, color = TextSecondary, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
             ValueDisplay.BAR -> Column {
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(title, color = TextSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f),
@@ -184,7 +217,7 @@ internal fun TemplateBlockView(block: DashBlock, ctx: DashContext, fill: Boolean
     val size = when (cfg.size) { "small" -> 14.sp; "large" -> 24.sp; else -> 18.sp }
     Column(
         Modifier.fillMaxWidth().then(if (fill) Modifier.fillMaxHeight() else Modifier)
-            .clip(RoundedCornerShape(16.dp)).background(GroupedCard).padding(16.dp)
+            .clip(RoundedCornerShape(16.dp)).background(blockBackground()).padding(16.dp)
     ) {
         if (block.title.isNotBlank()) {
             Text(block.title, color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
