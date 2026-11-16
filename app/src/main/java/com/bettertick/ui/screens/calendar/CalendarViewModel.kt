@@ -214,12 +214,10 @@ class CalendarViewModel @Inject constructor(
         }
     }
 
+    /** Drag to another day: the date changes, the time stays (09:00 stays 09:00). */
     fun moveTaskToDate(taskId: String, date: LocalDate) {
         viewModelScope.launch {
-            val ts = com.google.firebase.Timestamp(
-                java.util.Date.from(date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant())
-            )
-            taskRepository.setDueDate(taskId, ts)
+            taskRepository.moveToDate(taskId, date)
         }
     }
 

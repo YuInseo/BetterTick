@@ -400,6 +400,14 @@ class TaskRepository @Inject constructor(
         refreshWidget()
     }
 
+    /** Moves a task to [date], keeping its time of day (all-day tasks stay all-day). */
+    suspend fun moveToDate(taskId: String, date: LocalDate) {
+        val zone = ZoneId.systemDefault()
+        val time = cachedTask(taskId)?.dueDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalTime()
+            ?: java.time.LocalTime.MIDNIGHT
+        setDueDate(taskId, Timestamp(Date.from(date.atTime(time).atZone(zone).toInstant())))
+    }
+
     suspend fun setDueDate(taskId: String, dueDate: Timestamp?) {
         firestoreProvider.tasksCollection().document(taskId).update(
             mapOf(
