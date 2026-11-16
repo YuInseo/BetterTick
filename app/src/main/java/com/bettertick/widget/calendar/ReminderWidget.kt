@@ -96,6 +96,13 @@ private fun widgetLeaveColor(type: String): Color = when (type) {
     else -> Color(0xFF8E6CEF)
 }
 
+/** The app's own accent (테마 색), so the widget matches the app instead of a fixed blue. */
+private fun widgetAccent(): Color = com.bettertick.ui.theme.ThemeState.accentColor
+
+/** 공휴일·일요일 red, 토요일 blue — the usual calendar colours. */
+private val SundayRed = Color(0xFFE5483F)
+private val SaturdayBlue = Color(0xFF5E87C9)
+
 /** 위젯 설정 > 글자 크기. */
 private fun fontScale(size: String): Float = when (size) {
     "small" -> 0.88f
@@ -266,25 +273,41 @@ class ReminderWidget : GlanceAppWidget() {
                         DatesRow(today, selectedDate, weekDates, pal, fs)
                         Spacer(GlanceModifier.height(4.dp))
                         DotsRow(weekDates, taskCount, shiftOn, selectedDate, fs)
-                        Spacer(GlanceModifier.height(8.dp))
+                        Spacer(GlanceModifier.height(6.dp))
                     }
+                    // Hairline under the week strip, then which day the list is for and how much is left.
+                    Box(modifier = GlanceModifier.fillMaxWidth().height(1.dp).background(ColorProvider(pal.text3.copy(alpha = 0.18f)))) {}
+                    Spacer(GlanceModifier.height(8.dp))
+                    DaySummary(today, selectedDate, tasks, pal, fs)
+                    Spacer(GlanceModifier.height(6.dp))
                 }
 
                 if (tasks.isEmpty()) {
-                    Box(
+                    val addIntent = Intent(context, QuickAddActivity::class.java).apply {
+                        action = "com.bettertick.QUICK_ADD"
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    val holiday = com.bettertick.data.model.KoreanHolidays.name(selectedDate)
+                    Column(
                         modifier = GlanceModifier
                             .fillMaxWidth()
-                            .height(48.dp)
-                            .padding(horizontal = 12.dp)
-                            .clickable(actionStartActivity<MainActivity>()),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                            .clickable(actionStartActivityWithIntent(addIntent)),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (settings.isFiltered) "필터에 맞는 할일이 없어요" else "할일이 없어요",
-                            style = TextStyle(
-                                color = ColorProvider(pal.text2),
-                                fontSize = (12 * fs).sp
-                            )
+                            text = when {
+                                settings.isFiltered -> "필터에 맞는 할 일이 없어요"
+                                holiday != null -> "$holiday · 쉬는 날이에요"
+                                selectedDate == today -> "오늘은 여유로운 날이에요"
+                                else -> "할 일이 없어요"
+                            },
+                            style = TextStyle(color = ColorProvider(pal.text2), fontSize = (12 * fs).sp)
+                        )
+                        Spacer(GlanceModifier.height(4.dp))
+                        Text(
+                            text = "+ 눌러서 할 일 추가",
+                            style = TextStyle(color = ColorProvider(widgetAccent()), fontSize = (11 * fs).sp, fontWeight = FontWeight.Medium)
                         )
                     }
                 } else {
@@ -362,6 +385,45 @@ class ReminderWidget : GlanceAppWidget() {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    /** "오늘 · 3개 남음 · 2개 완료" (or the picked day, with its holiday name). */
+    @androidx.compose.runtime.Composable
+    private fun DaySummary(today: LocalDate, selectedDate: LocalDate, tasks: List<Task>, pal: WidgetPalette, fs: Float) {
+        val plain = tasks.filter { !it.isShiftTask() }
+        val done = plain.count { it.isCompleted || it.isAbandoned }
+        val left = plain.size - done
+        val dayLabel = when (selectedDate) {
+            today -> "오늘"
+            today.plusDays(1) -> "내일"
+            today.minusDays(1) -> "어제"
+            else -> "${selectedDate.monthValue}월 ${selectedDate.dayOfMonth}일 " +
+                selectedDate.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, Locale.KOREAN)
+        }
+        val holiday = com.bettertick.data.model.KoreanHolidays.name(selectedDate)
+        Row(modifier = GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = dayLabel + (holiday?.let { " · $it" } ?: ""),
+                style = TextStyle(
+                    color = ColorProvider(if (holiday != null) SundayRed else pal.text),
+                    fontSize = (12 * fs).sp,
+                    fontWeight = FontWeight.Bold
+                ),
+                maxLines = 1
+            )
+            Spacer(GlanceModifier.defaultWeight())
+            if (plain.isNotEmpty()) {
+                Text(
+                    text = if (left == 0) "모두 완료 ✓" else "${left}개 남음" + if (done > 0) " · ${done}개 완료" else "",
+                    style = TextStyle(
+                        color = ColorProvider(if (left == 0) Color(0xFF35B36A) else pal.text2),
+                        fontSize = (11 * fs).sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    maxLines = 1
+                )
             }
         }
     }
@@ -508,8 +570,13 @@ class ReminderWidget : GlanceAppWidget() {
                     Text(
                         text = WidgetDateUtils.dayOfWeekKoreanSunFirst(i),
                         style = TextStyle(
-                            color = ColorProvider(pal.text3),
-                            fontSize = (11 * fs).sp
+                            color = ColorProvider(when (i) {
+                                0 -> SundayRed.copy(alpha = 0.85f)
+                                6 -> SaturdayBlue.copy(alpha = 0.9f)
+                                else -> pal.text3
+                            }),
+                            fontSize = (11 * fs).sp,
+                            fontWeight = FontWeight.Medium
                         )
                     )
                 }
@@ -535,7 +602,7 @@ class ReminderWidget : GlanceAppWidget() {
                             Box(
                                 modifier = GlanceModifier
                                     .size(28.dp)
-                                    .background(ColorProvider(WidgetColorValues.blue))
+                                    .background(ColorProvider(widgetAccent()))
                                     .cornerRadius(14.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -554,17 +621,25 @@ class ReminderWidget : GlanceAppWidget() {
                             Text(
                                 text = date.dayOfMonth.toString(),
                                 style = TextStyle(
-                                    color = ColorProvider(WidgetColorValues.blue),
+                                    color = ColorProvider(widgetAccent()),
                                     fontSize = (14 * fs).sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             )
                         }
                         else -> {
+                            // 공휴일·일요일 red, 토요일 blue; days already past fade back.
+                            val red = date.dayOfWeek == java.time.DayOfWeek.SUNDAY ||
+                                com.bettertick.data.model.KoreanHolidays.name(date) != null
+                            val base = when {
+                                red -> SundayRed
+                                date.dayOfWeek == java.time.DayOfWeek.SATURDAY -> SaturdayBlue
+                                else -> pal.text
+                            }
                             Text(
                                 text = date.dayOfMonth.toString(),
                                 style = TextStyle(
-                                    color = ColorProvider(pal.text),
+                                    color = ColorProvider(if (date.isBefore(today)) base.copy(alpha = 0.45f) else base),
                                     fontSize = (14 * fs).sp
                                 )
                             )
@@ -594,7 +669,7 @@ class ReminderWidget : GlanceAppWidget() {
                     val kind = shiftOn[date]
                     Box(modifier = GlanceModifier.height(16.dp), contentAlignment = Alignment.Center) {
                         if (kind != null) {
-                            val tint = com.bettertick.ui.screens.tasks.components.shiftColor(kind) ?: WidgetColorValues.accent
+                            val tint = com.bettertick.ui.screens.tasks.components.shiftColor(kind) ?: widgetAccent()
                             Box(
                                 modifier = GlanceModifier
                                     .padding(horizontal = 6.dp, vertical = 1.dp)
@@ -613,7 +688,7 @@ class ReminderWidget : GlanceAppWidget() {
                     Spacer(GlanceModifier.height(4.dp))
                     val n = taskCount[date] ?: 0
                     if (n > 0) Row(verticalAlignment = Alignment.CenterVertically) {
-                        val dot = if (date == selectedDate) WidgetColorValues.accent else WidgetColorValues.accent.copy(alpha = 0.55f)
+                        val dot = if (date == selectedDate) widgetAccent() else widgetAccent().copy(alpha = 0.55f)
                         repeat(n) { i ->
                             if (i > 0) Spacer(GlanceModifier.width(3.dp))
                             Box(
@@ -658,7 +733,7 @@ class ReminderWidget : GlanceAppWidget() {
             if (isShift) {
                 val tint = leave?.let { widgetLeaveColor(it) }
                     ?: com.bettertick.ui.screens.tasks.components.shiftColor(task.shiftKindOn(today))
-                    ?: WidgetColorValues.accent
+                    ?: widgetAccent()
                 // Slim coloured bar, like the shift card accent in the app.
                 Box(
                     modifier = GlanceModifier
@@ -760,7 +835,7 @@ class ReminderWidget : GlanceAppWidget() {
                                 style = TextStyle(
                                     color = ColorProvider(
                                         if (isOverdue) WidgetColorValues.red
-                                        else WidgetColorValues.accent
+                                        else widgetAccent()
                                     ),
                                     fontSize = (11 * fs).sp
                                 ),
