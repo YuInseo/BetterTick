@@ -137,6 +137,8 @@ fun TabBarScreen(
     }
     var showMaxTabsDialog by remember { mutableStateOf(false) }
     var showTemplates by remember { mutableStateOf(false) }
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Column(
         modifier = Modifier
@@ -331,6 +333,23 @@ fun TabBarScreen(
                 TextButton(onClick = { showTemplates = false }) {
                     Text("취소", color = MaterialTheme.colorScheme.primary)
                 }
+            },
+            dismissButton = {
+                // A tab shared from another phone ("공유용으로 복사"), pasted from the clipboard.
+                TextButton(onClick = {
+                    showTemplates = false
+                    val pasted = clipboard.getText()?.text.orEmpty()
+                    val imported = com.bettertick.ui.screens.custom.CustomTabsPrefs.import(pasted)
+                    if (imported == null) {
+                        android.widget.Toast.makeText(context, "클립보드에 가져올 탭이 없어요", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        enabledTabs.add((maxTabs - 2).coerceIn(0, enabledTabs.size),
+                            TabItem(imported.id, imported.name, "내가 만든 탭",
+                                com.bettertick.ui.screens.custom.customTabIcon(imported.icon)))
+                        commit()
+                        onOpenCustomTab(imported.id)
+                    }
+                }) { Text("붙여넣기", color = MaterialTheme.colorScheme.primary) }
             },
             containerColor = GroupedCard
         )

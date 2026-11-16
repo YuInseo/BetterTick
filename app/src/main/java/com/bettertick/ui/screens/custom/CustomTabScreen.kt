@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.AddTask
 import androidx.compose.material.icons.outlined.Book
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.DonutLarge
 import androidx.compose.material.icons.outlined.Event
@@ -252,6 +253,22 @@ fun CustomTabScreen(
                 ArrangeBlocks(tab, lists, onSettings = { settingsFor = it })
                 AddRow("블록 추가") { showAdd = true }
                 Spacer(Modifier.height(8.dp))
+                val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(GroupedCard)) {
+                    TabActionRow("탭 복제", "블록·설정 그대로 새 탭으로", Icons.Outlined.ContentCopy) {
+                        CustomTabsPrefs.duplicate(tab.id)?.let { copy ->
+                            viewModel.addToTabBar(copy.id)
+                            CustomTabsPrefs.justCreated = copy.id
+                            onNavigate(copy.id)
+                        }
+                    }
+                    TabActionRow("공유용으로 복사", "다른 폰에서 탭 바 › 내 탭 만들기 › 붙여넣기", Icons.Outlined.IosShare) {
+                        CustomTabsPrefs.export(tab.id)?.let { text ->
+                            clipboard.setText(androidx.compose.ui.text.AnnotatedString(text))
+                            android.widget.Toast.makeText(context, "탭을 복사했어요", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(GroupedCard)
                         .clickable { confirmDelete = true }.padding(16.dp),
@@ -1165,5 +1182,17 @@ private fun MenuRow(label: String, icon: androidx.compose.ui.graphics.vector.Ima
         Icon(icon, null, tint = if (danger) OverdueRed else TextSecondary, modifier = Modifier.size(22.dp))
         Spacer(Modifier.width(16.dp))
         Text(label, color = if (danger) OverdueRed else MaterialTheme.colorScheme.onBackground)
+    }
+}
+
+@Composable
+private fun TabActionRow(title: String, subtitle: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(title, color = MaterialTheme.colorScheme.onBackground)
+            Text(subtitle, color = TextSecondary, fontSize = 12.sp)
+        }
     }
 }

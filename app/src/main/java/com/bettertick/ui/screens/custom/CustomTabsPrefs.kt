@@ -206,6 +206,42 @@ object CustomTabsPrefs {
 
     fun delete(id: String) = save(tabs.filterNot { it.id == id })
 
+    /** A full copy of a tab with fresh ids, named "… 복사본". */
+    fun duplicate(id: String): CustomTab? {
+        val src = tab(id) ?: return null
+        val copy = withFreshIds(src).copy(name = (src.name + " 복사본").take(20))
+        save(tabs + copy)
+        return copy
+    }
+
+    private const val EXPORT_PREFIX = "DAYDRIFT_TAB:"
+
+    /** The tab as one line of text, to paste into another phone (탭 공유). */
+    fun export(id: String): String? = tab(id)?.let { EXPORT_PREFIX + encode(listOf(it)) }
+
+    /** Adds a tab from [text] made by [export]; null when the text isn't one. */
+    fun import(text: String): CustomTab? {
+        val raw = text.trim().substringAfter(EXPORT_PREFIX, "")
+        if (raw.isBlank()) return null
+        val src = runCatching { decode(raw).firstOrNull() }.getOrNull() ?: return null
+        val tab = withFreshIds(src)
+        save(tabs + tab)
+        return tab
+    }
+
+    /** New tab and block ids; macros that point at a block (메모에 기록) follow it to its copy. */
+    private fun withFreshIds(src: CustomTab): CustomTab {
+        val ids = src.blocks.associate { it.id to java.util.UUID.randomUUID().toString().take(8) }
+        return src.copy(
+            id = ID_PREFIX + java.util.UUID.randomUUID().toString().take(8),
+            blocks = src.blocks.map { b ->
+                val text = if (b.type == DashBlockType.MACRO)
+                    ids.entries.fold(b.text) { acc, (old, new) -> acc.replace("\"$old\"", "\"$new\"") } else b.text
+                b.copy(id = ids.getValue(b.id), text = text)
+            }
+        )
+    }
+
     /** Changes one block of a tab (reads the latest copy, so concurrent edits are not lost). */
     fun updateBlock(tabId: String, blockId: String, change: (DashBlock) -> DashBlock) {
         val tab = tab(tabId) ?: return
