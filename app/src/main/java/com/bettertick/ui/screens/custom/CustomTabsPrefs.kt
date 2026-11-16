@@ -69,9 +69,9 @@ object DashBlockType {
         TEMPLATE to "텍스트 템플릿",
         MACRO to "매크로 버튼",
         TODAY to "오늘 (날짜·근무)",
-        TODAY_TASKS to "오늘 할 일",
+        TODAY_TASKS to "할 일 (오늘)",
         QUICK_ADD to "빠른 할 일 추가",
-        LIST_TASKS to "목록 할 일",
+        LIST_TASKS to "할 일 (필터 직접 설정)",
         HABITS to "오늘 습관",
         MINI_CALENDAR to "이번 달 달력",
         WEEK_SHIFTS to "이번 주 근무",
@@ -90,9 +90,9 @@ object DashBlockType {
         TEMPLATE -> "{변수}가 들어간 문장 — 예: 오늘 {shift.today}, 할 일 {today.left}개"
         MACRO -> "버튼 한 번에 여러 동작: 할 일 추가·완료, 습관 체크, 가계부 기록…"
         TODAY -> "날짜, 남은 할 일 수, 오늘 근무"
-        TODAY_TASKS -> "오늘 할 일을 바로 체크"
+        TODAY_TASKS -> "탭하면 상세 열기 · 체크 · 바로 추가, 기간·정렬·묶기 설정"
         QUICK_ADD -> "입력하고 엔터 → 오늘 할 일로 추가"
-        LIST_TASKS -> "고른 목록의 남은 할 일"
+        LIST_TASKS -> "기간·목록·태그·중요도로 거르고 정렬·묶기 — 나만의 스마트 목록"
         HABITS -> "오늘 할 습관을 탭해서 체크"
         MINI_CALENDAR -> "근무 색과 일정 점이 찍힌 이번 달"
         WEEK_SHIFTS -> "월~일 근무 한눈에"
