@@ -75,6 +75,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -533,8 +534,8 @@ fun CalendarScreen(
                 transitionSpec = {
                     val toMonth = targetState == null
                     if (toMonth && monthFromPull) {
-                        return@AnimatedContent androidx.compose.animation.fadeIn(tween(180)) togetherWith
-                            androidx.compose.animation.fadeOut(tween(180))
+                        return@AnimatedContent androidx.compose.animation.fadeIn(tween(120)) togetherWith
+                            androidx.compose.animation.fadeOut(tween(120))
                     }
                     val enter = if (toMonth)
                         androidx.compose.animation.fadeIn(tween(200)) +
@@ -622,16 +623,20 @@ fun CalendarScreen(
                             // Enough pulled → keep going on our own until the next weeks fill
                             // the screen, then hand over to the month (no jump, one motion).
                             val monthPx = with(density) { (84 * 5).dp.toPx() }
-                            val releasePull: () -> Unit = {
+                            // A quick flick down opens the month even before the threshold.
+                            val flingToMonth = with(density) { 900.dp.toPx() }
+                            val releasePull: (Float) -> Unit = { velocity ->
                                 val from = pull
                                 pullScope.launch {
-                                    if (from > pullThreshold) {
-                                        androidx.compose.animation.core.animate(from, monthPx,
-                                            animationSpec = tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing)) { v, _ -> pull = v }
+                                    if (from > 0f && (from > pullThreshold || velocity > flingToMonth)) {
+                                        // Carry on at the finger's speed, easing out into the month.
+                                        androidx.compose.animation.core.animate(from, monthPx, initialVelocity = velocity.coerceAtLeast(0f),
+                                            animationSpec = tween(170, easing = androidx.compose.animation.core.LinearOutSlowInEasing)) { v, _ -> pull = v }
                                         monthFromPull = true
                                         viewModel.clearSelection()
-                                    } else {
-                                        androidx.compose.animation.core.animate(from, 0f, animationSpec = tween(220)) { v, _ -> pull = v }
+                                    } else if (from > 0f) {
+                                        androidx.compose.animation.core.animate(from, 0f,
+                                            animationSpec = androidx.compose.animation.core.spring(stiffness = 900f)) { v, _ -> pull = v }
                                     }
                                 }
                             }
@@ -652,13 +657,14 @@ fun CalendarScreen(
                                                               source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
                                         // The list is at its top and the finger keeps going down.
                                         if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag && available.y > 0f) {
-                                            pull = (pull + available.y * 0.8f).coerceAtMost(maxPull)
+                                            // 1:1 with the finger — a damped pull felt like lag.
+                                            pull = (pull + available.y).coerceAtMost(maxPull)
                                             return androidx.compose.ui.geometry.Offset(0f, available.y)
                                         }
                                         return androidx.compose.ui.geometry.Offset.Zero
                                     }
                                     override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
-                                        if (pull > 0f) { latestRelease(); return available }
+                                        if (pull > 0f) { latestRelease(available.y); return available }
                                         return androidx.compose.ui.unit.Velocity.Zero
                                     }
                                 }
@@ -666,14 +672,22 @@ fun CalendarScreen(
                             Box(Modifier.weight(1f).fillMaxWidth()) {
                             // While pulling, the next weeks unroll in the gap above the
                             // list — the month calendar growing out of this week.
-                            if (pull > 0f) {
+                            // Only "pulled or not" is read here, so a pull doesn't recompose the
+                            // screen every frame; the height is applied in the layout phase.
+                            val pulling by remember { androidx.compose.runtime.derivedStateOf { pull > 0f } }
+                            if (pulling) {
                                 val upcoming = remember(selectedWeek) {
                                     (1..5).map { n -> selectedWeek.map { it.plusWeeks(n.toLong()) } }
                                 }
                                 Column(
                                     Modifier
                                         .fillMaxWidth()
-                                        .height(with(density) { pull.toDp() })
+                                        .layout { measurable, constraints ->
+                                            val h = pull.roundToInt().coerceAtLeast(0)
+                                            val placeable = measurable.measure(constraints.copy(minHeight = 0,
+                                                maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
+                                            layout(placeable.width, h) { placeable.place(0, 0) }
+                                        }
                                         .clipToBounds()
                                         .padding(horizontal = 8.dp)
                                         .graphicsLayer { alpha = (pull / pullThreshold).coerceIn(0f, 1f) }
@@ -702,12 +716,15 @@ fun CalendarScreen(
                                     .nestedScroll(pullConnection)
                                     // A day whose list doesn't scroll (empty, short) still pulls.
                                     .pointerInput(Unit) {
+                                        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
                                         detectVerticalDragGestures(
-                                            onDragEnd = { latestRelease() },
-                                            onDragCancel = { latestRelease() },
+                                            onDragStart = { tracker.resetTracking() },
+                                            onDragEnd = { latestRelease(tracker.calculateVelocity().y) },
+                                            onDragCancel = { latestRelease(0f) },
                                             onVerticalDrag = { change, delta ->
+                                                tracker.addPosition(change.uptimeMillis, change.position)
                                                 if (delta > 0f || pull > 0f) {
-                                                    pull = (pull + delta * 0.8f).coerceIn(0f, maxPull)
+                                                    pull = (pull + delta).coerceIn(0f, maxPull)
                                                     change.consume()
                                                 }
                                             }
