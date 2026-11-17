@@ -26,3 +26,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "BetterTick"
 include(":app")
+include(":recorder")

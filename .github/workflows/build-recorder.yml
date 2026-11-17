@@ -1,0 +1,71 @@
+name: Build Recorder APK
+
+# recorder 브랜치에 push하면 녹음 앱(Daydrift 녹음) debug APK를 빌드해
+# `recorder-latest` 릴리즈에 올린다. Daydrift 본 앱 배포와는 별개.
+#
+# 다운로드: https://github.com/YuInseo/BetterTick/releases/download/recorder-latest/DaydriftRecorder.apk
+
+on:
+  push:
+    branches: [ recorder ]
+    paths-ignore:
+      - '**/*.md'
+  workflow_dispatch:
+
+concurrency:
+  group: build-recorder-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build recorder APK
+        env:
+          CI_VERSION_CODE: ${{ github.run_number }}
+          CI_VERSION_NAME: 0.1.${{ github.run_number }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :recorder:assembleDebug --console=plain
+
+      - name: Lint (참고용)
+        continue-on-error: true
+        run: ./gradlew :recorder:lintDebug --console=plain
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recorder-lint
+          path: recorder/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cp recorder/build/outputs/apk/debug/recorder-debug.apk DaydriftRecorder.apk
+          gh release delete recorder-latest --yes --cleanup-tag || true
+          gh release create recorder-latest DaydriftRecorder.apk \
+            --target "$GITHUB_SHA" \
+            --title "Daydrift 녹음 (최신)" \
+            --notes "recorder 브랜치 ${GITHUB_SHA::7} 빌드" \
+            --prerelease
