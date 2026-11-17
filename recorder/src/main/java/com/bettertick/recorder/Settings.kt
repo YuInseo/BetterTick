@@ -17,6 +17,9 @@ class Settings private constructor(context: Context) {
         val deleteAfterUpload: Boolean,
         val segmentMinutes: Int,
         val bitrateKbps: Int,
+        val stereo: Boolean,
+        val sampleRate: Int,
+        val stealth: Boolean,
         val driveAccount: String?,
         val lastBackupMessage: String?,
     )
@@ -29,7 +32,10 @@ class Settings private constructor(context: Context) {
         wifiOnly = prefs.getBoolean(K_WIFI, false),
         deleteAfterUpload = prefs.getBoolean(K_DELETE, false),
         segmentMinutes = prefs.getInt(K_SEGMENT, 30),
-        bitrateKbps = prefs.getInt(K_BITRATE, 128),
+        bitrateKbps = prefs.getInt(K_BITRATE, 192),
+        stereo = prefs.getBoolean(K_STEREO, true),
+        sampleRate = prefs.getInt(K_SAMPLE_RATE, 48_000),
+        stealth = prefs.getBoolean(K_STEALTH, false),
         driveAccount = prefs.getString(K_ACCOUNT, null),
         lastBackupMessage = prefs.getString(K_LAST_MSG, null),
     )
@@ -39,6 +45,9 @@ class Settings private constructor(context: Context) {
     val deleteAfterUpload get() = _state.value.deleteAfterUpload
     val segmentMinutes get() = _state.value.segmentMinutes
     val bitrateKbps get() = _state.value.bitrateKbps
+    val stereo get() = _state.value.stereo
+    val sampleRate get() = _state.value.sampleRate
+    val stealth get() = _state.value.stealth
     val driveAccount get() = _state.value.driveAccount
 
     var driveFolderId: String?
@@ -55,6 +64,9 @@ class Settings private constructor(context: Context) {
     fun setDeleteAfterUpload(v: Boolean) = put { putBoolean(K_DELETE, v) }
     fun setSegmentMinutes(v: Int) = put { putInt(K_SEGMENT, v) }
     fun setBitrateKbps(v: Int) = put { putInt(K_BITRATE, v) }
+    fun setStereo(v: Boolean) = put { putBoolean(K_STEREO, v) }
+    fun setSampleRate(v: Int) = put { putInt(K_SAMPLE_RATE, v) }
+    fun setStealth(v: Boolean) = put { putBoolean(K_STEALTH, v) }
     fun setLastBackupMessage(v: String?) = put { putString(K_LAST_MSG, v) }
     fun setDriveAccount(v: String?) = put {
         putString(K_ACCOUNT, v)
@@ -72,6 +84,9 @@ class Settings private constructor(context: Context) {
         private const val K_DELETE = "delete_after_upload"
         private const val K_SEGMENT = "segment_minutes"
         private const val K_BITRATE = "bitrate_kbps"
+        private const val K_STEREO = "stereo"
+        private const val K_SAMPLE_RATE = "sample_rate"
+        private const val K_STEALTH = "stealth"
         private const val K_ACCOUNT = "drive_account"
         private const val K_FOLDER = "drive_folder_id"
         private const val K_LAST_MSG = "last_backup_message"

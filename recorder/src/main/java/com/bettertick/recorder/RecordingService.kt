@@ -123,11 +123,11 @@ class RecordingService : Service() {
         @Suppress("DEPRECATION")
         val r = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) MediaRecorder(this) else MediaRecorder()
         try {
-            r.setAudioSource(MediaRecorder.AudioSource.MIC)
+            r.setAudioSource(bestAudioSource())
             r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            r.setAudioChannels(1)
-            r.setAudioSamplingRate(44_100)
+            r.setAudioChannels(if (settings.stereo) 2 else 1)
+            r.setAudioSamplingRate(settings.sampleRate)
             r.setAudioEncodingBitRate(settings.bitrateKbps * 1000)
             r.setOutputFile(file.absolutePath)
             if (settings.segmentMinutes > 0) {
@@ -199,6 +199,21 @@ class RecordingService : Service() {
         if (Settings.get(this).autoBackup) BackupScheduler.backupNow(this)
     }
 
+    /**
+     * 가장 원음에 가까운 마이크를 고른다.
+     * UNPROCESSED(기기 잡음억제·자동게인 꺼짐)를 지원하면 그걸, 아니면 일반 MIC.
+     */
+    private fun bestAudioSource(): Int {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            val am = getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+            val supported = am.getProperty(
+                android.media.AudioManager.PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED
+            )
+            if (supported == "true") return MediaRecorder.AudioSource.UNPROCESSED
+        }
+        return MediaRecorder.AudioSource.MIC
+    }
+
     private fun startLevelMeter() {
         levelJob?.cancel()
         levelJob = scope.launch {
@@ -241,19 +256,30 @@ class RecordingService : Service() {
 
     private fun buildNotification(): Notification {
         val s = RecorderState.status.value
+        val stealth = Settings.get(this).stealth
         val open = PendingIntent.getActivity(
             this, 0,
             Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val b = NotificationCompat.Builder(this, RecorderApp.CHANNEL_RECORDING)
-            .setSmallIcon(R.drawable.ic_mic)
+            .setSmallIcon(if (stealth) R.drawable.ic_sync else R.drawable.ic_mic)
             .setContentIntent(open)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+
+        if (stealth) {
+            // 눈에 덜 띄게: 녹음이라는 말·시간 표시·조작 버튼을 숨기고
+            // 잠금화면에서는 내용을 가린다. (잠금화면 알림을 '민감한 내용 숨김'으로 설정 시)
+            b.setContentTitle("동기화 중")
+                .setContentText("백그라운드 작업이 실행 중입니다")
+                .setVisibility(NotificationCompat.VISIBILITY_SECRET)
+                .setUsesChronometer(false)
+            return b.build()
+        }
 
         if (s.paused) {
             b.setContentTitle("일시정지됨")

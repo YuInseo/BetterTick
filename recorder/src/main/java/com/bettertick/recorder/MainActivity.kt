@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +36,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.CloudUpload
@@ -48,6 +51,11 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -79,6 +87,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -251,6 +260,8 @@ private val RecordRed = Color(0xFFE5484D)
 
 // ─── 화면 ───
 
+private enum class Tab(val label: String) { RECORD("녹음"), LIST("목록"), SETTINGS("설정") }
+
 @Composable
 private fun RecorderScreen(
     onRecord: () -> Unit,
@@ -264,32 +275,92 @@ private fun RecorderScreen(
     val player = remember { PlayerHolder() }
     DisposableEffect(Unit) { onDispose { player.stop() } }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().systemBarsPadding(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        item { RecorderPanel(status, onRecord) }
-        item { BackupCard(settings, onConnectDrive) }
-        item { OptionsCard(settings, status.recording, onBatteryExempt) }
-        item {
-            Text(
-                "녹음 ${items.size}개",
-                style = MaterialTheme.typography.titleSmall,
-                modifier = Modifier.padding(top = 8.dp, start = 4.dp),
-            )
-        }
-        if (items.isEmpty()) {
-            item {
-                Text(
-                    "아직 녹음이 없어요. 위 버튼을 눌러 시작하세요.",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(4.dp),
-                )
+    var tab by rememberSaveable { mutableStateOf(Tab.RECORD) }
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                Tab.entries.forEach { t ->
+                    val badge = if (t == Tab.LIST && items.isNotEmpty()) items.size else null
+                    NavigationBarItem(
+                        selected = tab == t,
+                        onClick = { tab = t },
+                        icon = {
+                            val icon = when (t) {
+                                Tab.RECORD -> Icons.Filled.FiberManualRecord
+                                Tab.LIST -> Icons.AutoMirrored.Filled.List
+                                Tab.SETTINGS -> Icons.Filled.Settings
+                            }
+                            if (badge != null) {
+                                BadgedBox(badge = { Badge { Text("$badge") } }) { Icon(icon, null) }
+                            } else {
+                                Icon(icon, null)
+                            }
+                        },
+                        label = { Text(t.label) },
+                    )
+                }
+            }
+        },
+    ) { inner ->
+        when (tab) {
+            Tab.RECORD -> Column(
+                Modifier.fillMaxSize().padding(inner).padding(16.dp),
+            ) {
+                RecorderPanel(status, onRecord)
+                if (settings.driveAccount == null) {
+                    Spacer(Modifier.height(12.dp))
+                    DriveHint(onConnectDrive)
+                }
+            }
+
+            Tab.LIST -> LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(inner),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item {
+                    Text(
+                        "녹음 ${items.size}개",
+                        style = MaterialTheme.typography.titleMedium,
+                        modifier = Modifier.padding(bottom = 2.dp, start = 4.dp),
+                    )
+                }
+                if (items.isEmpty()) {
+                    item {
+                        Text(
+                            "아직 녹음이 없어요. '녹음' 탭에서 시작하세요.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(4.dp),
+                        )
+                    }
+                }
+                items(items, key = { it.file.name }) { rec ->
+                    RecordingRow(rec, player)
+                }
+            }
+
+            Tab.SETTINGS -> LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(inner),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item { BackupCard(settings, onConnectDrive) }
+                item { OptionsCard(settings, status.recording, onBatteryExempt) }
+                item { StealthCard(settings) }
             }
         }
-        items(items, key = { it.file.name }) { rec ->
-            RecordingRow(rec, player)
+    }
+}
+
+@Composable
+private fun DriveHint(onConnectDrive: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Cloud, null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(10.dp))
+            Text("구글 드라이브에 연결하면 녹음이 자동으로 백업돼요", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            FilledTonalButton(onClick = onConnectDrive) { Text("연결") }
         }
     }
 }
@@ -474,12 +545,21 @@ private fun OptionsCard(settings: Settings.Values, recording: Boolean, onBattery
                 s.setSegmentMinutes(it)
             }
             Spacer(Modifier.height(4.dp))
-            Text("음질", style = MaterialTheme.typography.labelLarge)
-            ChipRow(listOf(64 to "보통", 128 to "좋음", 192 to "최고"), settings.bitrateKbps) {
-                s.setBitrateKbps(it)
-            }
+            Text("음질 (비트레이트)", style = MaterialTheme.typography.labelLarge)
+            ChipRow(
+                listOf(96 to "보통", 192 to "좋음", 256 to "고음질", 320 to "최고"),
+                settings.bitrateKbps,
+            ) { s.setBitrateKbps(it) }
+            Spacer(Modifier.height(4.dp))
+            Text("샘플레이트", style = MaterialTheme.typography.labelLarge)
+            ChipRow(
+                listOf(44_100 to "44.1kHz", 48_000 to "48kHz"),
+                settings.sampleRate,
+            ) { s.setSampleRate(it) }
+            SwitchRow("스테레오로 녹음 (끄면 모노)", settings.stereo) { s.setStereo(it) }
             Text(
-                "1시간에 약 ${settings.bitrateKbps * 3600 / 8 / 1024}MB",
+                "1시간에 약 ${settings.bitrateKbps * 3600 / 8 / 1024}MB" +
+                    (if (settings.stereo) " · 스테레오" else " · 모노"),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -491,6 +571,41 @@ private fun OptionsCard(settings: Settings.Values, recording: Boolean, onBattery
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(onClick = onBatteryExempt) { Text("설정") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StealthCard(settings: Settings.Values) {
+    val s = Settings.get(LocalContext.current)
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.VisibilityOff, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text("스텔스 모드", style = MaterialTheme.typography.titleMedium)
+            }
+            SwitchRow("알림을 눈에 안 띄게", settings.stealth) { s.setStealth(it) }
+            Text(
+                "켜면 녹음 알림이 '동기화 중'이라는 평범한 알림으로 바뀌고, 시간·정지 버튼이 숨겨지며 잠금화면에서 내용이 안 보여요. 녹음을 멈추려면 앱을 직접 열어야 해요.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            Spacer(Modifier.height(10.dp))
+            Row {
+                Icon(
+                    Icons.Filled.Info, null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(18.dp).padding(top = 2.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "상단바의 초록색 마이크 점은 안드로이드 12부터 시스템이 강제로 띄우는 표시라, 어떤 앱도 숨길 수 없어요. 이건 가릴 수 없다는 점을 알아 두세요.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }
