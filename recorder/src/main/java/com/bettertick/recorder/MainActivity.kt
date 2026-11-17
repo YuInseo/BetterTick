@@ -51,6 +51,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.NavigationBar
@@ -160,6 +161,17 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         RecordingStore.get(this).refresh()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // 앱을 열 때 조용히 업데이트 확인(하루 한 번). 녹음 중이면 나갈 때 설치.
+        val now = System.currentTimeMillis()
+        val last = getPreferences(MODE_PRIVATE).getLong("last_update_check", 0)
+        if (now - last > 12 * 60 * 60 * 1000) {
+            getPreferences(MODE_PRIVATE).edit().putLong("last_update_check", now).apply()
+            lifecycleScopeLaunch { runCatching { Updater.run(this, Updater.Trigger.APP_OPEN) } }
+        }
     }
 
     private fun hasMic() =
@@ -348,6 +360,7 @@ private fun RecorderScreen(
                 item { BackupCard(settings, onConnectDrive) }
                 item { OptionsCard(settings, status.recording, onBatteryExempt) }
                 item { StealthCard(settings) }
+                item { UpdateCard() }
             }
         }
     }
@@ -606,6 +619,62 @@ private fun StealthCard(settings: Settings.Values) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.error,
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateCard() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var checking by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val version = remember { runCatching { Updater.currentVersionName(ctx) }.getOrDefault("?") }
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Filled.Sync, null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("앱 업데이트", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "현재 v$version",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                FilledTonalButton(
+                    onClick = {
+                        if (checking) return@FilledTonalButton
+                        checking = true
+                        message = "확인 중…"
+                        scope.launch {
+                            val r = Updater.run(ctx, Updater.Trigger.USER)
+                            message = when (r) {
+                                is Updater.Outcome.UpToDate -> "최신 버전이에요"
+                                is Updater.Outcome.Installing -> "v${r.versionName} 설치 중…"
+                                is Updater.Outcome.Ready -> "v${r.versionName} 준비됨 — 앱을 나가면 설치돼요"
+                                is Updater.Outcome.Publishing -> Updater.PUBLISHING_MESSAGE
+                                is Updater.Outcome.Busy -> "이미 확인 중이에요"
+                                is Updater.Outcome.Failed -> r.message
+                            }
+                            checking = false
+                        }
+                    },
+                    enabled = !checking,
+                ) { Text("업데이트 확인") }
+            }
+            Text(
+                "앱을 열 때 자동으로 새 버전을 확인하고 받아서 설치해요. 녹음 중이면 녹음이 끝난 뒤 설치돼요.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            message?.let {
+                Spacer(Modifier.height(6.dp))
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
             }
         }
     }

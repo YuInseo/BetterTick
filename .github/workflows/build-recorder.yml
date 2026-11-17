@@ -61,11 +61,28 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CODE: ${{ github.run_number }}
         run: |
           cp recorder/build/outputs/apk/debug/recorder-debug.apk DaydriftRecorder.apk
+          # version.json: 앱의 자체 업데이터가 읽어 versionCode를 비교한다.
+          # APK에 박힌 CI_VERSION_CODE(=run_number)와 반드시 같아야 한다.
+          APK_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/recorder-latest/DaydriftRecorder.apk"
+          cat > version.json <<EOF
+          {
+            "versionCode": ${CODE},
+            "versionName": "0.1.${CODE}",
+            "sha": "${GITHUB_SHA::7}",
+            "apkUrl": "${APK_URL}",
+            "notes": "recorder 브랜치 ${GITHUB_SHA::7} 빌드"
+          }
+          EOF
+          cat version.json
           gh release delete recorder-latest --yes --cleanup-tag || true
+          # APK를 먼저 올려 완전히 올라간 뒤에 version.json을 올린다
+          # (앱은 version.json이 있으면 APK도 준비됐다고 본다).
           gh release create recorder-latest DaydriftRecorder.apk \
             --target "$GITHUB_SHA" \
             --title "Daydrift 녹음 (최신)" \
             --notes "recorder 브랜치 ${GITHUB_SHA::7} 빌드" \
             --prerelease
+          gh release upload recorder-latest version.json --clobber
