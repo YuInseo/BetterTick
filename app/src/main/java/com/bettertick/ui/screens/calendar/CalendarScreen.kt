@@ -741,8 +741,9 @@ fun CalendarScreen(
                                 onTaskClick = {},
                                 detailListName = { task -> viewModel.listNameFor(task.listId) },
                                 onUpdateTask = { updated -> viewModel.updateTask(updated) },
-                                onAbandon = { task -> viewModel.setAbandoned(task.id, true) },
-                                onUnabandon = { task -> viewModel.setAbandoned(task.id, false) },
+                                // 반복 일정은 이 날만 취소 / 되돌리기 (다른 날은 그대로).
+                                onAbandon = { task -> viewModel.applyStatus(task, com.bettertick.data.model.TaskStatusAction.CANCEL, currentDate) },
+                                onUnabandon = { task -> viewModel.applyStatus(task, com.bettertick.data.model.TaskStatusAction.REOPEN, currentDate) },
                                 onDelete = { task -> viewModel.deleteTask(task.id) },
                                 onSkipOccurrence = { task, d -> viewModel.skipTaskOccurrence(task.id, d) },
                                 tags = viewModel.tags.collectAsState().value,

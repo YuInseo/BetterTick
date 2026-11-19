@@ -75,10 +75,10 @@ class WidgetActionDispatcher : ComponentActivity() {
             // The widget's day (날짜별 체크 for repeating tasks).
             val day = segments.getOrNull(2)?.let { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
             if (task != null && day != null && task.checksPerDay() && !task.isAbandoned) {
+                // A cancelled day (날짜별 취소) is reopened by the tap, like a cancelled one-off task.
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
                     runCatching {
-                        com.bettertick.widget.WidgetServiceLocator.taskRepository
-                            .setOccurrenceComplete(arg, day, !task.completedOn(day))
+                        com.bettertick.widget.WidgetServiceLocator.taskRepository.toggleCompleteOn(task, day)
                     }.onFailure { Log.e(TAG, "toggle failed", it) }
                 }
                 return

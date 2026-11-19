@@ -176,6 +176,10 @@ class ReminderWidget : GlanceAppWidget() {
             val shiftOn = weekDates.associateWith { d ->
                 visible.firstOrNull { it.isShiftTask() && it.occursOn(d) }?.shiftKindOn(d)?.takeIf { it.isNotBlank() }
             }
+            // 병가·연차·특휴 that day: its own solid chip instead of the shift's.
+            val leaveOnDay = weekDates.associateWith { d ->
+                visible.firstOrNull { it.isShiftTask() && it.occursOn(d) }?.leaveOn(d)
+            }
             // 기한 지난 할일 포함: unfinished one-off tasks from earlier days
             // are listed under today, like TickTick's 오늘 view.
             val overdue = if (settings.showOverdue && selectedDate == today) {
@@ -211,7 +215,7 @@ class ReminderWidget : GlanceAppWidget() {
                 .groupedUnderParents()
 
             androidx.compose.runtime.CompositionLocalProvider(LocalWidgetId provides widgetId) {
-                ReminderContent(today, selectedDate, weekDates, taskCount, shiftOn, dayTasks, listById, settings, menuOpen)
+                ReminderContent(today, selectedDate, weekDates, taskCount, shiftOn, leaveOnDay, dayTasks, listById, settings, menuOpen)
             }
         }
     }
@@ -231,6 +235,7 @@ class ReminderWidget : GlanceAppWidget() {
         weekDates: List<LocalDate>,
         taskCount: Map<LocalDate, Int>,
         shiftOn: Map<LocalDate, String?>,
+        leaveOnDay: Map<LocalDate, String?>,
         tasks: List<Task>,
         listById: Map<String, TaskList>,
         settings: WidgetServiceLocator.ReminderSettings,
@@ -272,7 +277,7 @@ class ReminderWidget : GlanceAppWidget() {
                         Spacer(GlanceModifier.height(4.dp))
                         DatesRow(today, selectedDate, weekDates, pal, fs)
                         Spacer(GlanceModifier.height(4.dp))
-                        DotsRow(weekDates, taskCount, shiftOn, selectedDate, fs)
+                        DotsRow(weekDates, taskCount, shiftOn, leaveOnDay, selectedDate, fs)
                         Spacer(GlanceModifier.height(6.dp))
                     }
                     // Hairline under the week strip, then which day the list is for and how much is left.
@@ -655,6 +660,7 @@ class ReminderWidget : GlanceAppWidget() {
         weekDates: List<LocalDate>,
         taskCount: Map<LocalDate, Int>,
         shiftOn: Map<LocalDate, String?>,
+        leaveOnDay: Map<LocalDate, String?>,
         selectedDate: LocalDate,
         fs: Float
     ) {
@@ -667,8 +673,24 @@ class ReminderWidget : GlanceAppWidget() {
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     val kind = shiftOn[date]
+                    val leave = leaveOnDay[date]
                     Box(modifier = GlanceModifier.height(16.dp), contentAlignment = Alignment.Center) {
-                        if (kind != null) {
+                        if (leave != null) {
+                            // 병가 etc.: a solid chip in the leave colour, so the day stands out at a glance.
+                            Box(
+                                modifier = GlanceModifier
+                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                                    .background(ColorProvider(widgetLeaveColor(leave)))
+                                    .cornerRadius(7.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = leave.take(1),
+                                    style = TextStyle(color = ColorProvider(Color.White), fontSize = (9 * fs).sp, fontWeight = FontWeight.Bold),
+                                    maxLines = 1
+                                )
+                            }
+                        } else if (kind != null) {
                             val tint = com.bettertick.ui.screens.tasks.components.shiftColor(kind) ?: widgetAccent()
                             Box(
                                 modifier = GlanceModifier
@@ -794,16 +816,34 @@ class ReminderWidget : GlanceAppWidget() {
             Column(
                 modifier = GlanceModifier.defaultWeight()
             ) {
-                Text(
-                    text = if (isShift) task.shiftTitleOn(today) else task.title,
-                    style = TextStyle(
-                        color = ColorProvider(if (done) pal.text3 else pal.text),
-                        fontSize = (13 * fs).sp,
-                        fontWeight = FontWeight.Medium,
-                        textDecoration = if (done) androidx.glance.text.TextDecoration.LineThrough else null
-                    ),
-                    maxLines = if (memo) 2 else 1
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = if (isShift) task.shiftTitleOn(today) else task.title,
+                        style = TextStyle(
+                            color = ColorProvider(if (done) pal.text3 else pal.text),
+                            fontSize = (13 * fs).sp,
+                            fontWeight = FontWeight.Medium,
+                            textDecoration = if (done) androidx.glance.text.TextDecoration.LineThrough else null
+                        ),
+                        maxLines = if (memo) 2 else 1
+                    )
+                    if (leave != null) {
+                        // 병가 badge right on the shift's title line.
+                        Spacer(GlanceModifier.width(6.dp))
+                        Box(
+                            modifier = GlanceModifier
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                                .background(ColorProvider(widgetLeaveColor(leave)))
+                                .cornerRadius(8.dp)
+                        ) {
+                            Text(
+                                text = leave,
+                                style = TextStyle(color = ColorProvider(Color.White), fontSize = (11 * fs).sp, fontWeight = FontWeight.Bold),
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
                 if (leave != null) {
                     Text(
                         text = "$leave 사용" + (com.bettertick.ui.screens.tasks.LeavePrefs

@@ -7,6 +7,7 @@ import android.content.Context
 import androidx.glance.appwidget.updateAll
 import com.bettertick.data.firebase.FirestoreProvider
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.abandonedOn
 import com.bettertick.data.model.followingSchedule
 import com.bettertick.data.model.followsSchedule
 import com.bettertick.data.model.isSubtask
@@ -265,18 +266,35 @@ class TaskRepository @Inject constructor(
     suspend fun applyStatus(task: Task, action: com.bettertick.data.model.TaskStatusAction, shownDate: LocalDate?) {
         when (action) {
             com.bettertick.data.model.TaskStatusAction.COMPLETE -> {
-                if (task.isAbandoned) setAbandoned(task.id, false)
-                if (shownDate != null && task.checksPerDay()) setOccurrenceComplete(task.id, shownDate, true)
-                else toggleComplete(task.id, true)
+                if (shownDate != null && task.checksPerDay()) {
+                    // Only this day: lift its 취소 (and an old whole-series one) and check it.
+                    setOccurrenceAbandoned(task.id, shownDate, false)
+                    if (stored(task).isAbandoned) setAbandoned(task.id, false)
+                    setOccurrenceComplete(task.id, shownDate, true)
+                } else {
+                    if (task.isAbandoned) setAbandoned(task.id, false)
+                    toggleComplete(task.id, true)
+                }
             }
             com.bettertick.data.model.TaskStatusAction.REOPEN -> {
-                if (task.isAbandoned) setAbandoned(task.id, false)
-                if (shownDate != null && task.checksPerDay()) setOccurrenceComplete(task.id, shownDate, false)
-                else if (task.isCompleted) toggleComplete(task.id, false)
+                if (shownDate != null && task.checksPerDay()) {
+                    setOccurrenceAbandoned(task.id, shownDate, false)
+                    if (stored(task).isAbandoned) setAbandoned(task.id, false)
+                    setOccurrenceComplete(task.id, shownDate, false)
+                } else {
+                    if (task.isAbandoned) setAbandoned(task.id, false)
+                    if (task.isCompleted) toggleComplete(task.id, false)
+                }
             }
             com.bettertick.data.model.TaskStatusAction.CANCEL -> {
-                if (task.isCompleted) toggleComplete(task.id, false)
-                setAbandoned(task.id, true)
+                if (shownDate != null && task.checksPerDay()) {
+                    // 반복 일정: cancel just this day, the other days stay as they are.
+                    setOccurrenceComplete(task.id, shownDate, false)
+                    setOccurrenceAbandoned(task.id, shownDate, true)
+                } else {
+                    if (task.isCompleted) toggleComplete(task.id, false)
+                    setAbandoned(task.id, true)
+                }
             }
             com.bettertick.data.model.TaskStatusAction.POSTPONE -> postponeToTomorrow(task, shownDate)
         }
@@ -355,6 +373,26 @@ class TaskRepository @Inject constructor(
     }
 
     /** 날짜별 체크: marks only the occurrence on [day] done / not done. */
+    /** The task as stored (the shown copy may be a per-day view from [forDay]). */
+    private suspend fun stored(task: Task): Task = cachedTask(task.id) ?: task
+
+    /** 날짜별 취소: mark / unmark only [day] of a repeating task as cancelled. */
+    suspend fun setOccurrenceAbandoned(taskId: String, day: LocalDate, abandoned: Boolean) {
+        val key = com.bettertick.data.model.abandonedKey(day)
+        runCatching {
+            firestoreProvider.tasksCollection().document(taskId).update(
+                mapOf(
+                    "completedDates" to if (abandoned) com.google.firebase.firestore.FieldValue.arrayUnion(key)
+                        else com.google.firebase.firestore.FieldValue.arrayRemove(key),
+                    "updatedAt" to Timestamp.now()
+                )
+            )
+        }.onFailure { e ->
+            android.util.Log.e("TaskRepository", "setOccurrenceAbandoned failed $taskId", e)
+        }
+        refreshWidget()
+    }
+
     suspend fun setOccurrenceComplete(taskId: String, day: LocalDate, done: Boolean) {
         val key = day.toString()
         runCatching {
@@ -377,6 +415,10 @@ class TaskRepository @Inject constructor(
      */
     suspend fun toggleCompleteOn(task: Task, day: LocalDate?) {
         if (day != null && task.checksPerDay()) {
+            if (task.abandonedOn(day)) {
+                applyStatus(task, com.bettertick.data.model.TaskStatusAction.REOPEN, day)
+                return
+            }
             setOccurrenceComplete(task.id, day, !task.completedOn(day))
         } else {
             toggleComplete(task.id, !task.isCompleted)

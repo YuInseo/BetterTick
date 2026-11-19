@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import com.bettertick.data.model.Tag
 import com.bettertick.data.model.Task
 import com.bettertick.data.model.TaskList
+import com.bettertick.data.model.abandonedOn
 import com.bettertick.data.model.completedOn
 import com.bettertick.data.model.isShiftTask
 import com.bettertick.data.model.occursOn
@@ -158,7 +159,8 @@ fun taskViewRows(cfg: TaskViewConfig, tasks: List<Task>, today: LocalDate = Loca
     return shown.sortedWith(compareBy<TaskViewRow> { done(it) }.then(order))
 }
 
-private fun done(r: TaskViewRow) = if (r.day != null) r.task.completedOn(r.day) else r.task.isCompleted
+private fun done(r: TaskViewRow) =
+    if (r.day != null) r.task.completedOn(r.day) || r.task.abandonedOn(r.day) else r.task.isCompleted
 
 private fun dayLabel(day: LocalDate, today: LocalDate): String = when (day) {
     today -> "오늘"
