@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import com.bettertick.data.model.KoreanHolidays
 import com.bettertick.data.model.LEAVE_TYPES
 import com.bettertick.data.model.Task
+import com.bettertick.data.model.shiftKindOn
 import com.bettertick.data.model.isWorkShift
 import com.bettertick.data.model.leaveEntries
 import com.bettertick.data.model.redDaysWorked
@@ -560,10 +561,9 @@ object LeavePrefs {
      * newest first — what was given, how much was used and on which days.
      */
     fun history(workplaceId: String): List<LeaveHistoryPeriod> =
-        lastTasks.flatMap { it.leaveEntries() }
-            .distinct()
-            .filter { (day, _) -> workplaceOn(day)?.id == workplaceId }
-            .groupBy { (day, type) -> type to periodKey(type, day) }
+        weightedLeaves(lastTasks)
+            .filter { (day, _, _) -> workplaceOn(day)?.id == workplaceId }
+            .groupBy { (day, type, _) -> type to periodKey(type, day) }
             .map { (key, entries) ->
                 val type = key.first
                 val days = entries.map { it.first }.sorted()
@@ -572,7 +572,7 @@ object LeavePrefs {
                     type = type,
                     label = periodLabel(type, first),
                     allowance = remaining(type, first)?.let { quota(type, first) },
-                    used = days.size,
+                    used = entries.sumOf { it.third },
                     days = days,
                     firstDay = first
                 )
@@ -616,15 +616,28 @@ object LeavePrefs {
             .mapValues { (_, list) -> list.sumOf { weightOf(it.second) } }
     }
 
+    /**
+     * Every leave taken, once per day and kind, with how many days it uses up:
+     * the shift's weight that day (야간 2일, 주간 1일 — the same 근무 가중치 as
+     * for 지휴), at least 1. A 18:00–09:00 night off is two days of leave.
+     */
+    private fun weightedLeaves(tasks: List<Task>): List<Triple<LocalDate, String, Int>> =
+        tasks.flatMap { t ->
+            t.leaveEntries().map { (day, type) ->
+                Triple(day, type, weightOf(t.shiftKindOn(day)).coerceAtLeast(1))
+            }
+        }
+            .groupBy { it.first to it.second }
+            .map { (_, list) -> list.maxByOrNull { it.third }!! }
+
     fun countUsage(tasks: List<Task>): Map<String, Int> =
-        tasks.flatMap { it.leaveEntries() }
-            .filter { (day, type) ->
+        weightedLeaves(tasks)
+            .filter { (day, type, _) ->
                 val wp = workplaceOn(day)
                 wp != null && (wp.periodOf(type) != LeavePeriod.SERVICE_YEAR || wp.serviceYearOn(day) > 0)
             }
-            .distinct()
-            .groupingBy { (day, type) -> "$type|${periodKey(type, day)}" }
-            .eachCount()
+            .groupBy { (day, type, _) -> "$type|${periodKey(type, day)}" }
+            .mapValues { (_, list) -> list.sumOf { it.third } }
 
     fun used(type: String, day: LocalDate): Int =
         periodKey(type, day)?.let { usage["$type|$it"] } ?: 0
