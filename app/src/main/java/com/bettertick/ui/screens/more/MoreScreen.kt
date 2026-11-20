@@ -164,6 +164,9 @@ fun MoreScreen(
                 }
             }
 
+            // 일반 first: the settings people open most.
+            SettingsCard { SettingsItem(Icons.Outlined.Tune, "일반", onNavigateToGeneral, showDivider = false) }
+
             SettingsSectionLabel("화면과 목록")
             SettingsCard {
                 SettingsItem(Icons.Outlined.Palette, "외관", onNavigateToAppearance, showDivider = false)
@@ -177,7 +180,6 @@ fun MoreScreen(
                 SettingsItem(Icons.Outlined.Widgets, "위젯", onNavigateToWidgets)
             }
             SettingsSectionLabel("앱 관리")
-            SettingsCard { SettingsItem(Icons.Outlined.Tune, "일반", onNavigateToGeneral, showDivider = false) }
             // Update check
             SettingsCard {
                 UpdateCheckItem(
