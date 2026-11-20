@@ -7,7 +7,6 @@ import androidx.compose.runtime.setValue
 import com.bettertick.data.model.KoreanHolidays
 import com.bettertick.data.model.LEAVE_TYPES
 import com.bettertick.data.model.Task
-import com.bettertick.data.model.shiftKindOn
 import com.bettertick.data.model.isWorkShift
 import com.bettertick.data.model.leaveEntries
 import com.bettertick.data.model.redDaysWorked
@@ -617,15 +616,23 @@ object LeavePrefs {
     }
 
     /**
-     * Every leave taken, once per day and kind, with how many days it uses up:
-     * the shift's weight that day (야간 2일, 주간 1일 — the same 근무 가중치 as
-     * for 지휴), at least 1. A 18:00–09:00 night off is two days of leave.
+     * How many days of leave taking [t] off on [day] uses: every calendar day the
+     * shift touches. 주간 09:00–17:00 → 1일, 야간 18:00–09:00(+1) → 2일, 당직
+     * 24시간 → 2일. Read from the shift's own hours, not from the 지휴 settings.
      */
+    private fun leaveDays(t: Task, day: LocalDate): Int {
+        val zone = java.time.ZoneId.systemDefault()
+        val start = t.dueDate?.toDate()?.toInstant()?.atZone(zone)?.toLocalTime() ?: return 1
+        if (start == java.time.LocalTime.MIDNIGHT && t.durationMinutes <= 0) return 1
+        val from = day.atTime(start)
+        val to = from.plusMinutes(t.durationMinutes.coerceAtLeast(1).toLong() - 1)
+        return (java.time.temporal.ChronoUnit.DAYS.between(day, to.toLocalDate()) + 1).toInt().coerceIn(1, 7)
+    }
+
+    /** Every leave taken, once per day and kind, with how many days it uses up ([leaveDays]). */
     private fun weightedLeaves(tasks: List<Task>): List<Triple<LocalDate, String, Int>> =
         tasks.flatMap { t ->
-            t.leaveEntries().map { (day, type) ->
-                Triple(day, type, weightOf(t.shiftKindOn(day)).coerceAtLeast(1))
-            }
+            t.leaveEntries().map { (day, type) -> Triple(day, type, leaveDays(t, day)) }
         }
             .groupBy { it.first to it.second }
             .map { (_, list) -> list.maxByOrNull { it.third }!! }
