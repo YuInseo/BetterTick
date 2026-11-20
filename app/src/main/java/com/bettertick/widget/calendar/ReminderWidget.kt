@@ -88,12 +88,13 @@ private data class WidgetPalette(
     }
 }
 
-/** 병가 red, 연차 green, 지휴 purple — same as the app's leave chips. */
+/** Leave colours for the widget: soft coral 병가, mint 연차, amber 특휴, lilac 지휴 —
+ *  used as tints (like the shift chips), never as loud solid blocks. */
 private fun widgetLeaveColor(type: String): Color = when (type) {
-    "병가" -> Color(0xFFE5483F)
-    "연차" -> Color(0xFF35B36A)
-    "특휴" -> Color(0xFFE59A1A)
-    else -> Color(0xFF8E6CEF)
+    "병가" -> Color(0xFFFF8A80)
+    "연차" -> Color(0xFF5FCB8F)
+    "특휴" -> Color(0xFFF2B35B)
+    else -> Color(0xFFA992F2)
 }
 
 /** The app's own accent (테마 색), so the widget matches the app instead of a fixed blue. */
@@ -676,17 +677,18 @@ class ReminderWidget : GlanceAppWidget() {
                     val leave = leaveOnDay[date]
                     Box(modifier = GlanceModifier.height(16.dp), contentAlignment = Alignment.Center) {
                         if (leave != null) {
-                            // 병가 etc.: a solid chip in the leave colour, so the day stands out at a glance.
+                            // 병가 etc.: the same soft pill as a shift, in the leave's colour.
+                            val tint = widgetLeaveColor(leave)
                             Box(
                                 modifier = GlanceModifier
                                     .padding(horizontal = 6.dp, vertical = 1.dp)
-                                    .background(ColorProvider(widgetLeaveColor(leave)))
+                                    .background(ColorProvider(tint.copy(alpha = 0.22f)))
                                     .cornerRadius(7.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = leave.take(1),
-                                    style = TextStyle(color = ColorProvider(Color.White), fontSize = (9 * fs).sp, fontWeight = FontWeight.Bold),
+                                    style = TextStyle(color = ColorProvider(tint), fontSize = (9 * fs).sp, fontWeight = FontWeight.Bold),
                                     maxLines = 1
                                 )
                             }
@@ -753,8 +755,8 @@ class ReminderWidget : GlanceAppWidget() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (isShift) {
-                val tint = leave?.let { widgetLeaveColor(it) }
-                    ?: com.bettertick.ui.screens.tasks.components.shiftColor(task.shiftKindOn(today))
+                // The bar keeps the shift's own colour; the leave shows as the small badge.
+                val tint = com.bettertick.ui.screens.tasks.components.shiftColor(task.shiftKindOn(today))
                     ?: widgetAccent()
                 // Slim coloured bar, like the shift card accent in the app.
                 Box(
@@ -828,32 +830,30 @@ class ReminderWidget : GlanceAppWidget() {
                         maxLines = if (memo) 2 else 1
                     )
                     if (leave != null) {
-                        // 병가 badge right on the shift's title line.
+                        // Small tinted badge on the title line, the balance quietly beside it.
+                        val tint = widgetLeaveColor(leave)
                         Spacer(GlanceModifier.width(6.dp))
                         Box(
                             modifier = GlanceModifier
-                                .padding(horizontal = 7.dp, vertical = 2.dp)
-                                .background(ColorProvider(widgetLeaveColor(leave)))
-                                .cornerRadius(8.dp)
+                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                                .background(ColorProvider(tint.copy(alpha = 0.2f)))
+                                .cornerRadius(6.dp)
                         ) {
                             Text(
                                 text = leave,
-                                style = TextStyle(color = ColorProvider(Color.White), fontSize = (11 * fs).sp, fontWeight = FontWeight.Bold),
+                                style = TextStyle(color = ColorProvider(tint), fontSize = (10 * fs).sp, fontWeight = FontWeight.Bold),
+                                maxLines = 1
+                            )
+                        }
+                        com.bettertick.ui.screens.tasks.LeavePrefs.remainingLabel(leave, today)?.let { left ->
+                            Spacer(GlanceModifier.width(6.dp))
+                            Text(
+                                text = left,
+                                style = TextStyle(color = ColorProvider(pal.text3), fontSize = (10 * fs).sp),
                                 maxLines = 1
                             )
                         }
                     }
-                }
-                if (leave != null) {
-                    Text(
-                        text = "$leave 사용" + (com.bettertick.ui.screens.tasks.LeavePrefs
-                            .remainingLabel(leave, today)?.let { " · $it" } ?: ""),
-                        style = TextStyle(
-                            color = ColorProvider(widgetLeaveColor(leave)),
-                            fontSize = (11 * fs).sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    )
                 }
                 // 메모 모드 shows the task's notes like a sticky note.
                 if (memo && task.notes.isNotBlank()) {
