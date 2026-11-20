@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
                 BetterTickNavHost(openQuickAdd = openQuickAdd)
             }
         }
-        requestOverlayPermissionIfNeeded()
+        // (다른 앱 위에 표시 was only for 잠금화면 빠른 추가, which is gone.)
         requestNotificationPermissionIfNeeded()
     }
 
@@ -89,10 +89,10 @@ class MainActivity : ComponentActivity() {
             .show()
     }
 
+    /** 잠금화면 빠른 추가 was removed: clear its notification / floating button if still up. */
     private fun restoreLockScreenBar() {
-        val prefs = getSharedPreferences("bettertick_prefs", MODE_PRIVATE)
-        if (!prefs.getBoolean("lock_screen_bar", true)) return
-        LockScreenBar.show(this)
+        runCatching { LockScreenBar.hide(this) }
+        runCatching { com.bettertick.overlay.FloatingOverlayService.stop(this) }
     }
 
     private fun requestOverlayPermissionIfNeeded() {

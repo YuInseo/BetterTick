@@ -9,8 +9,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Switch
-import com.bettertick.LockScreenBar
-import com.bettertick.overlay.FloatingOverlayService
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -87,10 +85,6 @@ fun MoreScreen(
     var confirmSignOut by remember { mutableStateOf(false) }
     var checkingUpdate by remember { mutableStateOf(false) }
     val currentVersion = remember { AppUpdater.currentVersionName(context) }
-    val prefs = remember { context.getSharedPreferences("bettertick_prefs", android.content.Context.MODE_PRIVATE) }
-    var lockScreenBarEnabled by remember {
-        mutableStateOf(prefs.getBoolean("lock_screen_bar", true))
-    }
     if (confirmSignOut) {
         AlertDialog(onDismissRequest = { confirmSignOut = false },
             title = { Text("로그아웃할까요?") },
@@ -182,54 +176,6 @@ fun MoreScreen(
                 SettingsItem(Icons.Outlined.MusicNote, "사운드 & 알림", onNavigateToSounds)
                 SettingsItem(Icons.Outlined.Widgets, "위젯", onNavigateToWidgets)
             }
-            SettingsSectionLabel("빠른 입력")
-            // Lock screen quick bar
-            SettingsCard {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Outlined.Widgets,
-                        contentDescription = null,
-                        modifier = Modifier.size(22.dp),
-                        tint = TextSecondary
-                    )
-                    androidx.compose.foundation.layout.Spacer(Modifier.width(14.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "잠금화면 빠른 추가",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        Text(
-                            "잠금화면 알림·플로팅 버튼으로 암호 없이 할일 추가",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextSecondary
-                        )
-                    }
-                    Switch(
-                        checked = lockScreenBarEnabled,
-                        onCheckedChange = { enabled ->
-                            lockScreenBarEnabled = enabled
-                            prefs.edit().putBoolean("lock_screen_bar", enabled).apply()
-                            if (enabled) {
-                                LockScreenBar.show(context)
-                                if (Settings.canDrawOverlays(context)) {
-                                    FloatingOverlayService.start(context)
-                                }
-                            } else {
-                                LockScreenBar.hide(context)
-                                FloatingOverlayService.stop(context)
-                            }
-                        }
-                    )
-                }
-            }
-
             SettingsSectionLabel("앱 관리")
             SettingsCard { SettingsItem(Icons.Outlined.Tune, "일반", onNavigateToGeneral, showDivider = false) }
             // Update check
