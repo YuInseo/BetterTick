@@ -49,6 +49,7 @@ import com.bettertick.QuickAddActivity
 import com.bettertick.R
 import com.bettertick.data.model.Task
 import com.bettertick.data.model.TaskList
+import com.bettertick.ui.screens.calendar.CalendarPrefs
 import com.bettertick.widget.WidgetServiceLocator
 import com.bettertick.widget.theme.WidgetColors
 import com.bettertick.widget.theme.WidgetColorValues
@@ -200,7 +201,7 @@ class ReminderWidget : GlanceAppWidget() {
                         ?.takeIf { it != java.time.LocalTime.MIDNIGHT }?.toSecondOfDay() ?: Int.MAX_VALUE
                 }
             }
-            val dayTasks = (overdue + visible.filter { it.occursOn(selectedDate) }
+            val sortedTasks = (overdue + visible.filter { it.occursOn(selectedDate) }
                 // 날짜별 체크: a repeat shows that day's done state.
                 .map { it.forDay(selectedDate) }
                 .filter { settings.showCompleted || !it.isCompleted })
@@ -212,8 +213,7 @@ class ReminderWidget : GlanceAppWidget() {
                         .thenBy { if (it.isShiftTask()) 0 else 1 }
                         .then(comparator)
                 )
-                // 하위 할일 sit right under their parent, like the calendar.
-                .groupedUnderParents()
+            val dayTasks = CalendarPrefs.applyDayOrder(selectedDate, sortedTasks).groupedUnderParents()
 
             androidx.compose.runtime.CompositionLocalProvider(LocalWidgetId provides widgetId) {
                 ReminderContent(today, selectedDate, weekDates, taskCount, shiftOn, leaveOnDay, dayTasks, listById, settings, menuOpen)
