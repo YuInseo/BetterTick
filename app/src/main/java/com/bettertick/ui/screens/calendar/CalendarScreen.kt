@@ -639,7 +639,7 @@ fun CalendarScreen(
                     val updatePull: (Float) -> Float = { delta ->
                         pullJob?.cancel()
                         val previous = pull
-                        val limit = minOf(maxPull, pullHeight.toFloat())
+                        val limit = minOf(maxOf(maxPull, previous), pullHeight.toFloat())
                         pull = (pull + delta).coerceIn(0f, limit)
                         pull - previous
                     }
