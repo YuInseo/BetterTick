@@ -71,12 +71,13 @@ fun ScrollableMonthCalendar(
     initialMonth: YearMonth,
     onDateSelected: (LocalDate) -> Unit,
     onVisibleMonthChanged: (YearMonth) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    initialWeekDate: LocalDate? = null
 ) {
     val today = remember { LocalDate.now() }
     val weeks = remember(months) { buildWeeks(months) }
-    val initialIndex = remember(weeks, initialMonth) {
-        val target = initialMonth.atDay(1)
+    val initialIndex = remember(weeks, initialMonth, initialWeekDate) {
+        val target = initialWeekDate ?: initialMonth.atDay(1)
         weeks.indexOfFirst { it.contains(target) }.coerceAtLeast(0)
     }
     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialIndex)
