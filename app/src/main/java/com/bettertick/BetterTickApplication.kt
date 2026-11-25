@@ -4,12 +4,14 @@ import android.app.Application
 import com.google.firebase.FirebaseApp
 import com.google.firebase.appcheck.FirebaseAppCheck
 import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
+import androidx.compose.runtime.snapshotFlow
 import androidx.glance.appwidget.updateAll
 import com.bettertick.data.repository.AuthRepository
 import com.bettertick.data.repository.FocusRepository
 import com.bettertick.data.repository.HabitRepository
 import com.bettertick.data.repository.ListRepository
 import com.bettertick.data.repository.TaskRepository
+import com.bettertick.ui.screens.calendar.CalendarPrefs
 import com.bettertick.update.AppUpdateWorker
 import com.bettertick.widget.WidgetServiceLocator
 import com.bettertick.widget.WidgetUpdateWorker
@@ -54,7 +56,7 @@ class BetterTickApplication : Application() {
         com.bettertick.ui.theme.ThemeState.init(this)
         com.bettertick.ui.theme.AppPrefs.init(this)
         com.bettertick.ui.theme.UserColors.init(this)
-        com.bettertick.ui.screens.calendar.CalendarPrefs.init(this)
+        CalendarPrefs.init(this)
         com.bettertick.ui.screens.tasks.TaskListPrefs.init(this)
         com.bettertick.ui.screens.tasks.SmartListPrefs.init(this)
         com.bettertick.ui.screens.focus.FocusPrefs.init(this)
@@ -68,6 +70,10 @@ class BetterTickApplication : Application() {
         com.bettertick.reminder.ReminderScheduler.scheduleDailySummary(this)
         // Initialize widget service locator for AppWidget access
         WidgetServiceLocator.init(taskRepository, habitRepository, focusRepository, listRepository)
+        // Reordering writes calendar preferences without changing repository tasks.
+        snapshotFlow { CalendarPrefs.dayOrders }
+            .onEach { runCatching { ReminderWidget().updateAll(this@BetterTickApplication) } }
+            .launchIn(appScope)
         // Schedule periodic widget updates
         WidgetUpdateWorker.enqueue(this)
         // Background app update checks every 6 hours; the app-open check is in
