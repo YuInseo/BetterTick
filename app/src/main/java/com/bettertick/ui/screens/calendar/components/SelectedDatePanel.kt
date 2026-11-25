@@ -167,14 +167,22 @@ fun SelectedDatePanel(
     // Always the task as it is now (the drag payload can be an older copy,
     // e.g. still nested right after it was unlinked).
     val dragged = localDrag?.task?.let { d -> active.firstOrNull { it.id == d.id } }
-    val others = if (dragged == null) active else active.filterNot { it.id == dragged.id }
+    val depths = remember(active) { active.subtaskDepths() }
+    val draggedIndex = active.indexOfFirst { it.id == dragged?.id }
+    val draggedBranch = if (draggedIndex < 0) emptyList() else {
+        val depth = depths[active[draggedIndex].id] ?: 0
+        active.drop(draggedIndex).let { tail ->
+            tail.take(1) + tail.drop(1).takeWhile { (depths[it.id] ?: 0) > depth }
+        }
+    }
+    val others = active - draggedBranch.toSet()
     // Over the middle of a row = nest under it; near a row's edge = reorder.
     val nestTarget: Task? = localDrag?.currentOffset?.let { p ->
         if (dragged == null || listBounds?.contains(p) != true) null
         else others.firstOrNull { t ->
             val r = rowBounds[t.id] ?: return@firstOrNull false
             val band = r.height * 0.28f
-            p.y > r.top + band && p.y < r.bottom - band && dragged.canNestUnder(t, tasks)
+            r.contains(p) && p.y > r.top + band && p.y < r.bottom - band && dragged.canNestUnder(t, tasks)
         }
     }
     // Dragging a subtask shows a 분리 zone under the list; dropping there or
@@ -185,26 +193,27 @@ fun SelectedDatePanel(
         unnestZone?.contains(p) == true || listBounds?.let { p.y > it.bottom } == true
     } == true
     val insertAt: Int? = localDrag?.currentOffset?.let { p ->
-        if (dragged == null || nestTarget != null || listBounds?.contains(p) != true) null
-        else others.count { t -> rowBounds[t.id]?.let { it.center.y < p.y } == true }
+        val viewport = listBounds
+        if (dragged == null || nestTarget != null || viewport?.contains(p) != true) null
+        else {
+            val visible = others.mapIndexedNotNull { index, task ->
+                rowBounds[task.id]?.takeIf { viewport.overlaps(it) }?.let { index to it.center.y }
+            }
+            visible.firstOrNull { (_, midpoint) -> p.y <= midpoint }?.first
+                ?: visible.lastOrNull()?.first?.plus(1)
+        }
     }
-    // Reordering into a parent's group (between its subtasks, or right below
-    // the last one) nests the dragged task there.
-    // Decided by the row just above the drop line: right above its own first
-    // subtask → becomes its subtask; below a subtask → joins that subtask's
-    // parent (between siblings or right after the last one).
+    // An insertion immediately before a top-level card (or after the last
+    // card) belongs to the outer list, even when the preceding row is a subtask.
     val dropParent: Task? = insertAt?.let { idx ->
         val d = dragged ?: return@let null
         val above = others.getOrNull(idx - 1) ?: return@let null
-        val below = others.getOrNull(idx)
-        val target = when {
-            below != null && below.parentId == above.id -> above
-            above.isSubtask -> others.firstOrNull { it.id == above.parentId }
-            else -> null
-        }
+        val below = others.getOrNull(idx) ?: return@let null
+        if ((depths[below.id] ?: 0) == 0) return@let null
+        val target = if (below.parentId == above.id) above
+            else others.firstOrNull { it.id == below.parentId }
         target?.takeIf { d.parentId == it.id || d.canNestUnder(it, tasks) }
     }
-    val depths = remember(active) { active.subtaskDepths() }
     // 하위 할일 접기: subtasks of a collapsed parent are hidden (shown again
     // while dragging, so reorder / nest still sees the whole family).
     val collapsed = com.bettertick.ui.screens.calendar.CalendarPrefs.collapsedParents
@@ -298,6 +307,13 @@ fun SelectedDatePanel(
                         val accent = MaterialTheme.colorScheme.primary
                         Column(
                             modifier = Modifier
+                                .drawBehind {
+                                    if (lineAbove && dropParent == null) {
+                                        val y = if (!nestedRow && activeIdx > 0) 6.dp.toPx() else 1.dp.toPx()
+                                        val inset = 16.dp.toPx()
+                                        drawLine(accent, Offset(inset, y), Offset(size.width - inset, y), 2.dp.toPx())
+                                    }
+                                }
                                 .familyCardSegment(
                                     first = !nestedRow,
                                     last = shown.getOrNull(activeIdx + 1)?.let { (depths[it.id] ?: 0) == 0 } ?: true,
@@ -333,7 +349,7 @@ fun SelectedDatePanel(
                                     else Modifier
                                 )
                         ) {
-                        if (lineAbove) ReorderLine(nestUnder = dropParent?.title, indent = !nestedRow)
+                        if (lineAbove && dropParent != null) ReorderLine(nestUnder = dropParent.title, indent = !nestedRow)
                         // 하위 할일 접기: a chevron just left of the parent's title (in the
                         // empty slot of a 근무 row, beside the checkbox otherwise).
                         val familySize = descendantCount(task)
@@ -377,7 +393,7 @@ fun SelectedDatePanel(
                                 } else if (overUnnestZone && dragged != null) {
                                     onUnnest(dragged, selectedDate)
                                 } else if (idx != null && dragged != null) {
-                                    val newOrder = others.toMutableList().apply { add(idx.coerceIn(0, size), dragged) }
+                                    val newOrder = others.toMutableList().apply { addAll(idx, draggedBranch) }
                                     val ids = newOrder.map { it.id }
                                     if (ids != active.map { it.id }) onReorder(ids)
                                     val into = dropParent
