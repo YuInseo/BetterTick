@@ -526,16 +526,16 @@ fun CalendarScreen(
             CalendarViewMode.MONTH -> {
             // Pulled down into the month: the coming weeks are already on screen,
             // so the switch is a short cross-fade instead of a second unroll.
-            var monthFromPull by remember { mutableStateOf(false) }
-            androidx.compose.runtime.LaunchedEffect(date) { if (date != null) monthFromPull = false }
+            var pullMonthAnchor by remember { mutableStateOf<java.time.LocalDate?>(null) }
+            androidx.compose.runtime.LaunchedEffect(date) { if (date != null) pullMonthAnchor = null }
             androidx.compose.animation.AnimatedContent(
                 targetState = date,
                 contentKey = { it == null },
                 transitionSpec = {
                     val toMonth = targetState == null
-                    if (toMonth && monthFromPull) {
-                        return@AnimatedContent androidx.compose.animation.fadeIn(tween(120)) togetherWith
-                            androidx.compose.animation.fadeOut(tween(120))
+                    if (toMonth && pullMonthAnchor != null) {
+                        return@AnimatedContent androidx.compose.animation.fadeIn(tween(160)) togetherWith
+                            androidx.compose.animation.fadeOut(tween(160))
                     }
                     val enter = if (toMonth)
                         androidx.compose.animation.fadeIn(tween(200)) +
@@ -558,6 +558,7 @@ fun CalendarScreen(
                         selectedDate = null,
                         lookup = displayLookup,
                         initialMonth = initialMonth,
+                        initialWeekDate = pullMonthAnchor,
                         onDateSelected = onDatePick,
                         onVisibleMonthChanged = { viewModel.onVisibleMonthChanged(it) },
                         modifier = Modifier.fillMaxSize()
@@ -596,6 +597,104 @@ fun CalendarScreen(
                     var outerBoxRootPos by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
                     var previewSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
 
+                    // The strip and the agenda share the same pull and settle animation.
+                    val pullScope = androidx.compose.runtime.rememberCoroutineScope()
+                    var pull by remember(currentDate) { androidx.compose.runtime.mutableFloatStateOf(0f) }
+                    var pullHeight by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+                    var pullJob by remember(currentDate) { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+                    androidx.compose.runtime.DisposableEffect(currentDate) { onDispose { pullJob?.cancel() } }
+                    val pullThreshold = with(density) { 72.dp.toPx() }
+                    val maxPull = with(density) { 252.dp.toPx() }
+                    val flingToMonth = with(density) { 900.dp.toPx() }
+                    val minimumRowHeight = with(density) { 50.dp.toPx() }
+                    val releasePull: (Float?) -> Unit = { velocity ->
+                        pullJob?.cancel()
+                        val from = pull
+                        val openMonth = velocity != null && (
+                            from >= pullThreshold || (from >= pullThreshold / 3 && velocity >= flingToMonth)
+                        )
+                        if (from > 0f) {
+                            val destination = if (openMonth) maxOf(from, pullHeight.toFloat()) else 0f
+                            pullJob = pullScope.launch {
+                                androidx.compose.animation.core.animate(
+                                    initialValue = from,
+                                    targetValue = destination,
+                                    initialVelocity = if (openMonth) {
+                                        (velocity ?: 0f).coerceIn(0f, (destination - from) * 8f)
+                                    } else 0f,
+                                    animationSpec = androidx.compose.animation.core.spring(
+                                        dampingRatio = 1f,
+                                        stiffness = if (openMonth) 650f else 500f,
+                                        visibilityThreshold = 1f
+                                    )
+                                ) { value, _ -> pull = value.coerceIn(0f, maxOf(from, destination)) }
+                                if (openMonth) {
+                                    pullMonthAnchor = currentDate
+                                    viewModel.clearSelection()
+                                }
+                            }
+                        }
+                    }
+                    val latestRelease by androidx.compose.runtime.rememberUpdatedState(releasePull)
+                    val updatePull: (Float) -> Float = { delta ->
+                        pullJob?.cancel()
+                        val previous = pull
+                        val limit = minOf(maxPull, pullHeight.toFloat())
+                        pull = (pull + delta).coerceIn(0f, limit)
+                        pull - previous
+                    }
+                    val latestPull by androidx.compose.runtime.rememberUpdatedState(updatePull)
+                    val pullGesture = Modifier.pointerInput(currentDate) {
+                        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+                        var travel = 0f
+                        detectVerticalDragGestures(
+                            onDragStart = {
+                                tracker.resetTracking()
+                                travel = 0f
+                            },
+                            onDragEnd = { latestRelease(tracker.calculateVelocity().y) },
+                            onDragCancel = { latestRelease(null) },
+                            onVerticalDrag = { change, delta ->
+                                travel += delta
+                                tracker.addPosition(change.uptimeMillis, androidx.compose.ui.geometry.Offset(0f, travel))
+                                if (delta > 0f || pull > 0f) {
+                                    latestPull(delta)
+                                    change.consume()
+                                }
+                            }
+                        )
+                    }
+                    val pullConnection = remember(currentDate) {
+                        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
+                            override fun onPreScroll(
+                                available: androidx.compose.ui.geometry.Offset,
+                                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
+                            ): androidx.compose.ui.geometry.Offset {
+                                val consumed = if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag &&
+                                    available.y < 0f && pull > 0f
+                                ) latestPull(available.y) else 0f
+                                return androidx.compose.ui.geometry.Offset(0f, consumed)
+                            }
+
+                            override fun onPostScroll(
+                                consumed: androidx.compose.ui.geometry.Offset,
+                                available: androidx.compose.ui.geometry.Offset,
+                                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
+                            ): androidx.compose.ui.geometry.Offset {
+                                val used = if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag &&
+                                    available.y > 0f
+                                ) latestPull(available.y) else 0f
+                                return androidx.compose.ui.geometry.Offset(0f, used)
+                            }
+
+                            override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
+                                if (pull <= 0f) return androidx.compose.ui.unit.Velocity.Zero
+                                latestRelease(available.y)
+                                return androidx.compose.ui.unit.Velocity(0f, available.y)
+                            }
+                        }
+                    }
+
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -611,73 +710,19 @@ fun CalendarScreen(
                                 hoveredDate = hoveredDate,
                                 onDateSelected = onDatePick,
                                 onDateBounds = { d, r -> dateBounds[d] = r },
-                                onExpandMonth = { viewModel.clearSelection() },
+                                modifier = pullGesture,
                                 onSwipeWeek = { dir -> viewModel.setSelectedDate(currentDate.plusWeeks(dir.toLong())) }
                             )
-                            // 아래로 당기면 월 달력으로: the list follows the finger, and a
-                            // long enough pull opens the month (also from an empty day).
-                            val pullScope = androidx.compose.runtime.rememberCoroutineScope()
-                            var pull by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-                            val pullThreshold = with(density) { 72.dp.toPx() }
-                            val maxPull = with(density) { 252.dp.toPx() }
-                            // Enough pulled → keep going on our own until the next weeks fill
-                            // the screen, then hand over to the month (no jump, one motion).
-                            val monthPx = with(density) { (84 * 5).dp.toPx() }
-                            // A quick flick down opens the month even before the threshold.
-                            val flingToMonth = with(density) { 900.dp.toPx() }
-                            val releasePull: (Float) -> Unit = { velocity ->
-                                val from = pull
-                                pullScope.launch {
-                                    if (from > 0f && (from > pullThreshold || velocity > flingToMonth)) {
-                                        // Carry on at the finger's speed, easing out into the month.
-                                        androidx.compose.animation.core.animate(from, monthPx, initialVelocity = velocity.coerceAtLeast(0f),
-                                            animationSpec = tween(170, easing = androidx.compose.animation.core.LinearOutSlowInEasing)) { v, _ -> pull = v }
-                                        monthFromPull = true
-                                        viewModel.clearSelection()
-                                    } else if (from > 0f) {
-                                        androidx.compose.animation.core.animate(from, 0f,
-                                            animationSpec = androidx.compose.animation.core.spring(stiffness = 900f)) { v, _ -> pull = v }
-                                    }
-                                }
-                            }
-                            val latestRelease by androidx.compose.runtime.rememberUpdatedState(releasePull)
-                            val pullConnection = remember {
-                                object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
-                                    override fun onPreScroll(available: androidx.compose.ui.geometry.Offset,
-                                                             source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                                        // While pulled, scrolling back up first undoes the pull.
-                                        if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag && available.y < 0f && pull > 0f) {
-                                            val used = maxOf(available.y, -pull)
-                                            pull += used
-                                            return androidx.compose.ui.geometry.Offset(0f, used)
-                                        }
-                                        return androidx.compose.ui.geometry.Offset.Zero
-                                    }
-                                    override fun onPostScroll(consumed: androidx.compose.ui.geometry.Offset, available: androidx.compose.ui.geometry.Offset,
-                                                              source: androidx.compose.ui.input.nestedscroll.NestedScrollSource): androidx.compose.ui.geometry.Offset {
-                                        // The list is at its top and the finger keeps going down.
-                                        if (source == androidx.compose.ui.input.nestedscroll.NestedScrollSource.Drag && available.y > 0f) {
-                                            // 1:1 with the finger — a damped pull felt like lag.
-                                            pull = (pull + available.y).coerceAtMost(maxPull)
-                                            return androidx.compose.ui.geometry.Offset(0f, available.y)
-                                        }
-                                        return androidx.compose.ui.geometry.Offset.Zero
-                                    }
-                                    override suspend fun onPreFling(available: androidx.compose.ui.unit.Velocity): androidx.compose.ui.unit.Velocity {
-                                        if (pull > 0f) { latestRelease(available.y); return available }
-                                        return androidx.compose.ui.unit.Velocity.Zero
-                                    }
-                                }
-                            }
-                            Column(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+                            Column(Modifier.weight(1f).fillMaxWidth().clipToBounds().onSizeChanged { pullHeight = it.height }) {
                             // While pulling, the next weeks unroll in the gap above the
                             // list — the month calendar growing out of this week.
                             // Only "pulled or not" is read here, so a pull doesn't recompose the
                             // screen every frame; the height is applied in the layout phase.
                             val pulling by remember { androidx.compose.runtime.derivedStateOf { pull > 0f } }
                             if (pulling) {
-                                val upcoming = remember(selectedWeek) {
-                                    (1..5).map { n -> selectedWeek.map { it.plusWeeks(n.toLong()) } }
+                                val previewCount = (pullHeight / minimumRowHeight).toInt() + 1
+                                val upcoming = remember(selectedWeek, previewCount) {
+                                    (1..previewCount).map { n -> selectedWeek.map { it.plusWeeks(n.toLong()) } }
                                 }
                                 Column(
                                     Modifier
@@ -690,21 +735,20 @@ fun CalendarScreen(
                                         }
                                         .clipToBounds()
                                         .padding(horizontal = 8.dp)
-                                        .graphicsLayer { alpha = (pull / pullThreshold).coerceIn(0f, 1f) }
+                                        .graphicsLayer { alpha = (pull / (pullThreshold / 2)).coerceIn(0f, 1f) }
                                 ) {
                                     androidx.compose.runtime.CompositionLocalProvider(
                                         com.bettertick.ui.screens.calendar.LocalChipShowTime provides false
                                     ) {
-                                        upcoming.forEach { weekDays ->
+                                        upcoming.forEachIndexed { index, weekDays ->
                                             WeekRow(
                                                 week = weekDays,
-                                                weekIdx = 0,
-                                                allWeeks = listOf(weekDays),
+                                                weekIdx = index,
+                                                allWeeks = upcoming,
                                                 today = today,
                                                 selectedDate = currentDate,
                                                 lookup = displayLookup,
-                                                onDateSelected = onDatePick,
-                                                height = 84.dp
+                                                onDateSelected = onDatePick
                                             )
                                         }
                                     }
@@ -715,24 +759,9 @@ fun CalendarScreen(
                                     .weight(1f)
                                     .fillMaxWidth()
                                     .clipToBounds()
-                                    .graphicsLayer { alpha = (1f - pull / monthPx).coerceIn(0f, 1f) }
+                                    .graphicsLayer { alpha = (1f - pull / pullHeight.coerceAtLeast(1)).coerceIn(0f, 1f) }
                                     .nestedScroll(pullConnection)
-                                    // A day whose list doesn't scroll (empty, short) still pulls.
-                                    .pointerInput(Unit) {
-                                        val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
-                                        detectVerticalDragGestures(
-                                            onDragStart = { tracker.resetTracking() },
-                                            onDragEnd = { latestRelease(tracker.calculateVelocity().y) },
-                                            onDragCancel = { latestRelease(0f) },
-                                            onVerticalDrag = { change, delta ->
-                                                tracker.addPosition(change.uptimeMillis, change.position)
-                                                if (delta > 0f || pull > 0f) {
-                                                    pull = (pull + delta).coerceIn(0f, maxPull)
-                                                    change.consume()
-                                                }
-                                            }
-                                        )
-                                    }
+                                    .then(pullGesture)
                             ) {
                             SelectedDatePanel(
                                 tasks = lookup.tasksOn(currentDate),
@@ -987,7 +1016,7 @@ private fun DragAwareWeekStrip(
     hoveredDate: java.time.LocalDate?,
     onDateSelected: (java.time.LocalDate) -> Unit,
     onDateBounds: (java.time.LocalDate, Rect) -> Unit,
-    onExpandMonth: () -> Unit,
+    modifier: Modifier = Modifier,
     /** Horizontal swipe: -1 = previous week, +1 = next week. */
     onSwipeWeek: (Int) -> Unit = {}
 ) {
@@ -1006,19 +1035,8 @@ private fun DragAwareWeekStrip(
     val nextWeek = remember(selectedWeek) { selectedWeek.map { it.plusWeeks(1) } }
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .pointerInput(Unit) {
-                var total = 0f
-                detectVerticalDragGestures(
-                    onDragEnd = { total = 0f },
-                    onDragCancel = { total = 0f },
-                    onVerticalDrag = { _, dragAmount ->
-                        total += dragAmount
-                        if (total > 60f) { total = 0f; onExpandMonth() }
-                    }
-                )
-            }
             // 좌우로 밀어서 지난주 / 다음주.
             .pointerInput(Unit) {
                 val threshold = 56.dp.toPx()
