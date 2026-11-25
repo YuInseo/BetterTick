@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import com.bettertick.data.model.isShiftTask
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.PushPin
@@ -42,6 +44,8 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -141,7 +145,8 @@ fun SelectedDatePanel(
         out
     }
     fun finished(t: Task) = t.isCompleted || t.isAbandoned
-    val active = families.filter { f -> f.any { !finished(it) } }.flatten()
+    val activeFamilies = families.filter { family -> family.any { !finished(it) } }
+    val active = activeFamilies.flatten()
     val done = families.filter { f -> f.all { finished(it) } }.flatten()
     val doneDepths = remember(done) { done.subtaskDepths() }
 
@@ -214,6 +219,26 @@ fun SelectedDatePanel(
         return false
     }
     val shown = if (localDrag != null || collapsed.isEmpty()) active else active.filterNot { hiddenByCollapse(it) }
+    var reorderDrag by remember(selectedDate) { mutableStateOf<ActiveDrag?>(null) }
+    fun reorderDestination(drag: ActiveDrag): Int? {
+        val viewport = listBounds ?: return null
+        if (!viewport.contains(drag.currentOffset)) return null
+        val targets = activeFamilies.filterNot { it.first().id == drag.task.id }
+        val visible = targets.mapIndexedNotNull { index, family ->
+            val bounds = family.mapNotNull { rowBounds[it.id] }.filter { viewport.overlaps(it) }
+            if (bounds.isEmpty()) null else index to (bounds.first().top + bounds.last().bottom) / 2
+        }
+        return visible.firstOrNull { (_, midpoint) -> drag.currentOffset.y < midpoint }?.first
+            ?: visible.lastOrNull()?.first?.plus(1)
+    }
+    val movingFamily = activeFamilies.firstOrNull { it.first().id == reorderDrag?.task?.id }
+    val otherFamilies = activeFamilies.filterNot { it == movingFamily }
+    val destination = reorderDrag?.let(::reorderDestination)
+    val beforeId = destination?.let { otherFamilies.getOrNull(it)?.first()?.id }
+    val afterId = if (destination == otherFamilies.size) {
+        otherFamilies.lastOrNull()?.lastOrNull { !hiddenByCollapse(it) }?.id
+    } else null
+
     /** Every task below [parent] in its family (children, grandchildren …). */
     fun descendantCount(parent: Task): Int {
         val at = active.indexOfFirst { it.id == parent.id }
@@ -252,6 +277,9 @@ fun SelectedDatePanel(
                     contentPadding = listPadding
                 ) {
                     items(shown, key = { it.id }) { task ->
+                        DisposableEffect(task.id) {
+                            onDispose { rowBounds.remove(task.id) }
+                        }
                         val taskTags = remember(task.tagIds, tags) {
                             task.tagIds.mapNotNull { id -> tags.firstOrNull { it.id == id } }
                         }
@@ -279,7 +307,16 @@ fun SelectedDatePanel(
                                     val pos = c.positionInRoot()
                                     rowBounds[task.id] = Rect(pos.x, pos.y, pos.x + c.size.width, pos.y + c.size.height)
                                 }
-                                .alpha(if (dragged?.id == task.id) 0.35f else 1f)
+                                .drawWithContent {
+                                    drawContent()
+                                    if (task.id == beforeId || task.id == afterId) {
+                                        val inset = 12.dp.toPx()
+                                        val stroke = 2.dp.toPx()
+                                        val y = if (task.id == beforeId) stroke / 2 else size.height - stroke / 2
+                                        drawLine(accent, Offset(inset, y), Offset(size.width - inset, y), stroke)
+                                    }
+                                }
+                                .alpha(if (dragged?.id == task.id || movingFamily?.contains(task) == true) 0.35f else 1f)
                                 .then(
                                     if (nestedRow) Modifier.subtaskSurface(
                                         depth = depth,
@@ -304,7 +341,9 @@ fun SelectedDatePanel(
                         androidx.compose.runtime.CompositionLocalProvider(
                             com.bettertick.ui.screens.tasks.components.LocalCompactTaskRow provides nestedRow
                         ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                         DraggableTaskRow(
+                            modifier = Modifier.weight(1f),
                             task = task,
                             selectedDate = selectedDate,
                             listName = detailListName(task),
@@ -359,6 +398,27 @@ fun SelectedDatePanel(
                             onToggleLeave = { day, type -> onUpdateTask(task.withLeaveToggled(day, type)) },
                             onStatusAction = { action -> onStatusAction(task, action) }
                         )
+                        if (!nestedRow && activeFamilies.size > 1) {
+                            CalendarReorderHandle(
+                                task = task,
+                                selectedDate = selectedDate,
+                                onDrag = { reorderDrag = it },
+                                onDrop = { drag ->
+                                    val family = activeFamilies.firstOrNull { it.first().id == drag.task.id }
+                                    val index = if (drag.currentOffset != drag.startOffset) reorderDestination(drag) else null
+                                    if (family != null && index != null) {
+                                        val order = activeFamilies.toMutableList().apply {
+                                            remove(family)
+                                            add(index, family)
+                                        }
+                                        val ids = order.flatten().map { it.id }
+                                        if (ids != active.map { it.id }) onReorder(ids)
+                                    }
+                                    reorderDrag = null
+                                }
+                            )
+                        }
+                        }
                         }
                         if (familySize > 0 && localDrag == null) {
                             val isCollapsed = task.id in collapsed
@@ -599,7 +659,46 @@ fun SelectedDatePanel(
 }
 
 @Composable
+private fun CalendarReorderHandle(
+    task: Task,
+    selectedDate: LocalDate,
+    onDrag: (ActiveDrag?) -> Unit,
+    onDrop: (ActiveDrag) -> Unit
+) {
+    var rootPosition by remember { mutableStateOf(Offset.Zero) }
+    val latestTask by rememberUpdatedState(task)
+    val update by rememberUpdatedState(onDrag)
+    val drop by rememberUpdatedState(onDrop)
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .onGloballyPositioned { rootPosition = it.positionInRoot() }
+            .pointerInput(task.id, selectedDate) {
+                var drag: ActiveDrag? = null
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset ->
+                        val start = rootPosition + offset
+                        drag = ActiveDrag(latestTask, start, start)
+                        update(drag)
+                    },
+                    onDrag = { change, amount ->
+                        change.consume()
+                        drag = drag?.let { it.copy(currentOffset = it.currentOffset + amount) }
+                        update(drag)
+                    },
+                    onDragEnd = { drag?.let(drop) },
+                    onDragCancel = { update(null) }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(Icons.Outlined.DragHandle, contentDescription = "순서 변경", tint = TextTertiary)
+    }
+}
+
+@Composable
 private fun DraggableTaskRow(
+    modifier: Modifier = Modifier,
     task: Task,
     selectedDate: LocalDate,
     listName: String,
@@ -626,7 +725,7 @@ private fun DraggableTaskRow(
     val latestTask by androidx.compose.runtime.rememberUpdatedState(task)
 
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .onGloballyPositioned { coords -> rootPos = coords.positionInRoot() }
             .pointerInput(task.id) {

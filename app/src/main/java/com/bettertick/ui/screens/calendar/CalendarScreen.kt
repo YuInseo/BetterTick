@@ -669,7 +669,7 @@ fun CalendarScreen(
                                     }
                                 }
                             }
-                            Box(Modifier.weight(1f).fillMaxWidth()) {
+                            Column(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
                             // While pulling, the next weeks unroll in the gap above the
                             // list — the month calendar growing out of this week.
                             // Only "pulled or not" is read here, so a pull doesn't recompose the
@@ -683,7 +683,7 @@ fun CalendarScreen(
                                     Modifier
                                         .fillMaxWidth()
                                         .layout { measurable, constraints ->
-                                            val h = pull.roundToInt().coerceAtLeast(0)
+                                            val h = pull.roundToInt().coerceIn(0, constraints.maxHeight)
                                             val placeable = measurable.measure(constraints.copy(minHeight = 0,
                                                 maxHeight = androidx.compose.ui.unit.Constraints.Infinity))
                                             layout(placeable.width, h) { placeable.place(0, 0) }
@@ -712,7 +712,10 @@ fun CalendarScreen(
                             }
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .clipToBounds()
+                                    .graphicsLayer { alpha = (1f - pull / monthPx).coerceIn(0f, 1f) }
                                     .nestedScroll(pullConnection)
                                     // A day whose list doesn't scroll (empty, short) still pulls.
                                     .pointerInput(Unit) {
@@ -730,7 +733,6 @@ fun CalendarScreen(
                                             }
                                         )
                                     }
-                                    .offset { IntOffset(0, pull.roundToInt()) }
                             ) {
                             SelectedDatePanel(
                                 tasks = lookup.tasksOn(currentDate),
