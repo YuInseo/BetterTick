@@ -33,7 +33,6 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.imeAnimationTarget
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import kotlinx.coroutines.flow.first
@@ -600,14 +599,14 @@ fun TaskDetailSheet(
         titleScrolledAway = titleScrolledAway,
         pageBar = { dateRow(Modifier.fillMaxWidth()) }) {
         val scrollbarColor = TextSecondary.copy(alpha = 0.45f)
-        Column(Modifier.fillMaxSize().padding(start = 20.dp, end = 20.dp, top = 8.dp)) {
+        Column(Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .detailScrollbar(contentScroll, scrollbarColor)
                 .verticalScroll(contentScroll)
-                .padding(bottom = 12.dp)
+                .padding(start = 24.dp, top = 8.dp, end = 24.dp, bottom = 16.dp)
         ) {
             // 날짜 한 줄 + 오른쪽 아이콘 묶음 (반복 · 알림 · 우선순위 · 더보기),
             // 아이콘은 모두 같은 크기 · 같은 간격.
@@ -635,9 +634,10 @@ fun TaskDetailSheet(
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp))
+                        .background(DarkSurfaceVariant.copy(alpha = 0.48f))
                         .clickable { showListPicker = true }
-                        .padding(vertical = 4.dp)
+                        .padding(horizontal = 10.dp, vertical = 7.dp)
                 ) {
                     Icon(Icons.Outlined.Folder, null, tint = TextSecondary, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.width(6.dp))
@@ -659,12 +659,12 @@ fun TaskDetailSheet(
                     )
                 }
 
-                // 태그 (예전 하단 버튼): 목록 바로 옆에 작게.
+                Spacer(Modifier.width(6.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clip(RoundedCornerShape(8.dp))
+                    modifier = Modifier.clip(RoundedCornerShape(10.dp))
                         .clickable { showTagPicker = true }
-                        .padding(horizontal = 6.dp, vertical = 4.dp)
+                        .padding(horizontal = 8.dp, vertical = 7.dp)
                 ) {
                     Icon(Icons.AutoMirrored.Outlined.Label, contentDescription = "태그", tint = TextSecondary, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.width(4.dp))
@@ -699,7 +699,7 @@ fun TaskDetailSheet(
 
             }
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(Modifier.height(12.dp))
 
             // 제목만 — 완료는 목록의 체크박스나 ⋯ 메뉴에서.
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.onGloballyPositioned {
@@ -708,16 +708,23 @@ fun TaskDetailSheet(
                 BasicTextField(
                     value = title,
                     onValueChange = { title = it },
-                    textStyle = TextStyle(color = TextPrimary, fontSize = 24.sp, lineHeight = 32.sp,
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 27.sp, lineHeight = 35.sp,
                         fontWeight = FontWeight.SemiBold,
                         textDecoration = if (task.isCompleted) TextDecoration.LineThrough else null),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                    modifier = Modifier.weight(1f).padding(vertical = 6.dp)
+                    modifier = Modifier.weight(1f).padding(vertical = 6.dp),
+                    decorationBox = { field ->
+                        Box(Modifier.fillMaxWidth()) {
+                            if (title.isEmpty()) Text("할 일 제목", color = TextSecondary,
+                                fontSize = 27.sp, lineHeight = 35.sp, fontWeight = FontWeight.SemiBold)
+                            field()
+                        }
+                    }
                 )
             }
-            Spacer(Modifier.height(8.dp))
-            DetailDivider()
-
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(color = TextTertiary.copy(alpha = 0.22f))
+            Spacer(Modifier.height(12.dp))
 
             // ── 근무 일정: 지휴 · 병가 · 연차 (one straight row) ────────────
             // ── Selected-tag chips ───────────────────────────────────────
@@ -805,13 +812,7 @@ fun TaskDetailSheet(
                     attachmentDay = blocks.firstOrNull { it.id == activeBlockId }?.day ?: dayKey.orEmpty()
                     requestAttachment = true; notePanel = NotePanel.NONE; restoring = false
                 }
-                // Full-bleed (past the sheet's side padding) and flush with the keyboard.
-                Column(Modifier.layout { measurable, constraints ->
-                    val extra = 40.dp.roundToPx()
-                    val width = constraints.maxWidth + extra
-                    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
-                    layout(constraints.maxWidth, placeable.height) { placeable.place(-extra / 2, 0) }
-                }.background(DarkSurfaceVariant.copy(alpha = 0.35f))) {
+                Column(Modifier.fillMaxWidth().background(DarkSurfaceVariant.copy(alpha = 0.40f))) {
                 BlockKeyboardBar(
                     panel = notePanel,
                     canUndo = undoStack.isNotEmpty() || blocks.toList() != lastSnapshot,
