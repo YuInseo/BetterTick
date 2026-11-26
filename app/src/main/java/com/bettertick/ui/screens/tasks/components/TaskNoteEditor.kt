@@ -164,8 +164,15 @@ internal fun TaskNoteEditor(
             }
         }
         if (visible.isEmpty()) {
-            TextButton(onClick = { onAdd(NoteBlockKind.TEXT, addingDay) }, modifier = Modifier.fillMaxWidth().heightIn(min = 64.dp)) {
-                Text("내용을 적거나 블록을 추가하세요", fontSize = 14.sp, color = TextTertiary)
+            Row(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                    .clickable(onClickLabel = "메모 입력") { onAdd(NoteBlockKind.TEXT, addingDay) }
+                    .padding(horizontal = 4.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Outlined.Add, null, tint = TextSecondary, modifier = Modifier.size(19.dp))
+                Text("메모를 입력하세요", fontSize = 15.sp, color = TextSecondary)
             }
         }
         if (removed != null) TextButton(onClick = {

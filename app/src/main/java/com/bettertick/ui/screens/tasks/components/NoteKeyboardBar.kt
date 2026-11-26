@@ -19,6 +19,7 @@ import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,6 +28,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -60,15 +65,31 @@ internal fun BlockKeyboardBar(
     onDone: () -> Unit
 ) {
     Column(Modifier.fillMaxWidth().testTag("block-keyboard-bar")) {
-        HorizontalDivider(color = TextTertiary.copy(alpha = 0.2f))
-        Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
+        HorizontalDivider(color = TextTertiary.copy(alpha = 0.24f))
+        Row(Modifier.fillMaxWidth().height(50.dp).padding(horizontal = 5.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                 BarButton("블록 추가", selected = panel == NotePanel.ADD, onClick = { onPanel(NotePanel.ADD) }) {
-                    Icon(Icons.Outlined.Add, null, tint = TextPrimary, modifier = Modifier.size(22.dp))
+                    Icon(Icons.Outlined.Add, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(23.dp))
                 }
                 BarButton("블록 종류 바꾸기", selected = panel == NotePanel.TURN, onClick = { onPanel(NotePanel.TURN) }) {
                     Text("Aa", color = TextSecondary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 }
+                BarButton("체크리스트", onClick = { onQuick(NoteBlockKind.TODO) }) {
+                    Icon(Icons.Outlined.CheckBox, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
+                BarButton("이미지 · 파일", onClick = onImage) {
+                    Icon(Icons.Outlined.Image, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                }
+                BarButton("실행 취소", enabled = canUndo, onClick = onUndo) {
+                    Icon(Icons.AutoMirrored.Outlined.Undo, null, tint = if (canUndo) TextSecondary else TextTertiary.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp))
+                }
+                BarButton("다시 실행", enabled = canRedo, onClick = onRedo) {
+                    Icon(Icons.AutoMirrored.Outlined.Redo, null, tint = if (canRedo) TextSecondary else TextTertiary.copy(alpha = 0.5f),
+                        modifier = Modifier.size(20.dp))
+                }
+                Box(Modifier.padding(horizontal = 3.dp).width(1.dp).height(22.dp)
+                    .background(TextTertiary.copy(alpha = 0.25f)))
                 BarButton("굵게", onClick = { onFormat(InlineMark.BOLD) }) {
                     Text("B", color = TextSecondary, fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 }
@@ -94,9 +115,6 @@ internal fun BlockKeyboardBar(
                     Text("A", color = TextSecondary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.border(1.dp, TextTertiary, RoundedCornerShape(4.dp)).padding(horizontal = 5.dp))
                 }
-                BarButton("체크리스트", onClick = { onQuick(NoteBlockKind.TODO) }) {
-                    Icon(Icons.Outlined.CheckBox, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
-                }
                 BarButton("글머리 기호", onClick = { onQuick(NoteBlockKind.BULLET) }) {
                     Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
                 }
@@ -106,19 +124,9 @@ internal fun BlockKeyboardBar(
                 BarButton("내어쓰기", onClick = { onIndent(-1) }) {
                     Icon(Icons.AutoMirrored.Outlined.FormatIndentDecrease, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
                 }
-                BarButton("이미지 · 파일", onClick = onImage) {
-                    Icon(Icons.Outlined.Image, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
-                }
-                BarButton("실행 취소", enabled = canUndo, onClick = onUndo) {
-                    Icon(Icons.AutoMirrored.Outlined.Undo, null, tint = if (canUndo) TextSecondary else TextTertiary.copy(alpha = 0.5f),
-                        modifier = Modifier.size(20.dp))
-                }
-                BarButton("다시 실행", enabled = canRedo, onClick = onRedo) {
-                    Icon(Icons.AutoMirrored.Outlined.Redo, null, tint = if (canRedo) TextSecondary else TextTertiary.copy(alpha = 0.5f),
-                        modifier = Modifier.size(20.dp))
-                }
             }
-            Box(Modifier.width(1.dp).height(28.dp).background(TextTertiary.copy(alpha = 0.2f)))
+            Box(Modifier.padding(horizontal = 3.dp).width(1.dp).height(26.dp)
+                .background(TextTertiary.copy(alpha = 0.24f)))
             BarButton("키보드 닫기", onClick = onDone) {
                 Icon(Icons.Outlined.KeyboardHide, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
             }
@@ -130,9 +138,13 @@ internal fun BlockKeyboardBar(
 private fun BarButton(desc: String, selected: Boolean = false, enabled: Boolean = true, onClick: () -> Unit,
                       content: @Composable () -> Unit) {
     Box(
-        Modifier.padding(horizontal = 1.dp).size(40.dp).clip(RoundedCornerShape(8.dp))
-            .background(if (selected) TextTertiary.copy(alpha = 0.18f) else Color.Transparent)
-            .clickable(enabled = enabled, onClickLabel = desc) { onClick() },
+        Modifier.size(44.dp).clip(RoundedCornerShape(11.dp))
+            .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f) else Color.Transparent)
+            .semantics {
+                contentDescription = desc
+                if (selected) this.selected = true
+            }
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center
     ) { content() }
 }
