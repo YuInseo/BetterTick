@@ -72,8 +72,11 @@ class EditorImeRegressionTest {
 
     @Test fun checklistActionsAreHiddenUntilBlockManagementOpens() {
         showEditor(false)
-        val actions = compose.onAllNodesWithContentDescription("블록 메뉴")
-        actions.assertCountEquals(0)
+        fun actions() = compose.onAllNodesWithContentDescription("블록 메뉴")
+        fun awaitActionCount(count: Int) {
+            compose.waitUntil(5_000) { actions().fetchSemanticsNodes().size == count }
+        }
+        actions().assertCountEquals(0)
         val checkbox = compose.onNode(isToggleable() and hasContentDescription("second", substring = true))
         checkbox.assertIsOff().performClick()
         checkbox.assertIsOn()
@@ -83,13 +86,13 @@ class EditorImeRegressionTest {
 
         compose.onNodeWithContentDescription("더 보기").performClick()
         compose.onNodeWithText("블록 관리").performClick()
-        actions.assertCountEquals(3)
-        actions[1].performClick()
+        awaitActionCount(3)
+        actions()[1].performClick()
         compose.onNodeWithText("복제").performClick()
-        actions.assertCountEquals(4)
+        awaitActionCount(4)
         compose.onNodeWithContentDescription("더 보기").performClick()
         compose.onNodeWithText("블록 관리 종료").performClick()
-        actions.assertCountEquals(0)
+        awaitActionCount(0)
     }
 
     private fun checkKeyboard(page: Boolean) {
