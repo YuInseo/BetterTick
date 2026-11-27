@@ -27,7 +27,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
@@ -99,6 +99,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
@@ -198,7 +199,7 @@ fun TaskDetailSheet(
     var attachmentDay by remember(task.id, dayKey) { mutableStateOf(dayKey.orEmpty()) }
     // 키보드 위 블록 바 (노션처럼): 편집 중인 블록과 블록 고르기 패널.
     var activeBlockId by remember(task.id) { mutableStateOf<String?>(null) }
-    var notePanel by remember { mutableStateOf(NotePanel.NONE) }
+    var notePanel by remember(task.id) { mutableStateOf(NotePanel.NONE) }
     val blockPanel = notePanel != NotePanel.NONE
     var formatRequest by remember { mutableStateOf<Pair<String, InlineMark>?>(null) }
     var formatTick by remember { mutableIntStateOf(0) }
@@ -758,57 +759,49 @@ fun TaskDetailSheet(
             val density = androidx.compose.ui.platform.LocalDensity.current
             val imeInsets = WindowInsets.ime
             val navInsets = WindowInsets.navigationBars
-            val imePx = (imeInsets.getBottom(density) - navInsets.getBottom(density)).coerceAtLeast(0)
-            var keyboardPx by remember { mutableIntStateOf(0) }
-            // The height the keyboard is heading to (known at the start of its
-            // animation). Remember that — not the largest height ever seen —
-            // so a keyboard that comes back shorter (no emoji row, …) doesn't
-            // leave a strip of panel between the bar and the keys.
-            val imeTargetPx = (WindowInsets.imeAnimationTarget.getBottom(density) -
-                navInsets.getBottom(density)).coerceAtLeast(0)
-            if (imeTargetPx > 0 && imeTargetPx != keyboardPx) keyboardPx = imeTargetPx
-            else if (keyboardPx == 0 && imePx > 0) keyboardPx = imePx
-            val panelPx = if (keyboardPx > 0) keyboardPx else with(density) { 280.dp.roundToPx() }
-            // Panel last shown, kept on screen while the keyboard comes back over it.
-            var lastPanel by remember { mutableStateOf(NotePanel.NONE) }
-            var restoring by remember { mutableStateOf(false) }
-            if (notePanel != NotePanel.NONE) lastPanel = notePanel
-            // While going back to the keyboard the panel also folds away on its own,
-            // quickly — so a keyboard that animates slowly (or jumps in late) never
-            // leaves the panel hanging there.
-            var collapseCap by remember { androidx.compose.runtime.mutableFloatStateOf(Float.MAX_VALUE) }
-            LaunchedEffect(restoring) {
-                if (restoring) {
-                    kotlinx.coroutines.coroutineScope {
-                        launch {
-                            androidx.compose.animation.core.animate(panelPx.toFloat(), 0f,
-                                animationSpec = androidx.compose.animation.core.tween(200,
-                                    easing = androidx.compose.animation.core.FastOutSlowInEasing)) { v, _ -> collapseCap = v }
-                        }
-                        // keyboardPx is state: if the keyboard turns out shorter, the target follows.
-                        kotlinx.coroutines.withTimeoutOrNull(400) {
-                            snapshotFlow { imeInsets.getBottom(density) - navInsets.getBottom(density) >= keyboardPx - 2 }.first { it }
-                        }
-                    }
-                    restoring = false
-                }
-                collapseCap = Float.MAX_VALUE
+            val targetInsets = WindowInsets.imeAnimationTarget
+            fun heightAboveNavigation(insets: WindowInsets): Int =
+                (insets.getBottom(density) - navInsets.getBottom(density)).coerceAtLeast(0)
+
+            val configuration = LocalConfiguration.current
+            var panelPx by remember(task.id, configuration.screenWidthDp, configuration.screenHeightDp, density) {
+                mutableIntStateOf(with(density) { 280.dp.roundToPx() })
             }
-            // Tapping a block while a panel is open brings the keyboard back: then the
-            // panel gives way to it (otherwise both would show).
-            LaunchedEffect(notePanel) {
-                if (notePanel == NotePanel.NONE) return@LaunchedEffect
-                val keyboardNow = { imeInsets.getBottom(density) - navInsets.getBottom(density) }
-                kotlinx.coroutines.withTimeoutOrNull(1_000) { snapshotFlow { keyboardNow() }.first { it <= 0 } }
-                snapshotFlow { keyboardNow() }.first { it > 0 }
-                restoring = true
-                notePanel = NotePanel.NONE
+            var returningToIme by remember(task.id) { mutableStateOf(false) }
+
+            // Keep the picker mounted until the IME actually occupies its space.
+            // A field tap can also reopen the IME without a toolbar action.
+            LaunchedEffect(blockPanel, returningToIme, imeInsets, targetInsets) {
+                if (!blockPanel) return@LaunchedEffect
+                if (!returningToIme) {
+                    snapshotFlow { heightAboveNavigation(imeInsets) }.first { it == 0 }
+                    snapshotFlow { heightAboveNavigation(imeInsets) }.first { it > 0 }
+                    returningToIme = true
+                } else {
+                    // An attached hardware keyboard or floating IME may never claim a bottom inset.
+                    kotlinx.coroutines.withTimeoutOrNull(2_000) {
+                        snapshotFlow {
+                            heightAboveNavigation(targetInsets) > 0 && heightAboveNavigation(imeInsets) > 0
+                        }.first { it }
+                    }?.let {
+                        snapshotFlow {
+                            val target = heightAboveNavigation(targetInsets)
+                            val current = heightAboveNavigation(imeInsets)
+                            current == 0 || (target > 0 && current >= target)
+                        }.first { it }
+                    }
+                    notePanel = NotePanel.NONE
+                    returningToIme = false
+                }
             }
             if (activeBlockId != null || blockPanel) {
-                fun closePanel() { restoring = notePanel != NotePanel.NONE; notePanel = NotePanel.NONE; keyboard?.show() }
+                fun closePanel() {
+                    returningToIme = blockPanel
+                    keyboard?.show()
+                }
                 fun pickAttachment() {
                     attachmentDay = blocks.firstOrNull { it.id == activeBlockId }?.day ?: dayKey.orEmpty()
-                    requestAttachment = true; notePanel = NotePanel.NONE; restoring = false
+                    requestAttachment = true; notePanel = NotePanel.NONE; returningToIme = false
                 }
                 // Full-bleed (past the sheet's side padding) and flush with the keyboard.
                 Column(Modifier.layout { measurable, constraints ->
@@ -823,7 +816,15 @@ fun TaskDetailSheet(
                     canRedo = redoStack.isNotEmpty(),
                     onPanel = { p ->
                         if (notePanel == p) closePanel()
-                        else { notePanel = p; restoring = false; keyboard?.hide() }
+                        else {
+                            if (!blockPanel) {
+                                val measured = heightAboveNavigation(imeInsets)
+                                panelPx = measured.takeIf { it > 0 } ?: with(density) { 280.dp.roundToPx() }
+                            }
+                            returningToIme = false
+                            notePanel = p
+                            keyboard?.hide()
+                        }
                     },
                     onFormat = { mark ->
                         activeBlockId?.let { formatRequest = it to mark; formatTick++ }
@@ -837,18 +838,24 @@ fun TaskDetailSheet(
                     onRedo = { restoreDocument(redoStack, undoStack) },
                     onQuick = { kind -> applyBlockKind(kind); closePanel() },
                     onImage = ::pickAttachment,
-                    onDone = { notePanel = NotePanel.NONE; restoring = false; keyboard?.hide(); activeBlockId = null }
+                    onDone = { notePanel = NotePanel.NONE; returningToIme = false; keyboard?.hide(); activeBlockId = null }
                 )
-                val shown = if (notePanel != NotePanel.NONE) notePanel else if (restoring) lastPanel else NotePanel.NONE
-                if (shown != NotePanel.NONE) {
-                    val visiblePx = minOf((panelPx - imePx).coerceAtLeast(0).toFloat(), collapseCap).toInt()
-                    Box(Modifier.fillMaxWidth().height(with(density) { visiblePx.toDp() }).clipToBounds()) {
-                        Box(Modifier.fillMaxWidth().requiredHeight(with(density) { panelPx.toDp() })
-                            .align(Alignment.TopCenter).padding(horizontal = 12.dp)) {
-                            when (shown) {
+                if (blockPanel) {
+                    // The parent applies imePadding during measurement. Read the same frame's
+                    // insets here so the toolbar never counts a keyboard frame twice.
+                    Box(Modifier.fillMaxWidth().clipToBounds().layout { measurable, constraints ->
+                        val ime = heightAboveNavigation(imeInsets)
+                        val target = if (returningToIme) heightAboveNavigation(targetInsets) else 0
+                        val visible = remainingPanelHeight(panelPx, ime, target).coerceIn(0, constraints.maxHeight)
+                        val picker = measurable.measure(constraints.copy(minHeight = visible, maxHeight = visible))
+                        layout(picker.width, visible) { picker.place(0, 0) }
+                    }) {
+                        Box(Modifier.fillMaxWidth().wrapContentHeight(Alignment.Top, unbounded = true)
+                            .height(with(density) { panelPx.toDp() }).padding(horizontal = 12.dp)) {
+                            when (notePanel) {
                                 NotePanel.ADD -> BlockPickerPanel(turnInto = false,
                                     onPick = { kind ->
-                                        if (kind == NoteBlockKind.PAGE) { notePanel = NotePanel.NONE; createPage(activeBlockId) }
+                                        if (kind == NoteBlockKind.PAGE) { returningToIme = false; notePanel = NotePanel.NONE; createPage(activeBlockId) }
                                         else { applyBlockKind(kind); closePanel() }
                                     }, onAttach = ::pickAttachment)
                                 NotePanel.TURN -> BlockPickerPanel(turnInto = true,

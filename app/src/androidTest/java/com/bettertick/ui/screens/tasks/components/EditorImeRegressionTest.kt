@@ -6,6 +6,8 @@ import android.graphics.Rect
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -155,6 +157,26 @@ class EditorImeRegressionTest {
         }
         assertTrue("flag and more share the date row",
             abs((flag.top + flag.bottom) / 2 - (more.top + more.bottom) / 2) <= 2f * density)
+        // Keep the same document viewport while swapping keyboard → + → Aa → keyboard.
+        fun tool(label: String) = compose.onNode(SemanticsMatcher("toolbar action $label") {
+            it.config.getOrNull(SemanticsActions.OnClick)?.label == label
+        })
+        fun assertToolbarPosition() {
+            assertEquals("toolbar moved during input mode switch (page=$page)",
+                footer.top, requireNotNull(bar()).top, 2f * density)
+        }
+        tool("블록 추가").performClick()
+        compose.waitUntil(10_000) { imeBounds() == null }
+        compose.onNodeWithText("기본 블록").assertIsDisplayed()
+        assertToolbarPosition()
+        tool("블록 종류 바꾸기").performClick()
+        compose.onNodeWithText("제목1").assertIsDisplayed()
+        assertToolbarPosition()
+        tool("블록 종류 바꾸기").performClick()
+        compose.waitUntil(10_000) {
+            imeBounds() != null && compose.onAllNodesWithTag("block-picker-panel").fetchSemanticsNodes().isEmpty()
+        }
+        assertToolbarPosition()
         compose.onNodeWithTag("note-block-third").performTextInput(" edited")
         // No 저장 button any more: closing the sheet saves. Back first hides the
         // keyboard, the next one dismisses the editor.

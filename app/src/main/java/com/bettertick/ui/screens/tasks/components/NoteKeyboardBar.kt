@@ -38,6 +38,12 @@ import com.bettertick.ui.theme.TextPrimary
 import com.bettertick.ui.theme.TextSecondary
 import com.bettertick.ui.theme.TextTertiary
 
+/** Remaining panel pixels while the IME replaces it, including a differently sized returning IME. */
+internal fun remainingPanelHeight(panel: Int, ime: Int, returnTarget: Int): Int {
+    if (returnTarget <= 0 || returnTarget == panel) return (panel - ime).coerceAtLeast(0)
+    return ((returnTarget - ime).coerceAtLeast(0).toLong() * panel / returnTarget).toInt()
+}
+
 /** What the area under the keyboard bar shows instead of the keyboard. */
 internal enum class NotePanel { NONE, ADD, TURN, COLOR }
 
