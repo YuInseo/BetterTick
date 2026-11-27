@@ -47,7 +47,7 @@ class EditorImeRegressionTest {
                     task = Task(id = "fixture", title = "Editor fixture", notes = "first\nsecond\nthird",
                         dueDate = Timestamp(java.util.Date.from(LocalDate.of(2026, 11, 15).atTime(13, 0).atZone(ZoneId.systemDefault()).toInstant())),
                         memos = listOf(TaskMemo(id = "first", kind = "text", text = "first\n\n"),
-                            TaskMemo(id = "second", kind = "text", text = "second\n"),
+                            TaskMemo(id = "second", kind = com.bettertick.data.model.NoteBlockKind.TODO, text = "second\n"),
                             TaskMemo(id = "third", kind = "text", text = "third"))),
                     listName = "기본함", parentTitle = "야간",
                     occurrenceDate = LocalDate.of(2026, 11, 15),
@@ -69,6 +69,31 @@ class EditorImeRegressionTest {
 
     @Test fun drawerKeepsItsHeaderAndFooterWhenKeyboardOpens() = checkKeyboard(false)
     @Test fun pageKeepsItsHeaderAndFooterWhenKeyboardOpens() = checkKeyboard(true)
+
+    @Test fun checklistActionsAreHiddenUntilBlockManagementOpens() {
+        showEditor(false)
+        fun actions() = compose.onAllNodesWithContentDescription("블록 메뉴")
+        fun awaitActionCount(count: Int) {
+            compose.waitUntil(5_000) { actions().fetchSemanticsNodes().size == count }
+        }
+        actions().assertCountEquals(0)
+        val checkbox = compose.onNode(isToggleable() and hasContentDescription("second", substring = true))
+        checkbox.assertIsOff().performClick()
+        checkbox.assertIsOn()
+        val paragraph = compose.onNodeWithTag("note-block-first").fetchSemanticsNode().boundsInRoot
+        val marker = checkbox.fetchSemanticsNode().boundsInRoot
+        assertEquals("checkbox aligns with paragraph", paragraph.left, marker.left, 1f)
+
+        compose.onNodeWithContentDescription("더 보기").performClick()
+        compose.onNodeWithText("블록 관리").performClick()
+        awaitActionCount(3)
+        actions()[1].performClick()
+        compose.onNodeWithText("복제").performClick()
+        awaitActionCount(4)
+        compose.onNodeWithContentDescription("더 보기").performClick()
+        compose.onNodeWithText("블록 관리 종료").performClick()
+        awaitActionCount(0)
+    }
 
     private fun checkKeyboard(page: Boolean) {
         showEditor(page)
