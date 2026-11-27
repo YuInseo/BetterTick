@@ -71,7 +71,6 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.PhotoCamera
 import com.bettertick.ui.components.DropdownMenu
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.CalendarToday
 import androidx.compose.ui.text.style.TextOverflow
@@ -326,6 +325,7 @@ fun TaskDetailSheet(
     var isPinned by remember(task.id) { mutableStateOf(task.isPinned) }
     var isAbandoned by remember(task.id) { mutableStateOf(task.isAbandoned) }
     var checkWholeSeries by remember(task.id) { mutableStateOf(task.checkWholeSeries) }
+    var showBlockActions by remember(task.id) { mutableStateOf(false) }
     var moreMenuOpen by remember { mutableStateOf(false) }
     var showListPicker by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -520,6 +520,12 @@ fun TaskDetailSheet(
                         onDismissRequest = { moreMenuOpen = false },
                         modifier = Modifier.background(DarkSurface)
                     ) {
+                        if (blocks.isNotEmpty()) DetailMenuItem(
+                            if (showBlockActions) "블록 관리 종료" else "블록 관리", Icons.Outlined.MoreHoriz
+                        ) {
+                            showBlockActions = !showBlockActions
+                            moreMenuOpen = false
+                        }
                         DetailMenuItem(if (isPinned) "고정 해제" else "고정", Icons.Outlined.PushPin) {
                             isPinned = !isPinned; moreMenuOpen = false
                         }
@@ -716,8 +722,6 @@ fun TaskDetailSheet(
                 )
             }
             Spacer(Modifier.height(8.dp))
-            DetailDivider()
-
 
             // ── 근무 일정: 지휴 · 병가 · 연차 (one straight row) ────────────
             // ── Selected-tag chips ───────────────────────────────────────
@@ -734,6 +738,7 @@ fun TaskDetailSheet(
             }
 
             TaskNoteEditor(blocks = blocks, day = dayKey, focusId = focusBlockId,
+                showBlockActions = showBlockActions,
                 onAdd = ::addBlock,
                 onFocusBlock = { focusBlockId = it },
                 onAttach = { day -> attachmentDay = day; requestAttachment = true },
@@ -1583,11 +1588,6 @@ private fun DetailMenuItem(
         leadingIcon = { Icon(icon, contentDescription = null, tint = if (tint == TextPrimary) TextSecondary else tint) },
         onClick = onClick
     )
-}
-
-@Composable
-private fun DetailDivider() {
-    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 }
 
 /** A small visible thumb makes the bounded sheet body discoverably scrollable. */

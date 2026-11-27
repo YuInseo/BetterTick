@@ -109,6 +109,7 @@ fun TaskInputSheet(
     var text by remember { mutableStateOf("") }
     // 설명 = 노트 블록 (same editor as the task page: /, - , [] , # …).
     val noteBlocks = remember { androidx.compose.runtime.mutableStateListOf<com.bettertick.data.model.TaskMemo>() }
+    var showBlockActions by remember { mutableStateOf(false) }
     var noteFocus by remember { mutableStateOf<String?>(null) }
 
     // Manual picks; a manual pick always wins over smart recognition.
@@ -212,6 +213,7 @@ fun TaskInputSheet(
             blocks = noteBlocks,
             day = null,
             focusId = noteFocus,
+            showBlockActions = showBlockActions,
             onAdd = { kind, _ ->
                 if (noteBlocks.size < 1000) {
                     val block = com.bettertick.data.model.TaskMemo(kind = kind,
@@ -368,6 +370,14 @@ fun TaskInputSheet(
                         onClick = {
                             val block = com.bettertick.data.model.TaskMemo(kind = com.bettertick.data.model.NoteBlockKind.TODO)
                             noteBlocks.add(block); noteFocus = block.id; moreMenu = false
+                        }
+                    )
+                    if (noteBlocks.isNotEmpty()) DropdownMenuItem(
+                        text = { Text(if (showBlockActions) "블록 관리 종료" else "블록 관리", color = TextPrimary) },
+                        leadingIcon = { Icon(Icons.Outlined.MoreHoriz, null, tint = TextSecondary) },
+                        onClick = {
+                            showBlockActions = !showBlockActions
+                            moreMenu = false
                         }
                     )
                     DropdownMenuItem(

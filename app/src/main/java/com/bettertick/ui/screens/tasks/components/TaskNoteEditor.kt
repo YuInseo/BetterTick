@@ -3,6 +3,11 @@ package com.bettertick.ui.screens.tasks.components
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import androidx.compose.foundation.border
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -57,6 +62,7 @@ internal fun TaskNoteEditor(
     blocks: SnapshotStateList<TaskMemo>,
     day: String?,
     focusId: String?,
+    showBlockActions: Boolean,
     onAdd: (kind: String, day: String) -> Unit,
     onAttach: (String) -> Unit,
     onFocusBlock: (String) -> Unit,
@@ -99,9 +105,9 @@ internal fun TaskNoteEditor(
             key(block.id) {
                 if ((day != null || block.day.isNotBlank()) && (index == 0 || visible[index - 1].day != block.day)) {
                     Text(if (block.day.isBlank()) "공통" else dateLabel(block.day), fontSize = 10.sp,
-                        color = TextTertiary, modifier = Modifier.padding(start = 32.dp, top = 6.dp, bottom = 2.dp))
+                        color = TextTertiary, modifier = Modifier.padding(top = 6.dp, bottom = 2.dp))
                 }
-                NoteBlockRow(block, focusId == block.id,
+                NoteBlockRow(block, focusId == block.id, showBlockActions,
                     number = if (block.kind == NoteBlockKind.NUMBERED) noteListNumber(visible, index) else 0,
                     headings = if (block.kind == NoteBlockKind.TOC) headings else emptyList(),
                     onJump = onFocusBlock,
@@ -173,7 +179,7 @@ internal fun TaskNoteEditor(
             removed = null
         }) { Text("블록 삭제 취소", fontSize = 12.sp) }
         if (hidden > 0) Text("다른 날짜의 블록 ${hidden}개는 보관 중", fontSize = 10.sp, color = TextTertiary,
-            modifier = Modifier.padding(start = 32.dp, top = 8.dp))
+            modifier = Modifier.padding(top = 8.dp))
         Spacer(Modifier.height(8.dp))
     }
 }
@@ -183,12 +189,12 @@ private fun blockTextStyle(kind: String): Triple<Int, Int, FontWeight> = when (N
     1 -> Triple(23, 31, FontWeight.Bold)
     2 -> Triple(19, 27, FontWeight.SemiBold)
     3 -> Triple(17, 24, FontWeight.SemiBold)
-    else -> if (kind == NoteBlockKind.CODE) Triple(13, 20, FontWeight.Normal) else Triple(15, 22, FontWeight.Normal)
+    else -> if (kind == NoteBlockKind.CODE) Triple(13, 20, FontWeight.Normal) else Triple(16, 23, FontWeight.Normal)
 }
 
 @Composable
 private fun NoteBlockRow(
-    block: TaskMemo, focus: Boolean,
+    block: TaskMemo, focus: Boolean, showBlockActions: Boolean,
     number: Int, headings: List<TaskMemo>, onJump: (String) -> Unit,
     formatRequest: InlineMark?, formatTick: Int,
     onCreatePage: (() -> Unit)?, onOpenPage: (String) -> Unit,
@@ -200,8 +206,6 @@ private fun NoteBlockRow(
     onInsertAfter: (kind: String, text: String, indent: Int) -> Unit
 ) {
     val context = LocalContext.current
-    var menu by remember { mutableStateOf(false) }
-    var turnMenu by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val media = block.attachment.isNotBlank()
     val static = media || NoteBlockKind.isStatic(block.kind)
@@ -254,40 +258,26 @@ private fun NoteBlockRow(
         top = if (heading) 6.dp else 0.dp, bottom = if (heading) 2.dp else 0.dp)
         .then(if (background != null) Modifier.clip(RoundedCornerShape(6.dp)).background(background) else Modifier),
         verticalAlignment = Alignment.Top) {
-        Box {
-            Box(Modifier.size(width = 32.dp, height = 26.dp).clickable { menu = true }, contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.DragIndicator, "블록 메뉴", tint = TextTertiary, modifier = Modifier.size(17.dp))
-            }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false; turnMenu = false }) {
-                if (turnMenu) {
-                    NoteSlashCatalog.filter { !NoteBlockKind.isStatic(it.kind) || it.kind == NoteBlockKind.DIVIDER }.forEach { item ->
-                        DropdownMenuItem(text = { Text(item.label) }, onClick = {
-                            onChange(block.copy(kind = item.kind, checked = if (NoteBlockKind.isToggle(item.kind)) true else false))
-                            menu = false; turnMenu = false
-                        })
-                    }
-                } else {
-                    DropdownMenuItem(text = { Text("아래에 글 추가") }, enabled = canInsert,
-                        onClick = { onInsertAfter(NoteBlockKind.TEXT, "", block.indent); menu = false })
-                    if (!media) DropdownMenuItem(text = { Text("블록 종류 바꾸기 ›") }, onClick = { turnMenu = true })
-                    DropdownMenuItem(text = { Text("들여쓰기") }, onClick = { onIndent(1); menu = false })
-                    DropdownMenuItem(text = { Text("내어쓰기") }, enabled = block.indent > 0, onClick = { onIndent(-1); menu = false })
-                    DropdownMenuItem(text = { Text("위로 이동") }, enabled = canMoveUp, onClick = { onMove(-1); menu = false })
-                    DropdownMenuItem(text = { Text("아래로 이동") }, enabled = canMoveDown, onClick = { onMove(1); menu = false })
-                    if (selectedDay != null || block.day.isNotBlank()) DropdownMenuItem(
-                        text = { Text(if (block.day.isBlank()) "${dateLabel(selectedDay.orEmpty())}에만 표시" else "공통으로 표시") },
-                        onClick = { onChange(block.copy(day = if (block.day.isBlank()) selectedDay.orEmpty() else "")); menu = false })
-                    DropdownMenuItem(text = { Text("복제") }, onClick = { onDuplicate(); menu = false })
-                    DropdownMenuItem(text = { Text("삭제", color = OverdueRed) }, onClick = { onRemove(); menu = false })
-                }
-            }
-        }
         // ── Leading marker: checkbox, bullet, number, toggle arrow, callout icon ──
         val markerHeight = (lineHeight + 4).dp
         when {
             block.kind == NoteBlockKind.TODO ->
-                Box(Modifier.size(width = 30.dp, height = 26.dp).clickable { onChange(block.copy(checked = !block.checked)) }, contentAlignment = Alignment.Center) {
-                    TickCheckbox(0, block.checked, size = 18.dp)
+                Box(
+                    Modifier.size(width = 27.dp, height = 28.dp)
+                        .toggleable(value = block.checked, role = Role.Checkbox) { onChange(block.copy(checked = it)) }
+                        .semantics { contentDescription = block.text.ifBlank { "할 일" } },
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    val shape = RoundedCornerShape(2.dp)
+                    Box(
+                        Modifier.size(17.dp).then(
+                            if (block.checked) Modifier.background(TextSecondary, shape)
+                            else Modifier.border(1.5.dp, TextSecondary, shape)
+                        ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (block.checked) Icon(Icons.Outlined.Check, null, tint = DarkSurface, modifier = Modifier.size(14.dp))
+                    }
                 }
             block.kind == NoteBlockKind.BULLET -> Box(Modifier.size(width = 24.dp, height = 26.dp), contentAlignment = Alignment.Center) {
                 Text(when (block.indent % 3) { 0 -> "•"; 1 -> "◦"; else -> "▪" }, color = textColor, fontSize = 17.sp)
@@ -406,7 +396,7 @@ private fun NoteBlockRow(
                         .onFocusChanged { if (focused != it.isFocused) { focused = it.isFocused; onFocused(it.isFocused) } }.onPreviewKeyEvent { event ->
                         if (event.key == Key.Enter) softBreak = event.type == KeyEventType.KeyDown && event.isShiftPressed
                         false
-                    }.fillMaxWidth().heightIn(min = if (heading) 34.dp else 26.dp, max = if (isCode) 480.dp else 240.dp)
+                    }.fillMaxWidth().heightIn(min = if (heading) 34.dp else 28.dp, max = if (isCode) 480.dp else 240.dp)
                         .padding(vertical = 2.dp),
                     decorationBox = { inner ->
                         Box {
@@ -464,6 +454,36 @@ private fun NoteBlockRow(
                         }
                     }
                     }
+                }
+            }
+        }
+        if (showBlockActions) Box {
+            var menu by remember { mutableStateOf(false) }
+            var turnMenu by remember { mutableStateOf(false) }
+            IconButton(onClick = { menu = true }, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Outlined.MoreHoriz, "블록 메뉴", tint = TextSecondary, modifier = Modifier.size(18.dp))
+            }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false; turnMenu = false }) {
+                if (turnMenu) {
+                    NoteSlashCatalog.filter { !NoteBlockKind.isStatic(it.kind) || it.kind == NoteBlockKind.DIVIDER }.forEach { item ->
+                        DropdownMenuItem(text = { Text(item.label) }, onClick = {
+                            onChange(block.copy(kind = item.kind, checked = if (NoteBlockKind.isToggle(item.kind)) true else false))
+                            menu = false; turnMenu = false
+                        })
+                    }
+                } else {
+                    DropdownMenuItem(text = { Text("아래에 글 추가") }, enabled = canInsert,
+                        onClick = { onInsertAfter(NoteBlockKind.TEXT, "", block.indent); menu = false })
+                    if (!media) DropdownMenuItem(text = { Text("블록 종류 바꾸기 ›") }, onClick = { turnMenu = true })
+                    DropdownMenuItem(text = { Text("들여쓰기") }, onClick = { onIndent(1); menu = false })
+                    DropdownMenuItem(text = { Text("내어쓰기") }, enabled = block.indent > 0, onClick = { onIndent(-1); menu = false })
+                    DropdownMenuItem(text = { Text("위로 이동") }, enabled = canMoveUp, onClick = { onMove(-1); menu = false })
+                    DropdownMenuItem(text = { Text("아래로 이동") }, enabled = canMoveDown, onClick = { onMove(1); menu = false })
+                    if (selectedDay != null || block.day.isNotBlank()) DropdownMenuItem(
+                        text = { Text(if (block.day.isBlank()) "${dateLabel(selectedDay.orEmpty())}에만 표시" else "공통으로 표시") },
+                        onClick = { onChange(block.copy(day = if (block.day.isBlank()) selectedDay.orEmpty() else "")); menu = false })
+                    DropdownMenuItem(text = { Text("복제") }, onClick = { onDuplicate(); menu = false })
+                    DropdownMenuItem(text = { Text("삭제", color = OverdueRed) }, onClick = { onRemove(); menu = false })
                 }
             }
         }
